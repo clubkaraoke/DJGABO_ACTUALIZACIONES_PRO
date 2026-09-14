@@ -59,6 +59,9 @@ export async function registerKaraokesRoutes(fastify: FastifyInstance) {
       limit: 200,
     });
 
-    return reply.send(results.map(toKaraokeDTO));
+    // No pasar toKaraokeDTO como callback directo de Array.map: el segundo
+    // argumento de map es un índice numérico y ahora el DTO acepta metadata
+    // opcional del master como segundo parámetro.
+    return reply.send(results.map((karaoke) => toKaraokeDTO(karaoke)));
   });
 }
