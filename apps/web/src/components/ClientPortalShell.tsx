@@ -20,7 +20,7 @@ function Icon({ name, className = "h-5 w-5" }: { name: "home" | "sparkles" | "ca
     logout: <><path d="M10 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5" /><path d="m14 8 4 4-4 4M18 12H8" /></>,
     shield: <><path d="M12 3 5 6v5c0 4.6 2.8 8 7 10 4.2-2 7-5.4 7-10V6l-7-3Z" /><path d="m9.5 12 1.8 1.8 3.7-4" /></>,
   };
-  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{paths[name]}</svg>;
+  return <svg width="20" height="20" className={`shrink-0 ${className}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{paths[name]}</svg>;
 }
 
 const navItems: { key: NavKey; label: string; icon: "home" | "sparkles" | "calendar" | "history"; href: string }[] = [
@@ -67,7 +67,7 @@ export function ClientPortalShell({
             const activeItem = active === item.key;
             return (
               <a key={item.key} href={item.href} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${activeItem ? "bg-accent-soft text-accent" : "text-ink-secondary hover:bg-graphite hover:text-ink"}`}>
-                <Icon name={item.icon} className="h-4.5 w-4.5" />
+                <Icon name={item.icon} className="h-5 w-5" />
                 {item.label}
               </a>
             );
