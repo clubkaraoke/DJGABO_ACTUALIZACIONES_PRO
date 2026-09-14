@@ -6,7 +6,11 @@ interface DownloadLogRow {
   id: string;
   userName: string;
   karaokeId: string | null;
+  karaokeTitle: string | null;
+  karaokeArtist: string | null;
+  karaokeCode: string | null;
   collectionId: string | null;
+  collectionTitle: string | null;
   type: string;
   createdAt: string;
 }
@@ -31,10 +35,13 @@ export default function AdminDownloadsPage() {
         <>
           <p className="text-sm text-ink-secondary">{data.total} registros en total</p>
           <div className="overflow-x-auto rounded-lg border border-graphite-border">
-            <table className="w-full min-w-[560px]">
+            <table className="w-full min-w-[980px]">
               <thead>
                 <tr className="border-b border-graphite-border bg-graphite text-left text-xs uppercase tracking-wide text-ink-tertiary">
                   <th className="px-4 py-3 font-medium">Usuario</th>
+                  <th className="px-4 py-3 font-medium">Karaoke</th>
+                  <th className="px-4 py-3 font-medium">Código</th>
+                  <th className="px-4 py-3 font-medium">Colección</th>
                   <th className="px-4 py-3 font-medium">Tipo</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                 </tr>
@@ -43,6 +50,12 @@ export default function AdminDownloadsPage() {
                 {data.items.map((l) => (
                   <tr key={l.id} className="border-b border-graphite-border last:border-0">
                     <td className="px-4 py-3 text-sm text-ink">{l.userName}</td>
+                    <td className="px-4 py-3 text-sm text-ink">
+                      <div className="font-medium">{l.karaokeTitle ?? "—"}</div>
+                      {l.karaokeArtist && <div className="mt-0.5 text-xs text-ink-tertiary">{l.karaokeArtist}</div>}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-ink-secondary">{l.karaokeCode ?? "—"}</td>
+                    <td className="px-4 py-3 text-sm text-ink-secondary">{l.collectionTitle ?? "—"}</td>
                     <td className="px-4 py-3 text-sm text-ink-secondary">{l.type}</td>
                     <td className="px-4 py-3 text-sm text-ink-secondary">{new Date(l.createdAt).toLocaleString("es-PE")}</td>
                   </tr>
