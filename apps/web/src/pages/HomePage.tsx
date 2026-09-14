@@ -7,6 +7,8 @@ import { ClientPortalShell } from "../components/ClientPortalShell";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
 import { EmptyState, Skeleton } from "../components/primitives";
 
+const RICH_CATALOG_START_YEAR = 2024;
+
 function formatDate(iso: string | null): string {
   if (!iso) return "Sin fecha";
   return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
@@ -22,6 +24,11 @@ function sortCollections(a: CollectionSummaryDTO, b: CollectionSummaryDTO): numb
   return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
 }
 
+function matchesSearch(collection: CollectionSummaryDTO, q: string): boolean {
+  if (!q) return true;
+  return [collection.title, collection.description ?? "", String(collection.year)].some((value) => value.toLowerCase().includes(q));
+}
+
 export default function HomePage() {
   const [search, setSearch] = useState("");
   const [downloadCollection, setDownloadCollection] = useState<CollectionSummaryDTO | null>(null);
@@ -32,7 +39,9 @@ export default function HomePage() {
   });
 
   const sorted = useMemo(() => [...(collectionsData ?? [])].sort(sortCollections), [collectionsData]);
-  const available = useMemo(() => sorted.filter((collection) => !collection.locked), [sorted]);
+  const richCollections = useMemo(() => sorted.filter((collection) => collection.year >= RICH_CATALOG_START_YEAR), [sorted]);
+  const historicalCollections = useMemo(() => sorted.filter((collection) => collection.year < RICH_CATALOG_START_YEAR), [sorted]);
+  const available = useMemo(() => richCollections.filter((collection) => !collection.locked), [richCollections]);
   const latest = available[0] ?? null;
   const previous = available[1] ?? null;
 
@@ -42,13 +51,9 @@ export default function HomePage() {
     enabled: Boolean(latest?.id),
   });
 
-  const filteredCollections = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return sorted;
-    return sorted.filter((collection) =>
-      [collection.title, collection.description ?? "", String(collection.year)].some((value) => value.toLowerCase().includes(q)),
-    );
-  }, [search, sorted]);
+  const q = search.trim().toLowerCase();
+  const filteredRich = useMemo(() => richCollections.filter((collection) => matchesSearch(collection, q)), [q, richCollections]);
+  const filteredHistorical = useMemo(() => historicalCollections.filter((collection) => matchesSearch(collection, q)), [q, historicalCollections]);
 
   const newestKaraokes = useMemo(() => {
     if (!latestDetail) return [];
@@ -81,7 +86,7 @@ export default function HomePage() {
           <>
             <section className="relative overflow-hidden rounded-2xl border border-graphite-border bg-graphite shadow-card">
               <div className="absolute inset-0">
-                {latest.coverUrl && <img src={latest.coverUrl} alt="" className="h-full w-full object-cover opacity-35" />}
+                {latest.coverUrl && <img src={latest.coverUrl} alt="" decoding="async" className="h-full w-full object-cover opacity-35" />}
                 <div className="absolute inset-0 bg-gradient-to-r from-[#0a0b0c] via-[#0a0b0c]/95 to-[#0a0b0c]/25" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a0b0c]/80 via-transparent to-transparent" />
               </div>
@@ -108,7 +113,7 @@ export default function HomePage() {
               <div className="rounded-xl border border-graphite-border bg-graphite p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-tertiary">Actualizaciones disponibles</p>
                 <p className="mt-2 font-display text-3xl font-extrabold text-ink">{available.length}</p>
-                <p className="mt-1 text-xs text-ink-secondary">colecciones activas en tu cuenta</p>
+                <p className="mt-1 text-xs text-ink-secondary">colecciones activas desde 2024</p>
               </div>
               <div className="rounded-xl border border-graphite-border bg-graphite p-5">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-ink-tertiary">Karaokes incluidos</p>
@@ -135,7 +140,7 @@ export default function HomePage() {
                   {newestKaraokes.map((karaoke) => (
                     <Link key={karaoke.id} to={`/colecciones/${latest.id}`} className="group flex items-center gap-4 rounded-xl border border-graphite-border bg-graphite p-3 transition hover:border-accent/35 hover:bg-graphite-elevated">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-graphite-elevated">
-                        {karaoke.coverUrl ? <img src={karaoke.coverUrl} alt="" className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="flex h-full items-center justify-center font-display text-xs font-bold text-ink-tertiary">DJGABO</div>}
+                        {karaoke.coverUrl ? <img src={karaoke.coverUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition group-hover:scale-105" /> : <div className="flex h-full items-center justify-center font-display text-xs font-bold text-ink-tertiary">DJGABO</div>}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-bold text-ink">{karaoke.title}</p>
@@ -160,7 +165,7 @@ export default function HomePage() {
                 {[latest, previous].filter(Boolean).map((collection, index) => collection && (
                   <article key={collection.id} className="relative overflow-hidden rounded-xl border border-graphite-border bg-graphite p-5 sm:p-6">
                     <div className="absolute right-0 top-0 h-full w-2/5 opacity-25">
-                      {collection.coverUrl && <img src={collection.coverUrl} alt="" className="h-full w-full object-cover" />}
+                      {collection.coverUrl && <img src={collection.coverUrl} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
                       <div className="absolute inset-0 bg-gradient-to-r from-graphite to-transparent" />
                     </div>
                     <div className="relative max-w-xl">
@@ -176,24 +181,24 @@ export default function HomePage() {
           </>
         )}
 
-        {sorted.length > 0 && (
-          <section id="historial" className="scroll-mt-28 pb-8">
+        {richCollections.length > 0 && (
+          <section id="historial" className="scroll-mt-28">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 className="font-display text-xl font-bold text-ink">Historial de actualizaciones</h2>
-                <p className="mt-1 text-sm text-ink-secondary">Todos los meses disponibles y bloqueados de tu catálogo.</p>
+                <h2 className="font-display text-xl font-bold text-ink">Actualizaciones 2024–2026</h2>
+                <p className="mt-1 text-sm text-ink-secondary">Experiencia completa: portada, detalle, preview y descarga según tu membresía.</p>
               </div>
-              {search && <span className="text-xs text-ink-tertiary">{filteredCollections.length} resultados para “{search}”</span>}
+              {search && <span className="text-xs text-ink-tertiary">{filteredRich.length} resultados recientes para “{search}”</span>}
             </div>
-            {filteredCollections.length === 0 ? (
-              <EmptyState title="Sin resultados" description={`No encontramos una actualización que coincida con "${search}".`} />
+            {filteredRich.length === 0 ? (
+              <EmptyState title="Sin resultados recientes" description={`No encontramos una actualización 2024–2026 que coincida con "${search}".`} />
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {filteredCollections.map((collection) => (
+                {filteredRich.map((collection) => (
                   <article key={collection.id} className={`group overflow-hidden rounded-xl border bg-graphite transition ${collection.locked ? "border-graphite-border opacity-65" : "border-graphite-border hover:border-accent/35"}`}>
                     <Link to={collection.locked ? "#" : `/colecciones/${collection.id}`} className="block">
                       <div className="relative aspect-[16/9] overflow-hidden bg-graphite-elevated">
-                        {collection.coverUrl && <img src={collection.coverUrl} alt="" className={`h-full w-full object-cover transition duration-300 group-hover:scale-105 ${collection.locked ? "grayscale" : ""}`} />}
+                        {collection.coverUrl && <img src={collection.coverUrl} alt="" loading="lazy" decoding="async" className={`h-full w-full object-cover transition duration-300 group-hover:scale-105 ${collection.locked ? "grayscale" : ""}`} />}
                         <div className="absolute inset-0 bg-gradient-to-t from-carbon via-carbon/15 to-transparent" />
                         <div className="absolute inset-x-4 bottom-3">
                           <div className="mb-1 flex items-center gap-2">
@@ -211,6 +216,35 @@ export default function HomePage() {
                       </div>
                     )}
                   </article>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {historicalCollections.length > 0 && (
+          <section className="pb-8">
+            <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="font-display text-xl font-bold text-ink">Catálogo histórico</h2>
+                <p className="mt-1 text-sm text-ink-secondary">Años anteriores a 2024 en vista compacta de consulta, sin tarjetas pesadas.</p>
+              </div>
+              {search && <span className="text-xs text-ink-tertiary">{filteredHistorical.length} resultados históricos para “{search}”</span>}
+            </div>
+
+            {filteredHistorical.length === 0 ? (
+              <div className="rounded-xl border border-graphite-border bg-graphite px-5 py-4 text-sm text-ink-secondary">Sin coincidencias en el catálogo histórico.</div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-graphite-border bg-graphite">
+                {filteredHistorical.map((collection, index) => (
+                  <div key={collection.id} className={`flex flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 sm:px-5 ${index > 0 ? "border-t border-graphite-border" : ""}`}>
+                    <span className="w-14 shrink-0 font-display text-sm font-extrabold text-accent">{collection.year}</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-ink">{collection.title}</p>
+                      <p className="mt-0.5 text-xs text-ink-tertiary">Visualización histórica · {collection.karaokeCount} karaokes registrados</p>
+                    </div>
+                    <span className="rounded-full border border-graphite-border bg-carbon px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ink-tertiary">Listado</span>
+                  </div>
                 ))}
               </div>
             )}
