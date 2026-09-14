@@ -1,0 +1,52 @@
+name: Unpack V6 baseline
+
+on:
+  push:
+    paths:
+      - 'V6_SOURCE.zip.b64'
+      - '.github/workflows/unpack-v6.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stop if archive already consumed
+        shell: bash
+        run: |
+          if [ ! -f V6_SOURCE.zip.b64 ]; then
+            echo "Archive already consumed; nothing to do."
+            exit 0
+          fi
+
+      - name: Restore exact V6 source from archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 -d V6_SOURCE.zip.b64 > /tmp/djgabo-v6.zip
+          rm -rf /tmp/djgabo-v6
+          mkdir -p /tmp/djgabo-v6
+          unzip -q /tmp/djgabo-v6.zip -d /tmp/djgabo-v6
+          test -d /tmp/djgabo-v6/DJGABO_ACTUALIZACIONES_PRO
+          cp -a /tmp/djgabo-v6/DJGABO_ACTUALIZACIONES_PRO/. ./
+          rm -f V6_SOURCE.zip.b64
+
+      - name: Commit exact V6 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "chore: import exact V6 source baseline"
+          git push
