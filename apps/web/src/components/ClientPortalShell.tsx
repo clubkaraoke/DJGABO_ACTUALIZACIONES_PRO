@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../lib/authContext";
 import { Badge } from "./primitives";
 
@@ -45,7 +45,19 @@ export function ClientPortalShell({
 }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   if (!user) return null;
+
+  const hashActive: NavKey | null = location.pathname === "/"
+    ? location.hash === "#nuevos"
+      ? "nuevos"
+      : location.hash === "#actualizaciones"
+        ? "actualizaciones"
+        : location.hash === "#historial"
+          ? "historial"
+          : null
+    : null;
+  const resolvedActive = hashActive ?? active;
 
   const statusTone = user.status === "ACTIVE" ? "accent" : user.status === "SUSPENDED" ? "danger" : "warning";
   const statusLabel = user.status === "ACTIVE" ? "Activo" : user.status === "SUSPENDED" ? "Suspendido" : "Vencido";
@@ -64,7 +76,7 @@ export function ClientPortalShell({
 
         <nav className="space-y-1 px-3 py-5">
           {navItems.map((item) => {
-            const activeItem = active === item.key;
+            const activeItem = resolvedActive === item.key;
             return (
               <a key={item.key} href={item.href} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${activeItem ? "bg-accent-soft text-accent" : "text-ink-secondary hover:bg-graphite hover:text-ink"}`}>
                 <Icon name={item.icon} className="h-5 w-5" />
@@ -126,7 +138,7 @@ export function ClientPortalShell({
             </div>
           </div>
           <div className="flex gap-2 overflow-x-auto border-t border-graphite-border px-4 py-2 lg:hidden">
-            {navItems.map((item) => <a key={item.key} href={item.href} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium ${active === item.key ? "bg-accent text-carbon" : "bg-graphite text-ink-secondary"}`}>{item.label}</a>)}
+            {navItems.map((item) => <a key={item.key} href={item.href} className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium ${resolvedActive === item.key ? "bg-accent text-carbon" : "bg-graphite text-ink-secondary"}`}>{item.label}</a>)}
           </div>
         </header>
         <main className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">{children}</main>
