@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { and, or, like, eq, count } from "drizzle-orm";
 import { karaokes, collections, assets } from "../../db/schema.js";
+import { deriveSourceGroup } from "../../services/sourceGroup.js";
 
 const querySchema = z.object({
   q: z.string().optional(),
@@ -55,10 +56,28 @@ export async function registerAdminKaraokesRoutes(fastify: FastifyInstance) {
         title: k.title,
         artist: k.artist,
         code: k.code,
+        genre: k.genre,
+        year: k.year,
+        format: k.format ?? (masterAsset?.fileName.includes(".") ? masterAsset.fileName.split(".").pop()?.toUpperCase() ?? null : null),
+        size: k.size ?? masterAsset?.size ?? null,
+        coverUrl: k.coverUrl,
         collectionTitle: collection?.title ?? "—",
         collectionId: k.collectionId,
+        collectionSlug: collection?.slug ?? null,
+        collectionStoragePath: collection?.storagePath ?? null,
         storageStatus: masterAsset ? "DISPONIBLE" : "FALTANTE",
         previewStatus: previewAsset ? "DISPONIBLE" : "FALTANTE",
+        masterAsset: masterAsset
+          ? {
+              provider: masterAsset.provider,
+              storageKey: masterAsset.storageKey,
+              fileName: masterAsset.fileName,
+              mimeType: masterAsset.mimeType,
+              size: masterAsset.size,
+              providerFileIdPresent: Boolean(masterAsset.providerFileId),
+              sourceGroup: collection ? deriveSourceGroup(masterAsset.storageKey, collection.storagePath) : null,
+            }
+          : null,
       });
     }
 
