@@ -1,0 +1,48 @@
+name: Import exact V6 baseline
+
+on:
+  push:
+    paths:
+      - '.github/workflows/import-v6-temp.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    env:
+      V6_URL: "https://uceab18b2ca63e7ddca76445a485.dl.dropboxusercontent.com/cd/0/get/DIFyGXq5RzslYSOriILvXEHPPH5dgWNDYF76BmdM8w-joFIFFlAOxYZOgPTgNceaTT5DVbKC-YR-io0XtT1ZJH_wtYgufrTGmPp9lYC0uEMYcIlqVvylIRZcma9naiJmGNq1EgfVh_sNsRnB-jcTtm2mVOCPCtAYFaDpLn4ej6JBsw/file?c_luid=c621f87f"
+      V6_SHA256: "ba1d54410732d3cbcbe21a41ed0894d286021aebd831e8463168a83fae2589e4"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download and verify exact V6 archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "::add-mask::$V6_URL"
+          curl --fail --location --silent --show-error "$V6_URL" -o /tmp/djgabo-v6.zip
+          echo "$V6_SHA256  /tmp/djgabo-v6.zip" | sha256sum -c -
+
+      - name: Replace repository contents with V6 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/djgabo-v6
+          mkdir -p /tmp/djgabo-v6
+          unzip -q /tmp/djgabo-v6.zip -d /tmp/djgabo-v6
+          test -d /tmp/djgabo-v6/DJGABO_ACTUALIZACIONES_PRO
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a /tmp/djgabo-v6/DJGABO_ACTUALIZACIONES_PRO/. ./
+
+      - name: Commit exact V6 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: import exact V6 source baseline"
+          git push
