@@ -15,8 +15,13 @@ export function parseMonthFolder(folderName: string): number | null {
   return idx === -1 ? null : idx + 1;
 }
 
+/**
+ * Reconoce tanto una raíz normalizada ("2026") como la estructura real del
+ * catálogo DJGABO (por ejemplo "15.- Hits Karaoke 2026"). El primer año
+ * 20xx encontrado es la identidad temporal de esa carpeta.
+ */
 export function parseYearFolder(folderName: string): number | null {
-  const match = folderName.trim().match(/^(20\d{2})$/);
+  const match = folderName.trim().match(/(?:^|\D)(20\d{2})(?:\D|$)/);
   return match ? Number(match[1]) : null;
 }
 
