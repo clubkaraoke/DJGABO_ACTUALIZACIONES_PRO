@@ -33,12 +33,24 @@ export async function registerAdminDownloadsRoutes(fastify: FastifyInstance) {
     const items = [];
     for (const l of logs) {
       const user = await db.query.users.findFirst({ where: eq(users.id, l.userId) });
+      const karaoke = l.karaokeId
+        ? await db.query.karaokes.findFirst({ where: eq(karaokes.id, l.karaokeId) })
+        : null;
+      const effectiveCollectionId = l.collectionId ?? karaoke?.collectionId ?? null;
+      const collection = effectiveCollectionId
+        ? await db.query.collections.findFirst({ where: eq(collections.id, effectiveCollectionId) })
+        : null;
+
       items.push({
         id: l.id,
         userId: l.userId,
         userName: user?.name ?? "—",
         karaokeId: l.karaokeId,
-        collectionId: l.collectionId,
+        karaokeTitle: karaoke?.title ?? null,
+        karaokeArtist: karaoke?.artist ?? null,
+        karaokeCode: karaoke?.code ?? null,
+        collectionId: effectiveCollectionId,
+        collectionTitle: collection?.title ?? null,
         type: l.type,
         createdAt: l.createdAt.toISOString(),
       });
