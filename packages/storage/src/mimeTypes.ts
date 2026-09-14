@@ -12,6 +12,7 @@ const EXTENSION_TO_MIME_TYPE: Record<string, string> = {
   wav: "audio/wav",
   mov: "video/quicktime",
   mkv: "video/x-matroska",
+  zip: "application/zip",
 };
 
 const DEFAULT_MIME_TYPE = "application/octet-stream";
