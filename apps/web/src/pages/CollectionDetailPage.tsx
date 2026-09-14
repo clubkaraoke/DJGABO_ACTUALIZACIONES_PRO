@@ -3,8 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { CollectionDetailDTO } from "@djgabo/shared";
 import { api, ApiError } from "../lib/apiClient";
-import { ClientHeader } from "../components/ClientHeader";
-import { SearchBar } from "../components/SearchBar";
+import { ClientPortalShell } from "../components/ClientPortalShell";
 import { KaraokeCard } from "../components/KaraokeCard";
 import { KaraokeRow } from "../components/KaraokeRow";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
@@ -12,6 +11,10 @@ import { Button, EmptyState, Skeleton } from "../components/primitives";
 
 type ViewMode = "grid" | "list";
 type SortMode = "title" | "artist";
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
+}
 
 export default function CollectionDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -32,108 +35,97 @@ export default function CollectionDetailPage() {
     const q = query.trim().toLowerCase();
     let list = data.karaokes;
     if (q) {
-      list = list.filter(
-        (k) => k.title.toLowerCase().includes(q) || k.artist.toLowerCase().includes(q) || k.code.toLowerCase().includes(q),
-      );
+      list = list.filter((k) => k.title.toLowerCase().includes(q) || k.artist.toLowerCase().includes(q) || k.code.toLowerCase().includes(q));
     }
     return [...list].sort((a, b) => (sort === "title" ? a.title.localeCompare(b.title) : a.artist.localeCompare(b.artist)));
   }, [data, query, sort]);
 
   if (error instanceof ApiError) {
     return (
-      <div className="min-h-screen bg-carbon">
-        <ClientHeader />
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+      <ClientPortalShell active="actualizaciones">
+        <div className="mx-auto max-w-[1500px]">
           <EmptyState
-            title={error.statusCode === 403 ? "No tienes acceso a esta colección" : "Colección no encontrada"}
+            title={error.statusCode === 403 ? "No tienes acceso a esta actualización" : "Actualización no encontrada"}
             description={error.message}
-            action={
-              <Link to="/">
-                <Button variant="secondary">Volver a mis actualizaciones</Button>
-              </Link>
-            }
+            action={<Link to="/"><Button variant="secondary">Volver al inicio</Button></Link>}
           />
-        </main>
-      </div>
+        </div>
+      </ClientPortalShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-carbon">
-      <ClientHeader />
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <Link to="/" className="text-sm text-ink-secondary hover:text-ink">
-          ← Mis actualizaciones
-        </Link>
+    <ClientPortalShell
+      active="actualizaciones"
+      searchValue={query}
+      onSearchChange={setQuery}
+      searchPlaceholder="Buscar karaoke, artista o código..."
+    >
+      <div className="mx-auto max-w-[1500px] space-y-6">
+        <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-ink-secondary hover:text-accent">← Volver al inicio</Link>
 
         {isLoading && (
-          <div className="mt-4 space-y-4">
-            <Skeleton className="h-8 w-64" />
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-              {Array.from({ length: 10 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-square w-full" />
-              ))}
+          <div className="space-y-5">
+            <Skeleton className="h-56 w-full rounded-xl" />
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
+              {Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="aspect-square w-full" />)}
             </div>
           </div>
         )}
 
         {data && (
           <>
-            <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <h1 className="font-display text-2xl font-bold text-ink">{data.collection.title.toUpperCase()}</h1>
-                <p className="text-sm text-ink-secondary">{data.collection.karaokeCount} karaokes</p>
+            <section className="relative overflow-hidden rounded-2xl border border-graphite-border bg-graphite p-6 sm:p-8">
+              <div className="absolute inset-y-0 right-0 w-1/2 opacity-25">
+                {data.collection.coverUrl && <img src={data.collection.coverUrl} alt="" className="h-full w-full object-cover" />}
+                <div className="absolute inset-0 bg-gradient-to-r from-graphite via-graphite/60 to-transparent" />
               </div>
-              <Button variant="primary" onClick={() => setShowBatch(true)}>
-                Descargar todo
-              </Button>
-            </div>
+              <div className="relative max-w-3xl">
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Actualización mensual</span>
+                <h1 className="mt-2 font-display text-3xl font-extrabold text-ink sm:text-4xl">{data.collection.title}</h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-secondary">{data.collection.description ?? "Revisa la colección completa, escucha los previews disponibles y descarga los karaokes incluidos en tu membresía."}</p>
+                <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-secondary">
+                  <span><strong className="text-ink">{data.collection.karaokeCount}</strong> karaokes</span>
+                  <span>Actualizado {formatDate(data.collection.updatedAt)}</span>
+                  {data.collection.publishedAt && <span>Publicado {formatDate(data.collection.publishedAt)}</span>}
+                </div>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Button variant="primary" onClick={() => setShowBatch(true)}>Descargar actualización</Button>
+                  <span className="inline-flex items-center rounded-lg border border-graphite-border bg-carbon/40 px-4 py-2 text-xs font-medium text-ink-secondary">Busca arriba por título, artista o código</span>
+                </div>
+              </div>
+            </section>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3">
-              <SearchBar value={query} onChange={setQuery} />
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as SortMode)}
-                className="rounded-md border border-graphite-border bg-graphite-elevated px-3 py-2 text-sm text-ink"
-              >
-                <option value="title">Ordenar por título</option>
-                <option value="artist">Ordenar por artista</option>
-              </select>
-              <div className="ml-auto flex rounded-md border border-graphite-border p-0.5">
-                <button
-                  onClick={() => setView("grid")}
-                  className={`rounded px-3 py-1.5 text-xs font-medium ${view === "grid" ? "bg-accent text-carbon" : "text-ink-secondary"}`}
-                >
-                  Tarjetas
-                </button>
-                <button
-                  onClick={() => setView("list")}
-                  className={`rounded px-3 py-1.5 text-xs font-medium ${view === "list" ? "bg-accent text-carbon" : "text-ink-secondary"}`}
-                >
-                  Lista
-                </button>
+            <section className="rounded-xl border border-graphite-border bg-graphite p-4 sm:p-5">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="mr-auto">
+                  <h2 className="font-display text-lg font-bold text-ink">Karaokes de esta actualización</h2>
+                  <p className="mt-1 text-xs text-ink-secondary">{filtered.length} de {data.karaokes.length} resultados</p>
+                </div>
+                <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)} className="rounded-lg border border-graphite-border bg-carbon px-3 py-2 text-sm text-ink">
+                  <option value="title">Ordenar por título</option>
+                  <option value="artist">Ordenar por artista</option>
+                </select>
+                <div className="flex rounded-lg border border-graphite-border bg-carbon p-1">
+                  <button onClick={() => setView("grid")} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${view === "grid" ? "bg-accent text-carbon" : "text-ink-secondary hover:text-ink"}`}>Tarjetas</button>
+                  <button onClick={() => setView("list")} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${view === "list" ? "bg-accent text-carbon" : "text-ink-secondary hover:text-ink"}`}>Lista</button>
+                </div>
               </div>
-            </div>
+            </section>
 
-            {filtered.length === 0 && (
-              <div className="mt-8">
-                <EmptyState title="Sin resultados" description={`No encontramos karaokes que coincidan con "${query}".`} />
-              </div>
-            )}
+            {filtered.length === 0 && <EmptyState title="Sin resultados" description={`No encontramos karaokes que coincidan con "${query}".`} />}
 
             {filtered.length > 0 && view === "grid" && (
-              <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-                {filtered.map((k) => (
-                  <KaraokeCard key={k.id} karaoke={k} />
-                ))}
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                {filtered.map((k) => <KaraokeCard key={k.id} karaoke={k} />)}
               </div>
             )}
 
             {filtered.length > 0 && view === "list" && (
-              <div className="mt-6 overflow-x-auto rounded-lg border border-graphite-border">
-                <table className="w-full min-w-[640px]">
+              <div className="overflow-x-auto rounded-xl border border-graphite-border bg-graphite">
+                <table className="w-full min-w-[760px]">
                   <thead>
-                    <tr className="border-b border-graphite-border bg-graphite text-left text-xs uppercase tracking-wide text-ink-tertiary">
+                    <tr className="border-b border-graphite-border bg-carbon/60 text-left text-xs uppercase tracking-wide text-ink-tertiary">
                       <th className="px-4 py-3 font-medium">Título</th>
                       <th className="px-4 py-3 font-medium">Artista</th>
                       <th className="px-4 py-3 font-medium">Código</th>
@@ -142,21 +134,15 @@ export default function CollectionDetailPage() {
                       <th className="px-4 py-3 font-medium">Acciones</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {filtered.map((k) => (
-                      <KaraokeRow key={k.id} karaoke={k} />
-                    ))}
-                  </tbody>
+                  <tbody>{filtered.map((k) => <KaraokeRow key={k.id} karaoke={k} />)}</tbody>
                 </table>
               </div>
             )}
 
-            {showBatch && (
-              <BatchDownloadModal collectionId={data.collection.id} title={data.collection.title} onClose={() => setShowBatch(false)} />
-            )}
+            {showBatch && <BatchDownloadModal collectionId={data.collection.id} title={data.collection.title} onClose={() => setShowBatch(false)} />}
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </ClientPortalShell>
   );
 }
