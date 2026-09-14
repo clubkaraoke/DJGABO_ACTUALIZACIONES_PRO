@@ -4,6 +4,7 @@ import { StorageIndexerService } from "@djgabo/storage";
 import type { SyncStatusDTO } from "@djgabo/shared";
 import { DrizzleIndexerRepository } from "../../db/drizzleIndexerRepository.js";
 import { syncRuns } from "../../db/schema.js";
+import { enrichMissingDeezerCovers } from "../../services/deezerCoverService.js";
 
 export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
@@ -36,6 +37,15 @@ export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
 
   fastify.post("/api/admin/sync/run", guard, async (_request, reply) => {
     const result = await runIndexer(false);
+
+    // El sync de storage responde sin esperar a Deezer. La portada se resuelve
+    // en segundo plano, con concurrencia limitada y persistencia local, para
+    // que ni el panel admin ni las páginas del cliente sufran N requests
+    // remotos o lag al renderizar tarjetas.
+    void enrichMissingDeezerCovers(db, { limit: 60, concurrency: 6 })
+      .then((covers) => fastify.log.info({ covers }, "Deezer cover enrichment completed"))
+      .catch((error) => fastify.log.warn({ err: error }, "Deezer cover enrichment failed"));
+
     return reply.send(result);
   });
 }
