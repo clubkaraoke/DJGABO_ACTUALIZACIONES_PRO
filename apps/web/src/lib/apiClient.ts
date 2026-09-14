@@ -25,10 +25,12 @@ export function configureApiClient(getToken: TokenGetter, refresh: RefreshFn): v
 
 async function request<T>(path: string, init: RequestInit = {}, retried = false): Promise<T> {
   const token = getAccessToken();
+  const hasBody = init.body !== undefined && init.body !== null;
+
   const res = await fetch(`/api${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init.headers,
     },
@@ -52,7 +54,14 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
 export const api = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   post: <T>(path: string, body?: unknown, extraHeaders?: Record<string, string>) =>
-    request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined, headers: extraHeaders }),
+    request<T>(path, {
+      method: "POST",
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: extraHeaders,
+    }),
   patch: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined }),
+    request<T>(path, {
+      method: "PATCH",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
 };
