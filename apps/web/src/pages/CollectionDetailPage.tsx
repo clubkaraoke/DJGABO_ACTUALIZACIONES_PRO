@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import type { CollectionDetailDTO } from "@djgabo/shared";
+import type { CollectionDetailDTO, KaraokeSummaryDTO } from "@djgabo/shared";
 import { api, ApiError } from "../lib/apiClient";
 import { ClientPortalShell } from "../components/ClientPortalShell";
 import { KaraokeCard } from "../components/KaraokeCard";
@@ -14,6 +14,23 @@ type SortMode = "title" | "artist";
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function sourceGroupLabel(group: string): string {
+  if (group === "__GENERAL__") return "General";
+  return group
+    .replace(/^\d{1,2}[_ .-]*/, "")
+    .replace(/_/g, " ")
+    .replace(/\bkk\b/gi, "KK")
+    .replace(/\bdj\b/gi, "DJ")
+    .replace(/\brfk\b/gi, "RFK")
+    .trim();
+}
+
+function sourceGroupOrder(a: string, b: string): number {
+  if (a === "__GENERAL__") return -1;
+  if (b === "__GENERAL__") return 1;
+  return a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
 }
 
 export default function CollectionDetailPage() {
@@ -39,6 +56,17 @@ export default function CollectionDetailPage() {
     }
     return [...list].sort((a, b) => (sort === "title" ? a.title.localeCompare(b.title) : a.artist.localeCompare(b.artist)));
   }, [data, query, sort]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, KaraokeSummaryDTO[]>();
+    for (const karaoke of filtered) {
+      const key = karaoke.sourceGroup || "__GENERAL__";
+      const current = map.get(key) ?? [];
+      current.push(karaoke);
+      map.set(key, current);
+    }
+    return [...map.entries()].sort(([a], [b]) => sourceGroupOrder(a, b));
+  }, [filtered]);
 
   if (error instanceof ApiError) {
     return (
@@ -100,7 +128,7 @@ export default function CollectionDetailPage() {
               <div className="flex flex-wrap items-center gap-3">
                 <div className="mr-auto">
                   <h2 className="font-display text-lg font-bold text-ink">Karaokes de esta actualización</h2>
-                  <p className="mt-1 text-xs text-ink-secondary">{filtered.length} de {data.karaokes.length} resultados</p>
+                  <p className="mt-1 text-xs text-ink-secondary">{filtered.length} de {data.karaokes.length} resultados · organizados por marca/origen</p>
                 </div>
                 <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)} className="rounded-lg border border-graphite-border bg-carbon px-3 py-2 text-sm text-ink">
                   <option value="title">Ordenar por título</option>
@@ -115,29 +143,38 @@ export default function CollectionDetailPage() {
 
             {filtered.length === 0 && <EmptyState title="Sin resultados" description={`No encontramos karaokes que coincidan con "${query}".`} />}
 
-            {filtered.length > 0 && view === "grid" && (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                {filtered.map((k) => <KaraokeCard key={k.id} karaoke={k} />)}
-              </div>
-            )}
+            {grouped.map(([group, karaokes]) => (
+              <section key={group} className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-display text-base font-bold text-ink">{sourceGroupLabel(group)}</h3>
+                  <span className="rounded-full border border-graphite-border bg-carbon px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ink-tertiary">
+                    {karaokes.length} {karaokes.length === 1 ? "karaoke" : "karaokes"}
+                  </span>
+                </div>
 
-            {filtered.length > 0 && view === "list" && (
-              <div className="overflow-x-auto rounded-xl border border-graphite-border bg-graphite">
-                <table className="w-full min-w-[760px]">
-                  <thead>
-                    <tr className="border-b border-graphite-border bg-carbon/60 text-left text-xs uppercase tracking-wide text-ink-tertiary">
-                      <th className="px-4 py-3 font-medium">Título</th>
-                      <th className="px-4 py-3 font-medium">Artista</th>
-                      <th className="px-4 py-3 font-medium">Código</th>
-                      <th className="px-4 py-3 font-medium">Fecha</th>
-                      <th className="px-4 py-3 font-medium">Tamaño</th>
-                      <th className="px-4 py-3 font-medium">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody>{filtered.map((k) => <KaraokeRow key={k.id} karaoke={k} />)}</tbody>
-                </table>
-              </div>
-            )}
+                {view === "grid" ? (
+                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+                    {karaokes.map((k) => <KaraokeCard key={k.id} karaoke={k} />)}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-graphite-border bg-graphite">
+                    <table className="w-full min-w-[760px]">
+                      <thead>
+                        <tr className="border-b border-graphite-border bg-carbon/60 text-left text-xs uppercase tracking-wide text-ink-tertiary">
+                          <th className="px-4 py-3 font-medium">Título</th>
+                          <th className="px-4 py-3 font-medium">Artista</th>
+                          <th className="px-4 py-3 font-medium">Código</th>
+                          <th className="px-4 py-3 font-medium">Fecha</th>
+                          <th className="px-4 py-3 font-medium">Tamaño</th>
+                          <th className="px-4 py-3 font-medium">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>{karaokes.map((k) => <KaraokeRow key={k.id} karaoke={k} />)}</tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            ))}
 
             {showBatch && <BatchDownloadModal collectionId={data.collection.id} title={data.collection.title} onClose={() => setShowBatch(false)} />}
           </>
