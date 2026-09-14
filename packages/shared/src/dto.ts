@@ -49,6 +49,8 @@ export interface KaraokeSummaryDTO {
   hasPreview: boolean;
   hasMaster: boolean;
   publishedAt: string | null;
+  /** Subcarpeta/marca de origen dentro del mes, por ejemplo 02_KK-Live. */
+  sourceGroup?: string | null;
 }
 
 export interface CollectionDetailDTO {
