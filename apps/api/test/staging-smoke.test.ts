@@ -58,7 +58,7 @@ describe("STAGING smoke flow", () => {
       headers: { authorization: `Bearer ${memberToken}` },
       payload: { deviceName: "Smoke CI" },
     });
-    expect(deviceRes.statusCode).toBe(200);
+    expect(deviceRes.statusCode).toBe(201);
     const deviceToken = deviceRes.json().deviceToken as string;
 
     const downloadRes = await app.inject({
