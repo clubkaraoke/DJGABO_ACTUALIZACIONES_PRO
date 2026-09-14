@@ -6,6 +6,7 @@ const DEEZER_SEARCH_URL = "https://api.deezer.com/search";
 const DEFAULT_BATCH_LIMIT = 60;
 const DEFAULT_CONCURRENCY = 6;
 const REQUEST_TIMEOUT_MS = 3000;
+const ARTIST_JOINERS = new Set(["y", "and", "feat", "ft", "featuring", "x", "con"]);
 
 interface DeezerTrack {
   title?: string;
@@ -65,6 +66,38 @@ function tokenCoverage(target: string, candidate: string): number {
   return hits / targetTokens.size;
 }
 
+function artistTokens(value: string): Set<string> {
+  return new Set(
+    normalize(value)
+      .split(" ")
+      .filter((token) => token && !ARTIST_JOINERS.has(token)),
+  );
+}
+
+/**
+ * Para colaboraciones, Deezer puede devolver solo el artista principal aunque
+ * nuestra metadata tenga "Artista A y Artista B". Medimos cobertura en ambas
+ * direcciones para considerar válido que el artista remoto esté contenido en
+ * la colaboración completa, sin relajar la coincidencia del título.
+ */
+function artistCoverage(target: string, candidate: string): number {
+  const targetTokens = artistTokens(target);
+  const candidateTokens = artistTokens(candidate);
+  if (targetTokens.size === 0 || candidateTokens.size === 0) return 0;
+
+  let targetHits = 0;
+  for (const token of targetTokens) {
+    if (candidateTokens.has(token)) targetHits += 1;
+  }
+
+  let candidateHits = 0;
+  for (const token of candidateTokens) {
+    if (targetTokens.has(token)) candidateHits += 1;
+  }
+
+  return Math.max(targetHits / targetTokens.size, candidateHits / candidateTokens.size);
+}
+
 function trackScore(track: DeezerTrack, artist: string, title: string): number {
   const candidateTitle = track.title_short ?? track.title ?? "";
   const candidateArtist = track.artist?.name ?? "";
@@ -72,7 +105,7 @@ function trackScore(track: DeezerTrack, artist: string, title: string): number {
   const cleanArtist = cleanForDeezerSearch(artist);
 
   const titleScore = tokenCoverage(cleanTitle, candidateTitle);
-  const artistScore = tokenCoverage(cleanArtist, candidateArtist);
+  const artistScore = artistCoverage(cleanArtist, candidateArtist);
   const exactTitleBonus = normalize(cleanTitle) === normalize(candidateTitle) ? 0.2 : 0;
 
   return titleScore * 0.72 + artistScore * 0.28 + exactTitleBonus;
