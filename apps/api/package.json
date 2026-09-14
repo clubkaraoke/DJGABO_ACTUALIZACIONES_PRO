@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --no-error-on-unmatched-pattern",
     "test": "vitest run",
+    "test:smoke": "vitest run test/staging-smoke.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit push",
     "db:seed": "tsx seed/seed.ts"
