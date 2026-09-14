@@ -9,23 +9,22 @@ const MONTH_TITLES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
-const AUDIO_VIDEO_EXTENSIONS = new Set(["mp4", "mp3", "wav", "mov", "mkv"]);
+// Los catálogos reales combinan masters de audio/video y paquetes ZIP de
+// marcas externas. CDG y otros sidecars se siguen ignorando como masters
+// independientes para no duplicar un mismo karaoke lógico.
+const MASTER_EXTENSIONS = new Set(["mp4", "mp3", "wav", "mov", "mkv", "zip"]);
 const PREVIEWS_FOLDER_NAME = "_PREVIEWS";
 
 /**
- * Recorre el StorageProvider activo (Mock hoy, Dropbox mañana — no le importa
- * cuál) y detecta qué Collections/Karaokes/Assets hay que crear o actualizar
- * en la base de datos. Nunca borra nada (punto 10: "no ejecutar sincronización
- * destructiva"). En modo dryRun no escribe absolutamente nada.
+ * Recorre el StorageProvider activo (Mock o Dropbox) y detecta qué
+ * Collections/Karaokes/Assets hay que crear o actualizar en la base de datos.
+ * Nunca borra nada. En modo dryRun no crea/actualiza catálogo.
  *
- * EFICIENCIA DE RED (punto 3): toda la metadata que se necesita por archivo
- * (tamaño, fecha, id estable del provider) sale de los mismos `StorageEntry`
- * que ya trae `listFolder` — Dropbox los incluye directamente en
- * `/files/list_folder`. Este servicio NUNCA llama a `getMetadata` por
- * archivo; eso convertiría sincronizar 30,000 archivos en 30,000+ requests
- * innecesarios. Los previews se resuelven listando la subcarpeta
- * `_PREVIEWS` UNA vez por mes y armando un mapa por nombre de archivo, no
- * con una llamada por karaoke.
+ * EFICIENCIA DE RED:
+ * - usa la metadata incluida en listFolder (incluido providerFileId);
+ * - no hace getMetadata por archivo;
+ * - cada subcarpeta de marca se lista una sola vez;
+ * - _PREVIEWS se lista una sola vez por mes y nunca se confunde con masters.
  */
 export class StorageIndexerService {
   constructor(
@@ -47,10 +46,11 @@ export class StorageIndexerService {
         if (month === null) continue;
 
         const monthContents = await this.storage.listFolder(monthEntry.path);
-        const fileEntries = monthContents.filter((e) => !e.isFolder);
+        const fileEntries = await this.collectMasterCandidates(monthContents);
 
         // Un solo listFolder para TODA la subcarpeta _PREVIEWS del mes, sin
-        // importar cuántos karaokes tenga — nunca N llamadas (punto 3).
+        // importar cuántos karaokes tenga. Los subfolders de marca son masters
+        // y se recorren por separado mediante collectMasterCandidates().
         const previewsByFileName = await this.buildPreviewsMap(monthContents);
 
         for (const fileEntry of fileEntries) {
@@ -74,8 +74,32 @@ export class StorageIndexerService {
     return result;
   }
 
+  /**
+   * Devuelve todos los archivos descendientes del mes, conservando su path
+   * real de marca (01_Club_KARAOKE, 02_KK-Live, etc.). `_PREVIEWS` se excluye
+   * explícitamente para que sus archivos jamás entren como masters.
+   */
+  private async collectMasterCandidates(entries: StorageEntry[]): Promise<StorageEntry[]> {
+    const files: StorageEntry[] = [];
+
+    for (const entry of entries) {
+      if (!entry.isFolder) {
+        files.push(entry);
+        continue;
+      }
+      if (entry.name.toUpperCase() === PREVIEWS_FOLDER_NAME) continue;
+
+      const children = await this.storage.listFolder(entry.path);
+      files.push(...(await this.collectMasterCandidates(children)));
+    }
+
+    return files;
+  }
+
   private async buildPreviewsMap(monthContents: StorageEntry[]): Promise<Map<string, StorageEntry>> {
-    const previewsFolder = monthContents.find((e) => e.isFolder && e.name === PREVIEWS_FOLDER_NAME);
+    const previewsFolder = monthContents.find(
+      (e) => e.isFolder && e.name.toUpperCase() === PREVIEWS_FOLDER_NAME,
+    );
     const map = new Map<string, StorageEntry>();
     if (!previewsFolder) return map;
 
@@ -96,14 +120,11 @@ export class StorageIndexerService {
     const storageKey = fileEntry.path;
     const { artist, title, extension } = parseKaraokeFileName(fileEntry.name);
 
-    if (!AUDIO_VIDEO_EXTENSIONS.has(extension)) {
+    if (!MASTER_EXTENSIONS.has(extension)) {
       return { storageKey, action: "SKIP", year, month, title, artist, code: deriveCodeFromKey(storageKey) };
     }
 
     try {
-      // Identidad interna robusta (punto 1): providerFileId tal cual si
-      // list_folder lo trajo, o SHA-256/128 bits de fallback. Nunca se
-      // deriva de un hash de 32 bits, y nunca se usa Karaoke.code para esto.
       const providerFileId = fileEntry.providerFileId;
       const identityKey = deriveIdentityKey(this.storage.kind, providerFileId, storageKey);
       const code = deriveCodeFromKey(identityKey); // solo para mostrar en la UI
@@ -111,11 +132,8 @@ export class StorageIndexerService {
       let collection = await this.repo.findCollectionByYearMonth(year, month);
       if (!collection) {
         if (dryRun) {
-          // DRY-RUN CORRECTO EN MOVES (punto 4): antes de asumir "archivo
-          // nuevo" solo porque su mes todavía no tiene Collection, hay que
-          // chequear si ya es un karaoke conocido (identidad estable) que
-          // simplemente se movió a un mes sin sincronizar todavía. En ese
-          // caso es UPDATE, no CREATE — y el dry-run NUNCA crea la colección.
+          // Antes de asumir CREATE, verifica si la identidad ya existía y el
+          // archivo simplemente fue movido a otro mes.
           const existingKaraoke = await this.repo.findKaraokeByIdentityKey(identityKey);
           const action = existingKaraoke ? "UPDATE" : "CREATE";
           return { storageKey, action, year, month, title, artist, code };
@@ -124,17 +142,12 @@ export class StorageIndexerService {
           year,
           month,
           title: `${MONTH_TITLES[month - 1]} ${year}`,
-          storagePath: storageKey.split("/").slice(0, -1).join("/"),
+          storagePath: this.collectionStoragePath(storageKey, month),
         });
       }
 
-      // Prioridad de resolución de identidad del Asset: providerFileId
-      // primero (si el provider lo da), storageKey como fallback — así un
-      // rename/move nunca crea un Asset duplicado cuando hay id estable.
-      // AISLAMIENTO ENTRE PROVIDERS (corrección de esta pasada): ambas
-      // búsquedas van scoped a `this.storage.kind` — el mismo providerFileId
-      // o el mismo storageKey en OTRO provider son archivos distintos,
-      // nunca deben confundirse entre sí.
+      // Prioriza providerFileId y usa storageKey como fallback. Ambas búsquedas
+      // están aisladas por provider para no mezclar Mock con Dropbox.
       const existingAsset = providerFileId
         ? (await this.repo.findAssetByProviderFileId(this.storage.kind, providerFileId)) ??
           (await this.repo.findAssetByStorageKey(this.storage.kind, storageKey))
@@ -159,9 +172,8 @@ export class StorageIndexerService {
         providerFileId: providerFileId ?? null,
       });
 
-      // Convención de previews (previewConvention.ts): NUNCA se usa el
-      // master como preview. La entry ya viene resuelta del mapa construido
-      // en run() con un único listFolder por mes — cero requests extra acá.
+      // NUNCA se usa el master como preview. La entry de preview, si existe,
+      // ya fue resuelta en el mapa del mes.
       const previewAssetId = previewEntry ? await this.upsertPreviewAsset(previewEntry) : undefined;
 
       const karaoke = await this.repo.upsertKaraoke({
@@ -188,6 +200,17 @@ export class StorageIndexerService {
         error: err instanceof Error ? err.message : "Error desconocido",
       };
     }
+  }
+
+  /**
+   * Para un archivo dentro de /MES/MARCA/file conserva como storagePath de la
+   * colección la carpeta /MES, no la subcarpeta de marca.
+   */
+  private collectionStoragePath(storageKey: string, month: number): string {
+    const segments = storageKey.split("/").filter(Boolean);
+    const monthIndex = segments.findIndex((segment) => parseMonthFolder(segment) === month);
+    if (monthIndex >= 0) return `/${segments.slice(0, monthIndex + 1).join("/")}`;
+    return storageKey.split("/").slice(0, -1).join("/");
   }
 
   private async upsertPreviewAsset(previewEntry: StorageEntry): Promise<string> {
