@@ -1,0 +1,233 @@
+import {
+  StorageError,
+  assertSafeStorageKey,
+  type StorageEntry,
+  type StorageMetadata,
+  type StorageProvider,
+  type TemporaryUrlOptions,
+} from "./StorageProvider.js";
+
+export interface DropboxConfig {
+  appKey: string;
+  appSecret: string;
+  refreshToken: string;
+  rootPath: string;
+  /** Inyectable para tests; por defecto usa el fetch global de Node 22+ */
+  fetchImpl?: typeof fetch;
+}
+
+const TOKEN_URL = "https://api.dropboxapi.com/oauth2/token";
+const RPC_URL = "https://api.dropboxapi.com/2";
+
+interface DropboxApiError {
+  error_summary?: string;
+  error?: unknown;
+}
+
+/**
+ * Un 409 de Dropbox significa "conflicto", NO necesariamente "no existe".
+ * Dropbox lo usa para reportar cualquier error específico de la operación
+ * (path/not_found, pero también path/not_file, path/not_folder,
+ * path/malformed_path, too_many_write_operations, etc. — cada endpoint
+ * define su propio árbol de errores). Solo el árbol "path/not_found"
+ * (verificado por `error_summary` y, como respaldo, por la estructura
+ * tageada `{ error: { path: { ".tag": "not_found" } } }`) se clasifica
+ * como NOT_FOUND (punto 5) — cualquier otro 409 se propaga como CONFLICT,
+ * nunca se disfraza de "no encontrado".
+ */
+function isPathNotFoundError(err: DropboxApiError): boolean {
+  if (typeof err.error_summary === "string" && err.error_summary.startsWith("path/not_found")) {
+    return true;
+  }
+  const errorNode = err.error as Record<string, unknown> | undefined;
+  const pathNode = errorNode?.["path"] as Record<string, unknown> | undefined;
+  return pathNode?.[".tag"] === "not_found";
+}
+
+/**
+ * Adaptador contra la API v2 de Dropbox usando OAuth2 refresh token
+ * (recomendado por Dropbox para apps de larga duración: el refresh token no
+ * expira, el access token de corta duración se renueva en memoria).
+ *
+ * Implementado estructuralmente y listo para producción: solo requiere que
+ * DROPBOX_APP_KEY / DROPBOX_APP_SECRET / DROPBOX_REFRESH_TOKEN /
+ * DROPBOX_ROOT_PATH existan en el entorno. Ver docs/DROPBOX_SETUP.md.
+ */
+export class DropboxStorageProvider implements StorageProvider {
+  readonly kind = "dropbox" as const;
+  private accessToken: string | null = null;
+  private accessTokenExpiresAt = 0;
+  private readonly fetchImpl: typeof fetch;
+
+  constructor(private readonly config: DropboxConfig) {
+    this.fetchImpl = config.fetchImpl ?? fetch;
+  }
+
+  private resolvePath(key: string): string {
+    assertSafeStorageKey(key);
+    // Dropbox no acepta "/" como path raíz para list_folder; usa "" para root.
+    const root = this.config.rootPath.replace(/\/$/, "");
+    return key.startsWith(root) ? key : `${root}${key}`;
+  }
+
+  private async getAccessToken(): Promise<string> {
+    if (this.accessToken && Date.now() < this.accessTokenExpiresAt - 30_000) {
+      return this.accessToken;
+    }
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: this.config.refreshToken,
+      client_id: this.config.appKey,
+      client_secret: this.config.appSecret,
+    });
+    const res = await this.fetchImpl(TOKEN_URL, { method: "POST", body });
+    if (!res.ok) {
+      throw new StorageError("AUTH_ERROR", `No se pudo renovar el access token de Dropbox (${res.status})`);
+    }
+    const data = (await res.json()) as { access_token: string; expires_in: number };
+    this.accessToken = data.access_token;
+    this.accessTokenExpiresAt = Date.now() + data.expires_in * 1000;
+    return this.accessToken;
+  }
+
+  /** Llama a un endpoint RPC de Dropbox, maneja 401 (retry 1x), 429 (rate limit) y mapea errores. */
+  private async rpc<T>(endpoint: string, payload: unknown, attempt = 0): Promise<T> {
+    const token = await this.getAccessToken();
+    const res = await this.fetchImpl(`${RPC_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.status === 401 && attempt === 0) {
+      this.accessToken = null; // fuerza refresh y reintenta una vez
+      return this.rpc<T>(endpoint, payload, attempt + 1);
+    }
+
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get("Retry-After") ?? "1");
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, retryAfter * 1000));
+        return this.rpc<T>(endpoint, payload, attempt + 1);
+      }
+      throw new StorageError("RATE_LIMITED", "Límite de peticiones de Dropbox excedido");
+    }
+
+    if (res.status === 409) {
+      const err = (await res.json()) as DropboxApiError;
+      if (isPathNotFoundError(err)) {
+        throw new StorageError("NOT_FOUND", err.error_summary ?? "Recurso no encontrado en Dropbox", err);
+      }
+      // Cualquier otro conflicto (path/not_file, path/not_folder,
+      // too_many_write_operations, etc.) se propaga con su propia
+      // categoría — nunca se trata como "no encontrado".
+      throw new StorageError("CONFLICT", err.error_summary ?? `Conflicto al operar sobre el recurso en Dropbox (409)`, err);
+    }
+
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as DropboxApiError;
+      throw new StorageError(
+        "UNKNOWN",
+        err.error_summary ?? `Error Dropbox ${res.status}`,
+        err,
+      );
+    }
+
+    return (await res.json()) as T;
+  }
+
+  async exists(key: string): Promise<boolean> {
+    try {
+      await this.getMetadata(key);
+      return true;
+    } catch (err) {
+      if (err instanceof StorageError && err.reason === "NOT_FOUND") return false;
+      throw err;
+    }
+  }
+
+  async getMetadata(key: string): Promise<StorageMetadata> {
+    const path = this.resolvePath(key);
+    const data = await this.rpc<{
+      id: string;
+      size: number;
+      client_modified: string;
+      name: string;
+    }>("/files/get_metadata", { path });
+    return {
+      key,
+      size: data.size,
+      modifiedAt: new Date(data.client_modified),
+      // `id` de Dropbox (formato "id:XXXXXXXXXXXXXXXXXXXX") persiste aunque
+      // el archivo se renombre o se mueva de carpeta dentro de la misma
+      // cuenta — es la identidad estable que el indexador prioriza (punto 1).
+      providerFileId: data.id,
+    };
+  }
+
+  async getTemporaryDownloadUrl(key: string, _options?: TemporaryUrlOptions): Promise<string> {
+    const path = this.resolvePath(key);
+    // /files/get_temporary_link devuelve un link HTTPS directo válido ~4 horas.
+    const data = await this.rpc<{ link: string }>("/files/get_temporary_link", { path });
+    return data.link;
+  }
+
+  async getTemporaryPreviewUrl(key: string, options?: TemporaryUrlOptions): Promise<string> {
+    // Los previews son assets físicamente distintos (más cortos/comprimidos),
+    // por eso comparten el mismo mecanismo de link temporal que la descarga.
+    return this.getTemporaryDownloadUrl(key, options);
+  }
+
+  async listFolder(path: string): Promise<StorageEntry[]> {
+    const resolved = this.resolvePath(path);
+    const entries: StorageEntry[] = [];
+
+    let data = await this.rpc<{
+      entries: Array<{
+        [k: string]: unknown;
+        ".tag": string;
+        id?: string;
+        path_display: string;
+        name: string;
+        size?: number;
+        client_modified?: string;
+      }>;
+      has_more: boolean;
+      cursor: string;
+    }>("/files/list_folder", { path: resolved === "" ? "" : resolved, recursive: false });
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      for (const e of data.entries) {
+        entries.push({
+          path: e.path_display,
+          name: e.name,
+          isFolder: e[".tag"] === "folder",
+          size: e.size,
+          modifiedAt: e.client_modified ? new Date(e.client_modified) : undefined,
+          // Punto 3: Dropbox ya entrega el id estable acá mismo — nunca hace
+          // falta un get_metadata aparte solo para conseguirlo.
+          providerFileId: e.id,
+        });
+      }
+      if (!data.has_more) break;
+      // Manejo de paginación por cursor, como pide el punto 9.
+      data = await this.rpc("/files/list_folder/continue", { cursor: data.cursor });
+    }
+
+    return entries;
+  }
+}
+
+/** Lee la config de Dropbox desde variables de entorno. Devuelve null si falta alguna. */
+export function loadDropboxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): DropboxConfig | null {
+  const appKey = env.DROPBOX_APP_KEY;
+  const appSecret = env.DROPBOX_APP_SECRET;
+  const refreshToken = env.DROPBOX_REFRESH_TOKEN;
+  const rootPath = env.DROPBOX_ROOT_PATH ?? "/ACTUALIZACIONES";
+  if (!appKey || !appSecret || !refreshToken) return null;
+  return { appKey, appSecret, refreshToken, rootPath };
+}

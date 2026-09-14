@@ -1,0 +1,77 @@
+version: "3.9"
+
+# Uso:
+#   docker compose up --build
+#   API   -> http://localhost:4000
+#   Web   -> http://localhost:8080
+#
+# NOTA: no se pudo probar este compose dentro del entorno donde se generó
+# este proyecto (sandbox sin daemon de Docker disponible). Los Dockerfiles
+# son correctos en su estructura (multi-stage, monorepo-aware) pero
+# verifícalos con `docker compose up --build` en tu máquina antes de confiar
+# en ellos para nada crítico. La vía 100% verificada es "sin Docker" — ver
+# README.md.
+#
+# Postgres viene incluido pero apagado por defecto (perfil "postgres") y
+# TODAVÍA NO ESTÁ CONECTADO a la API — es solo un contenedor de referencia
+# para cuando decidas migrar de SQLite a Postgres (ver docs/STORAGE.md).
+# Activarlo con --profile postgres NO cambia qué base usa la API hoy.
+# Actívalo con: docker compose --profile postgres up --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: file:./data/dev.db
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access-secret-please}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh-secret-please}
+      JWT_ACCESS_TTL: 15m
+      JWT_REFRESH_TTL_DAYS: 30
+      DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET:-change-me-device-token-secret-please}
+      CORS_ORIGIN: http://localhost:8080
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-mock}
+      DROPBOX_APP_KEY: ${DROPBOX_APP_KEY:-}
+      DROPBOX_APP_SECRET: ${DROPBOX_APP_SECRET:-}
+      DROPBOX_REFRESH_TOKEN: ${DROPBOX_REFRESH_TOKEN:-}
+      DROPBOX_ROOT_PATH: ${DROPBOX_ROOT_PATH:-/ACTUALIZACIONES}
+      SYNC_ROOT_PATH: ${SYNC_ROOT_PATH:-/ACTUALIZACIONES}
+    volumes:
+      - api_data:/repo/apps/api/data
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
+
+  postgres:
+    # ⚠️ ESTE SERVICIO TODAVÍA NO ESTÁ CONECTADO A LA APLICACIÓN. La API sigue
+    # usando SQLite (apps/api/data/dev.db) vía better-sqlite3 + Drizzle, tal
+    # como se decidió para esta V1 (ver docs/STORAGE.md). Este contenedor
+    # Postgres queda aquí preparado para el día que se decida migrar — hasta
+    # entonces, levantarlo con --profile postgres NO tiene ningún efecto
+    # sobre cómo corre la API; es solo un contenedor Postgres vacío sin
+    # ningún dato ni ninguna conexión activa desde el código.
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    environment:
+      POSTGRES_DB: djgabo
+      POSTGRES_USER: djgabo
+      POSTGRES_PASSWORD: djgabo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  api_data:
+  postgres_data:

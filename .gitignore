@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+.env
+*.log
+apps/api/data/dev.db
+apps/api/data/dev.db-journal
+apps/api/data/*.db-wal
+apps/api/data/*.db-shm
+.DS_Store
+coverage
