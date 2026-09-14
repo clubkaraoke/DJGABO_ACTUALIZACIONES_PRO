@@ -33,5 +33,8 @@ jobs:
       - name: Build all workspaces
         run: npm run build
 
-      - name: Run tests
+      - name: Run staging smoke flow
+        run: npm run test:smoke --workspace=apps/api
+
+      - name: Run full test suite
         run: npm test
