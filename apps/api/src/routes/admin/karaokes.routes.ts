@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { and, or, like, eq, count } from "drizzle-orm";
 import { karaokes, collections, assets } from "../../db/schema.js";
-import { deriveSourceGroup } from "../../services/sourceGroup.js";
+import { deriveSourceGroup, prettifySourceGroup } from "../../services/sourceGroup.js";
 
 const querySchema = z.object({
   q: z.string().optional(),
@@ -51,6 +51,10 @@ export async function registerAdminKaraokesRoutes(fastify: FastifyInstance) {
       const collection = await db.query.collections.findFirst({ where: eq(collections.id, k.collectionId) });
       const masterAsset = k.masterAssetId ? await db.query.assets.findFirst({ where: eq(assets.id, k.masterAssetId) }) : null;
       const previewAsset = k.previewAssetId ? await db.query.assets.findFirst({ where: eq(assets.id, k.previewAssetId) }) : null;
+      const sourceGroup = masterAsset && collection
+        ? deriveSourceGroup(masterAsset.storageKey, collection.storagePath)
+        : null;
+
       rows.push({
         id: k.id,
         title: k.title,
@@ -75,7 +79,7 @@ export async function registerAdminKaraokesRoutes(fastify: FastifyInstance) {
               mimeType: masterAsset.mimeType,
               size: masterAsset.size,
               providerFileIdPresent: Boolean(masterAsset.providerFileId),
-              sourceGroup: collection ? deriveSourceGroup(masterAsset.storageKey, collection.storagePath) : null,
+              sourceGroup: sourceGroup ? prettifySourceGroup(sourceGroup) : null,
             }
           : null,
       });
