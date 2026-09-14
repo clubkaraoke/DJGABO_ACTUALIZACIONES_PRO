@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { eq, desc, asc, count } from "drizzle-orm";
 import type { CollectionSummaryDTO, CollectionDetailDTO, KaraokeSummaryDTO, ArchiveStatusDTO } from "@djgabo/shared";
 import { getAccessibleCollectionIds } from "../services/accessibleCollections.js";
+import { deriveSourceGroup } from "../services/sourceGroup.js";
 import { collections, karaokes } from "../db/schema.js";
 
 function toSummaryDTO(
@@ -34,21 +35,37 @@ function toSummaryDTO(
   };
 }
 
-export function toKaraokeDTO(k: {
-  id: string;
-  title: string;
-  artist: string;
-  code: string;
-  genre: string | null;
-  year: number | null;
-  format: string | null;
-  size: number | null;
-  coverUrl: string | null;
-  collectionId: string;
-  masterAssetId: string | null;
-  previewAssetId: string | null;
-  publishedAt: Date | null;
-}): KaraokeSummaryDTO {
+interface MasterAssetForDTO {
+  storageKey: string;
+  fileName: string;
+  size: number;
+}
+
+function formatFromFileName(fileName: string | undefined): string | null {
+  if (!fileName) return null;
+  const dot = fileName.lastIndexOf(".");
+  return dot === -1 ? null : fileName.slice(dot + 1).toUpperCase();
+}
+
+export function toKaraokeDTO(
+  k: {
+    id: string;
+    title: string;
+    artist: string;
+    code: string;
+    genre: string | null;
+    year: number | null;
+    format: string | null;
+    size: number | null;
+    coverUrl: string | null;
+    collectionId: string;
+    masterAssetId: string | null;
+    previewAssetId: string | null;
+    publishedAt: Date | null;
+  },
+  masterAsset?: MasterAssetForDTO | null,
+  collectionStoragePath?: string,
+): KaraokeSummaryDTO {
   return {
     id: k.id,
     title: k.title,
@@ -56,13 +73,17 @@ export function toKaraokeDTO(k: {
     code: k.code,
     genre: k.genre,
     year: k.year,
-    format: k.format,
-    size: k.size,
+    format: k.format ?? formatFromFileName(masterAsset?.fileName),
+    size: k.size ?? masterAsset?.size ?? null,
     coverUrl: k.coverUrl,
     collectionId: k.collectionId,
     hasPreview: Boolean(k.previewAssetId),
     hasMaster: Boolean(k.masterAssetId),
     publishedAt: k.publishedAt?.toISOString() ?? null,
+    sourceGroup:
+      masterAsset && collectionStoragePath
+        ? deriveSourceGroup(masterAsset.storageKey, collectionStoragePath)
+        : null,
   };
 }
 
@@ -105,11 +126,14 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
       const collectionKaraokes = await db.query.karaokes.findMany({
         where: eq(karaokes.collectionId, id),
         orderBy: asc(karaokes.title),
+        with: { masterAsset: true },
       });
 
       const dto: CollectionDetailDTO = {
         collection: toSummaryDTO(collection, collectionKaraokes.length, false),
-        karaokes: collectionKaraokes.map(toKaraokeDTO),
+        karaokes: collectionKaraokes.map((karaoke) =>
+          toKaraokeDTO(karaoke, karaoke.masterAsset, collection.storagePath),
+        ),
       };
       return reply.send(dto);
     },
@@ -118,7 +142,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
   /**
    * Consultado bajo demanda (no en el listado general) para no multiplicar
    * llamadas al StorageProvider en cada carga del home — el cliente lo pide
-   * solo cuando el usuario abre el modal de "Descargar todo" (punto 3).
+   * solo cuando el usuario abre el modal de "Descargar todo".
    */
   fastify.get<{ Params: { id: string } }>(
     "/api/collections/:id/archive-status",
