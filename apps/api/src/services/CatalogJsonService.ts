@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { assets, collections, karaokes } from "../db/schema.js";
 
@@ -138,7 +138,12 @@ export class CatalogJsonService {
       })
       .from(karaokes)
       .leftJoin(assets, eq(karaokes.masterAssetId, assets.id))
-      .where(eq(karaokes.collectionId, collection.id))
+      .where(
+        and(
+          eq(karaokes.collectionId, collection.id),
+          eq(assets.provider, "dropbox"),
+        ),
+      )
       .orderBy(asc(karaokes.artist), asc(karaokes.title));
 
     const karaokesOut: CatalogKaraoke[] = rows.map((row) => {
