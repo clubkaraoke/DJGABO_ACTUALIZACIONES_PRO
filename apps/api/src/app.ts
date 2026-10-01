@@ -82,7 +82,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     new BatchDownloadService(opts.db, authorizationService, storageService),
   );
 
-  const catalogJsonService = new CatalogJsonService(opts.db, opts.env.CATALOG_JSON_DIR);
+  const catalogJsonService = new CatalogJsonService(opts.db, opts.env.CATALOG_JSON_DIR ?? "./data/catalog");
   const sheetMirrorService = new SheetMirrorService(
     opts.env.SHEET_SYNC_WEBHOOK_URL,
     opts.env.SHEET_SYNC_WEBHOOK_SECRET,
