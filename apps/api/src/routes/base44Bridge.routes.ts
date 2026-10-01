@@ -16,7 +16,7 @@ const bodySchema = z.object({
   subject: z.string().min(1).max(255),
   email: z.string().email().max(320),
   name: z.string().min(1).max(200),
-  avatarUrl: z.string().url().nullable().optional(),
+  avatarUrl: z.union([z.string().url(), z.literal(""), z.null()]).optional(),
   iat: z.number().int(),
   exp: z.number().int(),
   jti: z.string().min(16).max(200),
