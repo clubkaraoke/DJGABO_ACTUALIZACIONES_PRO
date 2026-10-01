@@ -166,6 +166,9 @@ export class DropboxStorageProvider implements StorageProvider {
       headers: {
         Authorization: `Bearer ${token}`,
         "Dropbox-API-Arg": JSON.stringify(payload),
+        // En cuentas de equipo, fija las rutas al espacio personal del miembro.
+        // Nuestros storageKey fueron indexados desde ese mismo árbol montado.
+        "Dropbox-API-Path-Root": JSON.stringify({ ".tag": "home" }),
       },
     });
 
