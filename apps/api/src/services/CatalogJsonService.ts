@@ -188,7 +188,9 @@ export class CatalogJsonService {
     const relative = storageKey.slice(normalizedMonth.length).replace(/^\/+/, "");
     const parts = relative.split("/").filter(Boolean);
     if (parts.length <= 1) return "DJGABO";
-    return parts[0].replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim() || "DJGABO";
+    const brandPart = parts[0];
+    if (!brandPart) return "DJGABO";
+    return brandPart.replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim() || "DJGABO";
   }
 
   private extensionOf(fileName: string): string | null {
