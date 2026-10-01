@@ -10,6 +10,8 @@ const envSchema = z.object({
   JWT_REFRESH_TTL_DAYS: z.coerce.number().default(30),
   DEVICE_TOKEN_SECRET: z.string().min(16),
   DOWNLOAD_TICKET_SECRET: z.string().min(16).optional(),
+  BASE44_BRIDGE_KEY: z.string().min(32).optional(),
+  BASE44_APP_ID: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   STORAGE_PROVIDER: z.enum(["mock", "dropbox"]).default("mock"),
   DROPBOX_APP_KEY: z.string().optional(),
