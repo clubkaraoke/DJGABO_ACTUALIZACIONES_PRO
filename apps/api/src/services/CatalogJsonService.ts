@@ -235,8 +235,17 @@ export class CatalogJsonService {
     const brandPart = relativeParts[0];
     if (!brandPart) return "DJGABO";
 
-    const cleaned = brandPart.replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim();
-    return this.canonicalBrandLabel(cleaned) || "DJGABO";
+    // 2026 usa cinco productores canónicos para mantener una navegación
+    // consistente aunque Dropbox tenga variantes como KKL, Sauly o Ra_F.
+    if (year === 2026) {
+      const cleaned = brandPart.replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim();
+      return this.canonicalBrandLabel(cleaned) || "DJGABO";
+    }
+
+    // 2025 hacia atrás conserva EXACTAMENTE el nombre histórico de la
+    // subcarpeta real de Dropbox. No renombramos ni normalizamos visualmente
+    // esos productores: el catálogo histórico refleja la fuente de verdad.
+    return brandPart.trim() || "DJGABO";
   }
 
   private defaultBrandLabels(year: number): string[] {
@@ -288,6 +297,8 @@ export class CatalogJsonService {
 
     if (
       normalized === "rf" ||
+      normalized === "ra f" ||
+      normalized === "raf" ||
       normalized.includes("rf 01") ||
       normalized.includes("rfk") ||
       normalized.includes("rafiki") ||
