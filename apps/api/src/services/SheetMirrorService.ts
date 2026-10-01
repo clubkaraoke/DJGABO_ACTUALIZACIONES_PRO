@@ -11,6 +11,18 @@ export interface SheetMirrorPayload {
     size?: number;
     modified_at?: string;
   }>;
+  snapshots?: Array<{
+    year: number;
+    month: number;
+    month_path: string;
+    files: Array<{
+      path: string;
+      name: string;
+      size?: number;
+      modified_at?: string;
+      provider_file_id?: string;
+    }>;
+  }>;
 }
 
 /**
