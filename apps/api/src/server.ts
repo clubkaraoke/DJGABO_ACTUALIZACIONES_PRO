@@ -7,6 +7,8 @@ import {
   seedPendingDropboxFiles,
   seedSyntheticArchives,
 } from "./storage/storageInstance.js";
+import { StorageIndexerService, parseMonthFolder, parseYearFolder } from "@djgabo/storage";
+import { DrizzleIndexerRepository } from "./db/drizzleIndexerRepository.js";
 import { buildApp } from "./app.js";
 
 async function main() {
@@ -18,6 +20,35 @@ async function main() {
   seedPendingDropboxFiles(provider);
 
   const app = await buildApp({ db, env, storageProvider: provider, storageProviderReason: reason });
+
+  // Bootstrap controlado de un mes que ya existía antes de activar el
+  // webhook/cursor. Es idempotente y se usa solo durante la migración inicial.
+  if (env.BOOTSTRAP_SYNC_MONTH_PATH) {
+    const parts = env.BOOTSTRAP_SYNC_MONTH_PATH.split("/").filter(Boolean);
+    const year = [...parts].reverse().map(parseYearFolder).find((value) => value !== null) ?? null;
+    const month = [...parts].reverse().map(parseMonthFolder).find((value) => value !== null) ?? null;
+
+    if (year !== null && month !== null) {
+      const repo = new DrizzleIndexerRepository(db, provider.kind);
+      const indexer = new StorageIndexerService(provider, repo);
+      const bootstrapResult = await indexer.runMonths(
+        [{ path: env.BOOTSTRAP_SYNC_MONTH_PATH, year, month }],
+        { dryRun: false },
+      );
+      console.log(
+        "[BOOTSTRAP_MONTH_SYNC]",
+        JSON.stringify({
+          path: env.BOOTSTRAP_SYNC_MONTH_PATH,
+          year,
+          month,
+          filesDetected: bootstrapResult.filesDetected,
+          newCount: bootstrapResult.newCount,
+          updatedCount: bootstrapResult.updatedCount,
+          errorCount: bootstrapResult.errorCount,
+        }),
+      );
+    }
+  }
 
   // El JSON público siempre nace desde la base persistente antes de aceptar
   // tráfico. En Dropbox real también sembramos el cursor actual para que el
