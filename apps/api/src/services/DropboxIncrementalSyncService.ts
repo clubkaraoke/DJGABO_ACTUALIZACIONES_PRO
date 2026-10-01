@@ -30,6 +30,7 @@ interface MonthTarget {
 export class DropboxIncrementalSyncService {
   private running = false;
   private pending = false;
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly db: Db,
@@ -66,6 +67,29 @@ export class DropboxIncrementalSyncService {
 
   trigger(): void {
     this.pending = true;
+    this.scheduleDebouncedRun();
+  }
+
+  /**
+   * Dropbox puede disparar muchos webhooks mientras se sube un lote grande.
+   * Reiniciamos una ventana corta de silencio y luego consumimos el cursor una
+   * sola vez. Así 20 avisos seguidos terminan en 1 sincronización del mes.
+   */
+  private scheduleDebouncedRun(): void {
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+
+    this.debounceTimer = setTimeout(() => {
+      this.debounceTimer = null;
+      this.startDrain();
+    }, this.env.DROPBOX_WEBHOOK_DEBOUNCE_MS);
+
+    this.log.info(
+      { debounceMs: this.env.DROPBOX_WEBHOOK_DEBOUNCE_MS },
+      "Dropbox webhook queued for debounced sync",
+    );
+  }
+
+  private startDrain(): void {
     if (this.running) return;
 
     this.running = true;
@@ -73,8 +97,10 @@ export class DropboxIncrementalSyncService {
       .catch((error) => this.log.error({ err: error }, "Dropbox incremental sync failed"))
       .finally(() => {
         this.running = false;
-        // Si llegó otro webhook justo entre el fin del loop y el finally.
-        if (this.pending) this.trigger();
+
+        // Si entró otro webhook durante la sincronización, esperamos otra
+        // ventana de silencio antes de consumir el siguiente delta.
+        if (this.pending) this.scheduleDebouncedRun();
       });
   }
 
@@ -84,10 +110,9 @@ export class DropboxIncrementalSyncService {
   }
 
   private async drain(): Promise<void> {
-    while (this.pending) {
-      this.pending = false;
-      await this.runDelta();
-    }
+    if (!this.pending) return;
+    this.pending = false;
+    await this.runDelta();
   }
 
   private async runDelta(): Promise<{ processed: number; months: MonthTarget[]; version?: string }> {
