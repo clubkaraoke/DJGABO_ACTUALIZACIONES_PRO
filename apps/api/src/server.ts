@@ -135,11 +135,18 @@ async function main() {
             with: { masterAsset: true },
           })
         : null;
-      const smokeStorageKey = smokeKaraoke?.masterAsset?.storageKey ?? null;
+      const masterAsset = smokeKaraoke?.masterAsset ?? null;
+      const smokeStorageKey = masterAsset?.storageKey ?? null;
+      const providerFileId = masterAsset?.providerFileId ?? null;
+
+      let livePath = smokeStorageKey;
+      if (providerFileId && provider.getPathForProviderFileId) {
+        livePath = await provider.getPathForProviderFileId(providerFileId);
+      }
 
       let downloadSmokePath: string | null = null;
-      if (smokeStorageKey) {
-        const segments = smokeStorageKey.split("/").filter(Boolean);
+      if (livePath) {
+        const segments = livePath.split("/").filter(Boolean);
         const yearIndex = segments.findIndex((segment) => parseYearFolder(segment) === 2018);
         let monthIndex = -1;
         if (yearIndex >= 0) {
@@ -155,12 +162,12 @@ async function main() {
       }
 
       if (!downloadSmokePath) {
-        throw new Error(`No se pudo derivar la carpeta desde storageKey=${smokeStorageKey ?? "null"}`);
+        throw new Error(`No se pudo derivar la carpeta desde livePath=${livePath ?? "null"}`);
       }
 
       console.log(
         "[DOWNLOAD_SMOKE_INPUT]",
-        JSON.stringify({ storageKey: smokeStorageKey, derivedPath: downloadSmokePath }),
+        JSON.stringify({ storageKey: smokeStorageKey, providerFileId, livePath, derivedPath: downloadSmokePath }),
       );
       const smoke = await provider.downloadFolderZipStream(downloadSmokePath);
       console.log(
@@ -168,6 +175,7 @@ async function main() {
         JSON.stringify({
           path: downloadSmokePath,
           storageKey: smokeStorageKey,
+          providerFileId,
           fileName: smoke.fileName,
           contentType: smoke.contentType,
           contentLength: smoke.contentLength,
