@@ -47,6 +47,40 @@ export const users = sqliteTable(
   (t) => ({ statusIdx: index("users_status_idx").on(t.status) }),
 );
 
+export const externalAuthIdentities = sqliteTable(
+  "external_auth_identities",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull(),
+    providerSubject: text("provider_subject").notNull(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    emailAtLink: text("email_at_link").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    lastSeenAt: integer("last_seen_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => ({
+    providerSubjectUnique: uniqueIndex("external_auth_provider_subject_unique").on(
+      t.provider,
+      t.providerSubject,
+    ),
+    userIdx: index("external_auth_user_idx").on(t.userId),
+  }),
+);
+
+export const authBridgeAssertions = sqliteTable(
+  "auth_bridge_assertions",
+  {
+    jti: text("jti").primaryKey(),
+    provider: text("provider").notNull(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    consumedAt: integer("consumed_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => ({
+    expiresIdx: index("auth_bridge_assertions_expires_idx").on(t.expiresAt),
+  }),
+);
+
 export const refreshTokens = sqliteTable("refresh_tokens", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -266,6 +300,16 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   downloadTickets: many(downloadTickets),
   deviceSessions: many(deviceSessions),
   refreshTokens: many(refreshTokens),
+  externalIdentities: many(externalAuthIdentities),
+  authBridgeAssertions: many(authBridgeAssertions),
+}));
+
+export const externalAuthIdentitiesRelations = relations(externalAuthIdentities, ({ one }) => ({
+  user: one(users, { fields: [externalAuthIdentities.userId], references: [users.id] }),
+}));
+
+export const authBridgeAssertionsRelations = relations(authBridgeAssertions, ({ one }) => ({
+  user: one(users, { fields: [authBridgeAssertions.userId], references: [users.id] }),
 }));
 
 export const plansRelations = relations(plans, ({ many }) => ({ users: many(users) }));
