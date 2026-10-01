@@ -7,6 +7,7 @@ import {
   type StorageProvider,
   type TemporaryUrlOptions,
 } from "./StorageProvider.js";
+import { parseYearFolder } from "./indexer/filenameParser.js";
 
 export interface DropboxConfig {
   appKey: string;
@@ -89,6 +90,32 @@ export class DropboxStorageProvider implements StorageProvider {
     const root = this.config.rootPath.replace(/\/$/, "");
     if (key === "/") return root;
     return key.startsWith(root) ? key : `${root}${key}`;
+  }
+
+  private toDownloadNamespacePath(key: string): string {
+    const segments = key.split("/").filter(Boolean);
+    const rootSegments = this.config.rootPath.split("/").filter(Boolean);
+    const rootName = rootSegments.at(-1)?.toLocaleLowerCase();
+
+    if (rootName) {
+      const rootIndex = segments.findIndex(
+        (segment) => segment.toLocaleLowerCase() === rootName,
+      );
+      if (rootIndex >= 0) {
+        const relative = segments.slice(rootIndex + 1);
+        return relative.length ? `/${relative.join("/")}` : "";
+      }
+    }
+
+    // El namespace configurado apunta directamente a la raíz del catálogo.
+    // Si el path proviene de path_display (con carpetas personales previas),
+    // recortamos todo lo anterior a la carpeta del año.
+    const yearIndex = segments.findIndex((segment) => parseYearFolder(segment) !== null);
+    if (yearIndex >= 0) {
+      return `/${segments.slice(yearIndex).join("/")}`;
+    }
+
+    return key.startsWith("/") ? key : `/${key}`;
   }
 
   private async getAccessToken(): Promise<string> {
@@ -324,9 +351,7 @@ export class DropboxStorageProvider implements StorageProvider {
         !key.startsWith("id:") &&
         this.config.downloadNamespaceId
       ) {
-        const root = this.config.rootPath.replace(/\/$/, "");
-        let namespacePath = key.startsWith(root) ? key.slice(root.length) : key;
-        if (!namespacePath.startsWith("/")) namespacePath = `/${namespacePath}`;
+        const namespacePath = this.toDownloadNamespacePath(key);
         res = await this.content(
           "/files/download_zip",
           { path: namespacePath },
