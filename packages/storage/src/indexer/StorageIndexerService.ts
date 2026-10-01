@@ -40,15 +40,57 @@ export class StorageIndexerService {
       const year = parseYearFolder(yearEntry.name);
       if (year === null) continue;
 
-      const monthEntries = await this.storage.listFolder(yearEntry.path);
-      for (const monthEntry of monthEntries.filter((e) => e.isFolder)) {
-        const month = parseMonthFolder(monthEntry.name);
-        if (month === null) continue;
-        targets.push({ path: monthEntry.path, year, month });
-      }
+      const monthTargets = await this.discoverMonthTargets(yearEntry.path, year);
+      targets.push(...monthTargets);
     }
 
     return this.runMonths(targets, options);
+  }
+
+  /**
+   * Descubre las carpetas mensuales dentro de una carpeta anual real.
+   *
+   * La mayoría de años tienen los meses directamente debajo del año, pero
+   * existen excepciones históricas como 2016:
+   *   /5 - Hits Karaoke 2016/5.- Hits Karaoke 2016/1.- ENERO 2016/...
+   *
+   * Detectamos ese wrapper intermedio cuando contiene varias carpetas que sí
+   * parecen meses. Así evitamos interpretar erróneamente el prefijo "5.-" del
+   * wrapper como si fuera Mayo.
+   */
+  private async discoverMonthTargets(
+    yearPath: string,
+    year: number,
+  ): Promise<Array<{ path: string; year: number; month: number }>> {
+    const out: Array<{ path: string; year: number; month: number }> = [];
+    const entries = await this.storage.listFolder(yearPath);
+
+    for (const entry of entries.filter((e) => e.isFolder)) {
+      const directMonth = parseMonthFolder(entry.name);
+
+      // Algunas carpetas anuales históricas tienen un wrapper redundante.
+      // Solo lo tratamos como wrapper si dentro hay varias carpetas-mes.
+      if (parseYearFolder(entry.name) === year) {
+        const children = await this.storage.listFolder(entry.path);
+        const nestedMonths = children
+          .filter((child) => child.isFolder)
+          .map((child) => ({ child, month: parseMonthFolder(child.name) }))
+          .filter((item): item is { child: StorageEntry; month: number } => item.month !== null);
+
+        if (nestedMonths.length >= 3) {
+          for (const { child, month } of nestedMonths) {
+            out.push({ path: child.path, year, month });
+          }
+          continue;
+        }
+      }
+
+      if (directMonth !== null) {
+        out.push({ path: entry.path, year, month: directMonth });
+      }
+    }
+
+    return out;
   }
 
   /**
