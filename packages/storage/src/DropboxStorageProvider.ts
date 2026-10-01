@@ -166,9 +166,6 @@ export class DropboxStorageProvider implements StorageProvider {
       headers: {
         Authorization: `Bearer ${token}`,
         "Dropbox-API-Arg": JSON.stringify(payload),
-        // En cuentas de equipo, fija las rutas al espacio personal del miembro.
-        // Nuestros storageKey fueron indexados desde ese mismo árbol montado.
-        "Dropbox-API-Path-Root": JSON.stringify({ ".tag": "home" }),
       },
     });
 
@@ -263,6 +260,41 @@ export class DropboxStorageProvider implements StorageProvider {
       contentLength: contentLengthHeader ? Number(contentLengthHeader) : null,
       fileName,
     };
+  }
+
+  async downloadFileByProviderFileIdStream(providerFileId: string): Promise<StorageDownloadStream> {
+    const res = await this.content("/files/download", { path: providerFileId });
+    const argHeader = res.headers.get("dropbox-api-result");
+    let fileName = "archivo";
+    if (argHeader) {
+      try {
+        const parsed = JSON.parse(argHeader) as { name?: string };
+        if (parsed.name) fileName = parsed.name;
+      } catch {
+        // El nombre es decorativo; la descarga sigue siendo válida.
+      }
+    }
+    const contentLengthHeader = res.headers.get("content-length");
+    return {
+      body: res.body!,
+      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+      contentLength: contentLengthHeader ? Number(contentLengthHeader) : null,
+      fileName,
+    };
+  }
+
+  async getPathForProviderFileId(providerFileId: string): Promise<string> {
+    const data = await this.rpc<{
+      id: string;
+      name: string;
+      path_display?: string;
+      path_lower?: string;
+    }>("/files/get_metadata", { path: providerFileId });
+    const path = data.path_display ?? data.path_lower;
+    if (!path) {
+      throw new StorageError("NOT_FOUND", `El archivo ${providerFileId} no tiene un path montado actualmente`);
+    }
+    return path;
   }
 
   async downloadFolderZipStream(key: string): Promise<StorageDownloadStream> {
