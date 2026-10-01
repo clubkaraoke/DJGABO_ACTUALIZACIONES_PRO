@@ -219,7 +219,7 @@ export class DropboxIncrementalSyncService {
 
       for (const entry of entries) {
         if (entry.isFolder) {
-          stack.push(entry.path);
+          stack.push(this.toStorageRelativePath(entry.path));
           continue;
         }
         out.push({
@@ -233,6 +233,15 @@ export class DropboxIncrementalSyncService {
     }
 
     return out;
+  }
+
+  private toStorageRelativePath(path: string): string {
+    const root = this.env.DROPBOX_ROOT_PATH.replace(/\/$/, "");
+    if (path.toLowerCase().startsWith(root.toLowerCase())) {
+      const relative = path.slice(root.length);
+      return relative.startsWith("/") ? relative : `/${relative}`;
+    }
+    return path;
   }
 
   private deriveMonthTargets(entries: DropboxChangeEntry[]): MonthTarget[] {
