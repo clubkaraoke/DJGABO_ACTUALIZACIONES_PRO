@@ -5,7 +5,9 @@ import { deviceSessions } from "../db/schema.js";
 import { createId } from "../db/id.js";
 
 const registerSchema = z.object({
-  deviceName: z.string().max(120).optional(),
+  // El frontend puede enviar un nombre descriptivo largo (por ejemplo user-agent).
+  // Aceptamos una entrada razonable y la normalizamos a 120 caracteres al guardar.
+  deviceName: z.string().max(512).optional(),
 });
 
 /**
@@ -46,7 +48,7 @@ export async function registerDeviceRoutes(fastify: FastifyInstance) {
         id: createId("devrow"),
         userId,
         deviceId,
-        name: parsed.data.deviceName ?? null,
+        name: parsed.data.deviceName?.trim().slice(0, 120) || null,
         active: true,
         lastSeenAt: new Date(),
       });
