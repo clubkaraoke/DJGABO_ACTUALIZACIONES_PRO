@@ -298,9 +298,11 @@ export class DropboxStorageProvider implements StorageProvider {
   }
 
   async downloadFolderZipStream(key: string): Promise<StorageDownloadStream> {
-    const path = this.resolvePath(key);
+    const path = key.startsWith("id:") ? key : this.resolvePath(key);
     const res = await this.content("/files/download_zip", { path });
-    const folderName = path.split("/").filter(Boolean).pop() ?? "coleccion";
+    const folderName = key.startsWith("id:")
+      ? "coleccion"
+      : path.split("/").filter(Boolean).pop() ?? "coleccion";
     const contentLengthHeader = res.headers.get("content-length");
     return {
       body: res.body!,
