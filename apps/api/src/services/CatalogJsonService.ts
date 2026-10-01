@@ -148,7 +148,7 @@ export class CatalogJsonService {
       .orderBy(asc(karaokes.artist), asc(karaokes.title));
 
     const karaokesOut: CatalogKaraoke[] = rows.map((row) => {
-      const brand = this.deriveBrand(month, row.storageKey ?? "");
+      const brand = this.deriveBrand(year, month, row.storageKey ?? "");
       return {
         id: row.id,
         code: row.code,
@@ -190,15 +190,27 @@ export class CatalogJsonService {
     };
   }
 
-  private deriveBrand(month: number, storageKey: string): string {
+  private deriveBrand(year: number, month: number, storageKey: string): string {
     const storageSegments = storageKey.split("/").filter(Boolean);
 
-    // La colección puede conservar un storagePath histórico. Para clasificar
-    // la marca usamos la ruta REAL del asset y localizamos la carpeta del mes
-    // (07_JULIO_2026, 05_MAYO_2026, etc.) por su parser.
-    const monthIndex = storageSegments.findIndex(
-      (segment) => parseMonthFolder(segment) === month,
-    );
+    // La ruta completa de Dropbox contiene varios segmentos cuyos prefijos
+    // numéricos NO son meses (por ejemplo "1.- Pack Karaoke PRO"). Para no
+    // confundirlos, primero localizamos la carpeta del AÑO real y después
+    // buscamos la carpeta del mes únicamente a partir de ese punto.
+    let yearIndex = -1;
+    for (let i = 0; i < storageSegments.length; i++) {
+      if (parseYearFolder(storageSegments[i]) === year) yearIndex = i;
+    }
+
+    if (yearIndex < 0) return "DJGABO";
+
+    let monthIndex = -1;
+    for (let i = yearIndex + 1; i < storageSegments.length; i++) {
+      if (parseMonthFolder(storageSegments[i]) === month) {
+        monthIndex = i;
+        break;
+      }
+    }
 
     if (monthIndex < 0) return "DJGABO";
 
