@@ -200,6 +200,26 @@ export const syncRuns = sqliteTable("sync_runs", {
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
+/**
+ * Cursor persistente para sincronización incremental por provider/root.
+ * El cursor de Dropbox solo se avanza después de indexar y publicar JSON
+ * correctamente; si el proceso cae antes, el mismo delta se reintenta.
+ */
+export const syncState = sqliteTable(
+  "sync_state",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider").notNull(),
+    rootPath: text("root_path").notNull(),
+    cursor: text("cursor").notNull(),
+    initializedAt: integer("initialized_at", { mode: "timestamp" }).notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => ({
+    providerRootUnique: uniqueIndex("sync_state_provider_root_unique").on(t.provider, t.rootPath),
+  }),
+);
+
 // ---------- Relaciones (habilitan la API relacional db.query.x.findMany({ with })) ----------
 export const usersRelations = relations(users, ({ one, many }) => ({
   plan: one(plans, { fields: [users.planId], references: [plans.id] }),
