@@ -19,6 +19,7 @@ const envSchema = z.object({
   CATALOG_JSON_DIR: z.string().default("./data/catalog"),
   DROPBOX_WEBHOOK_DEBOUNCE_MS: z.coerce.number().int().min(500).max(60000).default(5000),
   BOOTSTRAP_SYNC_MONTH_PATH: z.string().optional(),
+  BOOTSTRAP_SYNC_ROOT_PATH: z.string().optional(),
   SHEET_SYNC_WEBHOOK_URL: z.string().url().optional(),
   SHEET_SYNC_WEBHOOK_SECRET: z.string().optional(),
 });
