@@ -23,6 +23,7 @@ const envSchema = z.object({
   BOOTSTRAP_SYNC_ROOT_PATH: z.string().optional(),
   SHEET_SYNC_WEBHOOK_URL: z.string().url().optional(),
   SHEET_SYNC_WEBHOOK_SECRET: z.string().optional(),
+  DOWNLOAD_SMOKE_PATH: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
