@@ -200,7 +200,10 @@ export class CatalogJsonService {
     let yearIndex = -1;
     for (let i = 0; i < storageSegments.length; i++) {
       const segment = storageSegments[i];
-      if (segment && parseYearFolder(segment) === year) yearIndex = i;
+      if (segment && parseYearFolder(segment) === year) {
+        yearIndex = i;
+        break;
+      }
     }
 
     if (yearIndex < 0) return "DJGABO";
