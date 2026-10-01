@@ -18,6 +18,11 @@ export const plans = sqliteTable("plans", {
   description: text("description"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   maxDevices: integer("max_devices").notNull().default(2),
+  // Límites de descarga configurables por plan.
+  maxCollectionDownloadsPerDay: integer("max_collection_downloads_per_day").notNull().default(2),
+  maxDistinctCollectionsPerDay: integer("max_distinct_collections_per_day").notNull().default(5),
+  // null = sin límite total de carpetas elegidas. El plan mensual de US$29.99 usa 3.
+  maxSelectedCollections: integer("max_selected_collections"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -157,6 +162,38 @@ export const userCollectionAccess = sqliteTable(
   (t) => ({ userCollectionIdx: uniqueIndex("access_user_collection_idx").on(t.userId, t.collectionId) }),
 );
 
+export const userDownloadCollections = sqliteTable(
+  "user_download_collections",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    collectionId: text("collection_id").notNull().references(() => collections.id, { onDelete: "cascade" }),
+    selectedAt: integer("selected_at", { mode: "timestamp" }).notNull(),
+  },
+  (t) => ({
+    userCollectionUnique: uniqueIndex("user_download_collections_unique").on(t.userId, t.collectionId),
+    userIdx: index("user_download_collections_user_idx").on(t.userId),
+  }),
+);
+
+export const downloadTickets = sqliteTable(
+  "download_tickets",
+  {
+    id: text("id").primaryKey(), // jti firmado
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    deviceId: text("device_id").notNull(),
+    kind: text("kind").notNull(),
+    resourceId: text("resource_id").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+    consumedAt: integer("consumed_at", { mode: "timestamp" }),
+  },
+  (t) => ({
+    userIdx: index("download_tickets_user_idx").on(t.userId),
+    expiresIdx: index("download_tickets_expires_idx").on(t.expiresAt),
+  }),
+);
+
 export const downloadLogs = sqliteTable(
   "download_logs",
   {
@@ -225,6 +262,8 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   plan: one(plans, { fields: [users.planId], references: [plans.id] }),
   accesses: many(userCollectionAccess),
   downloadLogs: many(downloadLogs),
+  downloadCollections: many(userDownloadCollections),
+  downloadTickets: many(downloadTickets),
   deviceSessions: many(deviceSessions),
   refreshTokens: many(refreshTokens),
 }));
