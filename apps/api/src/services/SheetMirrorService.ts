@@ -39,7 +39,10 @@ export class SheetMirrorService {
         "Content-Type": "application/json",
         ...(this.secret ? { Authorization: `Bearer ${this.secret}` } : {}),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        ...payload,
+        ...(this.secret ? { secret: this.secret } : {}),
+      }),
     });
 
     if (!res.ok) {
