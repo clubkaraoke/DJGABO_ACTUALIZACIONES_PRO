@@ -193,27 +193,36 @@ export class CatalogJsonService {
   private deriveBrand(year: number, month: number, storageKey: string): string {
     const storageSegments = storageKey.split("/").filter(Boolean);
 
-    // La ruta completa de Dropbox contiene varios segmentos cuyos prefijos
-    // numéricos NO son meses (por ejemplo "1.- Pack Karaoke PRO"). Para no
-    // confundirlos, primero localizamos la carpeta del AÑO real y después
-    // buscamos la carpeta del mes únicamente a partir de ese punto.
-    let yearIndex = -1;
-    for (let i = 0; i < storageSegments.length; i++) {
-      const segment = storageSegments[i];
-      if (segment && parseYearFolder(segment) === year) {
-        yearIndex = i;
-        break;
-      }
-    }
+    // Dropbox puede devolver rutas completas dentro del root principal o,
+    // cuando una carpeta está compartida/montada como namespace independiente,
+    // rutas que empiezan directamente en la carpeta del mes. Por eso primero
+    // buscamos una carpeta que identifique a la vez el AÑO y el MES reales.
+    let monthIndex = storageSegments.findIndex((segment) =>
+      parseYearFolder(segment) === year && parseMonthFolder(segment) === month
+    );
 
-    if (yearIndex < 0) return "DJGABO";
+    if (monthIndex < 0) {
+      // Si la ruta sí conserva una carpeta anual separada, buscamos el mes
+      // únicamente DESPUÉS de esa carpeta para no confundir prefijos como
+      // "1.- Pack Karaoke PRO" con Enero.
+      const yearIndex = storageSegments.findIndex(
+        (segment) => parseYearFolder(segment) === year,
+      );
 
-    let monthIndex = -1;
-    for (let i = yearIndex + 1; i < storageSegments.length; i++) {
-      const segment = storageSegments[i];
-      if (segment && parseMonthFolder(segment) === month) {
-        monthIndex = i;
-        break;
+      if (yearIndex >= 0) {
+        for (let i = yearIndex + 1; i < storageSegments.length; i++) {
+          const segment = storageSegments[i];
+          if (segment && parseMonthFolder(segment) === month) {
+            monthIndex = i;
+            break;
+          }
+        }
+      } else {
+        // Namespace compartido sin carpeta anual visible: el path suele
+        // comenzar directamente por "01.- Enero", "02.- Febrero", etc.
+        monthIndex = storageSegments.findIndex(
+          (segment) => parseMonthFolder(segment) === month,
+        );
       }
     }
 
