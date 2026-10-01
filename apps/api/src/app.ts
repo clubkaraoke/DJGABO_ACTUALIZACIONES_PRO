@@ -17,6 +17,7 @@ import { SheetMirrorService } from "./services/SheetMirrorService.js";
 import { DropboxIncrementalSyncService } from "./services/DropboxIncrementalSyncService.js";
 
 import { registerAuthRoutes } from "./routes/auth.routes.js";
+import { registerBase44BridgeRoutes } from "./routes/base44Bridge.routes.js";
 import { registerCollectionsRoutes } from "./routes/collections.routes.js";
 import { registerKaraokesRoutes } from "./routes/karaokes.routes.js";
 import { registerDownloadsRoutes } from "./routes/downloads.routes.js";
@@ -113,6 +114,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await registerCatalogRoutes(fastify);
   await registerDropboxWebhookRoutes(fastify);
   await registerAuthRoutes(fastify, opts.env);
+  await registerBase44BridgeRoutes(fastify);
   await registerCollectionsRoutes(fastify);
   await registerKaraokesRoutes(fastify);
   await registerDownloadsRoutes(fastify);
