@@ -79,8 +79,11 @@ export class DropboxStorageProvider implements StorageProvider {
 
   private resolvePath(key: string): string {
     assertSafeStorageKey(key);
-    // Dropbox no acepta "/" como path raíz para list_folder; usa "" para root.
+    // "/" representa la raíz lógica configurada del catálogo. Dropbox no
+    // acepta una barra final extra como raíz de list_folder, así que devolvemos
+    // exactamente DROPBOX_ROOT_PATH sin el slash final.
     const root = this.config.rootPath.replace(/\/$/, "");
+    if (key === "/") return root;
     return key.startsWith(root) ? key : `${root}${key}`;
   }
 
