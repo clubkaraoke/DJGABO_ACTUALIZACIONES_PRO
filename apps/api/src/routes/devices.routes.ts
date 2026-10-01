@@ -1,14 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
 import { signDeviceToken } from "../auth/deviceToken.js";
 import { deviceSessions } from "../db/schema.js";
 import { createId } from "../db/id.js";
-
-const registerSchema = z.object({
-  // El frontend puede enviar un nombre descriptivo largo (por ejemplo user-agent).
-  // Aceptamos una entrada razonable y la normalizamos a 120 caracteres al guardar.
-  deviceName: z.string().max(512).optional(),
-});
 
 /**
  * POST /api/devices/register
@@ -24,10 +17,17 @@ export async function registerDeviceRoutes(fastify: FastifyInstance) {
     "/api/devices/register",
     { preHandler: fastify.authenticate, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const parsed = registerSchema.safeParse(request.body ?? {});
-      if (!parsed.success) {
-        return reply.code(400).send({ error: "INVALID_INPUT", message: "Nombre de dispositivo inválido", statusCode: 400 });
-      }
+      const rawBody =
+        request.body && typeof request.body === "object"
+          ? (request.body as Record<string, unknown>)
+          : {};
+      const rawDeviceName =
+        typeof rawBody.deviceName === "string"
+          ? rawBody.deviceName
+          : typeof rawBody.name === "string"
+            ? rawBody.name
+            : null;
+      const safeDeviceName = rawDeviceName?.trim().slice(0, 120) || "Navegador";
       const userId = request.authUser!.sub;
 
       const check = await fastify.authorizationService.canRegisterDevice(userId);
@@ -48,7 +48,7 @@ export async function registerDeviceRoutes(fastify: FastifyInstance) {
         id: createId("devrow"),
         userId,
         deviceId,
-        name: parsed.data.deviceName?.trim().slice(0, 120) || null,
+        name: safeDeviceName,
         active: true,
         lastSeenAt: new Date(),
       });
