@@ -192,14 +192,18 @@ export class DropboxIncrementalSyncService {
       } else {
         const yearIndex = segments.findIndex((segment) => parseYearFolder(segment) !== null);
         if (yearIndex === -1) continue;
-        year = parseYearFolder(segments[yearIndex]);
+        const yearSegment = segments[yearIndex];
+        if (!yearSegment) continue;
+        year = parseYearFolder(yearSegment);
         monthSegmentIndex = segments.findIndex(
           (segment, index) => index > yearIndex && parseMonthFolder(segment) !== null,
         );
       }
 
       if (year === null || monthSegmentIndex === -1) continue;
-      const month = parseMonthFolder(segments[monthSegmentIndex]);
+      const monthSegment = segments[monthSegmentIndex];
+      if (!monthSegment) continue;
+      const month = parseMonthFolder(monthSegment);
       if (month === null) continue;
 
       const monthPath = `${watchedRoot}/${segments.slice(0, monthSegmentIndex + 1).join("/")}`;
