@@ -233,11 +233,40 @@ export class CatalogJsonService {
       .trim()
       .replace(/\s+/g, " ");
 
-    if (["club karaoke", "el club karaoke"].includes(normalized)) return "01 · Club Karaoke";
-    if (["kk live", "kkl"].includes(normalized)) return "02 · KK Live";
-    if (["luisfer", "luis fer"].includes(normalized)) return "03 · Luis Fer";
-    if (["dj sa", "dj sauly", "sauly"].includes(normalized)) return "04 · DJ SA";
-    if (["rf", "rf 01", "rfk", "rafiki", "ra f"].includes(normalized)) return "05 · RFK";
+    // Nombres actuales + variantes históricas del mismo productor.
+    if (
+      normalized.includes("club karaoke") ||
+      normalized.includes("el club karaoke") ||
+      normalized.includes("prod club")
+    ) return "01 · Club Karaoke";
+
+    if (
+      normalized === "kkl" ||
+      normalized.includes("kk live") ||
+      normalized.includes("k live") ||
+      normalized.includes("karaokanta")
+    ) return "02 · KK Live";
+
+    if (
+      normalized.includes("luis fer") ||
+      normalized.includes("luisfer") ||
+      normalized.includes("prod luis fer")
+    ) return "03 · Luis Fer";
+
+    if (
+      normalized.includes("dj sa") ||
+      normalized.includes("dj sauly") ||
+      normalized.includes("sauly") ||
+      normalized.includes("prod djsauly")
+    ) return "04 · DJ SA";
+
+    if (
+      normalized === "rf" ||
+      normalized.includes("rf 01") ||
+      normalized.includes("rfk") ||
+      normalized.includes("rafiki") ||
+      normalized.includes("prod rafiki")
+    ) return "05 · RFK";
 
     return value;
   }
