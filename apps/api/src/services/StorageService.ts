@@ -65,6 +65,10 @@ export class StorageService {
     return this.provider.downloadFolderZipStream(storageKey);
   }
 
+  async listFolderEntries(path: string) {
+    return this.provider.listFolder(path);
+  }
+
   /**
    * SEMÁNTICA DEL TTL (punto 3)
    * ============================
