@@ -10,6 +10,9 @@ const planSchema = z.object({
   description: z.string().optional(),
   active: z.boolean().default(true),
   maxDevices: z.number().int().min(1).max(20).default(2),
+  maxCollectionDownloadsPerDay: z.number().int().min(1).max(20).default(2),
+  maxDistinctCollectionsPerDay: z.number().int().min(1).max(50).default(5),
+  maxSelectedCollections: z.number().int().min(1).max(500).nullable().optional(),
 });
 
 export async function registerAdminPlansRoutes(fastify: FastifyInstance) {
