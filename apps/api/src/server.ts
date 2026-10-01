@@ -83,6 +83,20 @@ async function main() {
     }),
   );
 
+  try {
+    const july = await app.catalogJsonService.readMonth(2026, 7);
+    console.log(
+      "[CATALOG_JULY_VERIFY]",
+      JSON.stringify({
+        version: july.doc.version,
+        total: july.doc.karaokes.length,
+        brands: july.doc.brands,
+      }),
+    );
+  } catch {
+    // Julio puede no existir aún en otras instalaciones.
+  }
+
   console.log(`[STORAGE_PROVIDER] ${provider.kind} (${reason})`);
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
