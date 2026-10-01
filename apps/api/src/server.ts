@@ -124,15 +124,46 @@ async function main() {
 
   // Smoke test opcional y temporal del ZIP de carpeta por Dropbox.
   // Solo abre el stream y lo cancela: no guarda ni descarga el ZIP completo.
-  const downloadSmokePath =
-    env.DOWNLOAD_SMOKE_PATH ?? "/7.- HIts Karaoke 2018 (1)/06 - Top Hits - Junio 2018";
   if (provider.downloadFolderZipStream) {
     try {
+      const smokeCollection = await db.query.collections.findFirst({
+        where: (c, { and, eq }) => and(eq(c.year, 2018), eq(c.month, 6)),
+      });
+      const smokeKaraoke = smokeCollection
+        ? await db.query.karaokes.findFirst({
+            where: (k, { eq }) => eq(k.collectionId, smokeCollection.id),
+            with: { masterAsset: true },
+          })
+        : null;
+      const smokeStorageKey = smokeKaraoke?.masterAsset?.storageKey ?? null;
+
+      let downloadSmokePath: string | null = null;
+      if (smokeStorageKey) {
+        const segments = smokeStorageKey.split("/").filter(Boolean);
+        const yearIndex = segments.findIndex((segment) => parseYearFolder(segment) === 2018);
+        let monthIndex = -1;
+        if (yearIndex >= 0) {
+          for (let i = yearIndex + 1; i < segments.length - 1; i++) {
+            const segment = segments[i];
+            if (segment && parseMonthFolder(segment) === 6) {
+              monthIndex = i;
+              break;
+            }
+          }
+        }
+        if (monthIndex >= 0) downloadSmokePath = `/${segments.slice(0, monthIndex + 1).join("/")}`;
+      }
+
+      if (!downloadSmokePath) {
+        throw new Error(`No se pudo derivar la carpeta desde storageKey=${smokeStorageKey ?? "null"}`);
+      }
+
       const smoke = await provider.downloadFolderZipStream(downloadSmokePath);
       console.log(
         "[DOWNLOAD_SMOKE]",
         JSON.stringify({
           path: downloadSmokePath,
+          storageKey: smokeStorageKey,
           fileName: smoke.fileName,
           contentType: smoke.contentType,
           contentLength: smoke.contentLength,
@@ -144,7 +175,6 @@ async function main() {
       console.error(
         "[DOWNLOAD_SMOKE_ERROR]",
         JSON.stringify({
-          path: downloadSmokePath,
           message: error instanceof Error ? error.message : String(error),
         }),
       );
