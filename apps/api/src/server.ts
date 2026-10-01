@@ -1,8 +1,6 @@
 import "dotenv/config";
 import { loadEnv } from "./env.js";
-import { and, eq } from "drizzle-orm";
 import { createDb } from "./db/client.js";
-import { assets, karaokes } from "./db/schema.js";
 import {
   getStorageProvider,
   bootstrapMockStorageFromDb,
@@ -105,28 +103,6 @@ async function main() {
       })),
     }),
   );
-
-  try {
-    const julyCollection = collectionDiagnostics.find((collection) => collection.year === 2026 && collection.month === 7);
-    if (julyCollection) {
-      const sample = await db
-        .select({
-          title: karaokes.title,
-          storageKey: assets.storageKey,
-          providerFileId: assets.providerFileId,
-        })
-        .from(karaokes)
-        .leftJoin(assets, eq(karaokes.masterAssetId, assets.id))
-        .where(and(eq(karaokes.collectionId, julyCollection.id), eq(assets.provider, "dropbox")))
-        .limit(3);
-      console.log(
-        "[CATALOG_JULY_PATH_DIAGNOSTICS]",
-        JSON.stringify({ collectionStoragePath: julyCollection.storagePath, sample }),
-      );
-    }
-  } catch {
-    // Diagnóstico no crítico.
-  }
 
   try {
     const july = await app.catalogJsonService.readMonth(2026, 7);
