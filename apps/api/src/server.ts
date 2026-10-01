@@ -122,6 +122,33 @@ async function main() {
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
 
+  // Smoke test opcional y temporal del ZIP de carpeta por Dropbox.
+  // Solo abre el stream y lo cancela: no guarda ni descarga el ZIP completo.
+  if (env.DOWNLOAD_SMOKE_PATH && provider.downloadFolderZipStream) {
+    try {
+      const smoke = await provider.downloadFolderZipStream(env.DOWNLOAD_SMOKE_PATH);
+      console.log(
+        "[DOWNLOAD_SMOKE]",
+        JSON.stringify({
+          path: env.DOWNLOAD_SMOKE_PATH,
+          fileName: smoke.fileName,
+          contentType: smoke.contentType,
+          contentLength: smoke.contentLength,
+          opened: true,
+        }),
+      );
+      await smoke.body.cancel();
+    } catch (error) {
+      console.error(
+        "[DOWNLOAD_SMOKE_ERROR]",
+        JSON.stringify({
+          path: env.DOWNLOAD_SMOKE_PATH,
+          message: error instanceof Error ? error.message : String(error),
+        }),
+      );
+    }
+  }
+
   // Bootstrap masivo controlado del catálogo histórico. Se ejecuta DESPUÉS
   // de levantar HTTP para no bloquear el healthcheck de Railway. Es
   // idempotente: usa la identidad estable de Dropbox y solo crea/actualiza.
