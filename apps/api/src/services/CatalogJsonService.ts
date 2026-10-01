@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { and, asc, desc, eq } from "drizzle-orm";
+import { parseMonthFolder } from "@djgabo/storage";
 import type { Db } from "../db/client.js";
 import { assets, collections, karaokes } from "../db/schema.js";
 
@@ -147,7 +148,7 @@ export class CatalogJsonService {
       .orderBy(asc(karaokes.artist), asc(karaokes.title));
 
     const karaokesOut: CatalogKaraoke[] = rows.map((row) => {
-      const brand = this.deriveBrand(collection.storagePath, row.storageKey ?? "");
+      const brand = this.deriveBrand(month, row.storageKey ?? "");
       return {
         id: row.id,
         code: row.code,
@@ -189,38 +190,25 @@ export class CatalogJsonService {
     };
   }
 
-  private deriveBrand(monthPath: string, storageKey: string): string {
-    const monthSegments = monthPath.split("/").filter(Boolean);
-    const monthFolder = monthSegments.at(-1);
+  private deriveBrand(month: number, storageKey: string): string {
     const storageSegments = storageKey.split("/").filter(Boolean);
 
-    // Los assets de Dropbox pueden guardar la ruta completa del proveedor,
-    // mientras que collection.storagePath es storage-relative. Por eso no
-    // debemos exigir que storageKey empiece literalmente por monthPath.
-    // Encontramos la carpeta del mes dentro de la ruta real y tomamos el
-    // siguiente segmento como marca.
-    if (monthFolder) {
-      const monthIndex = storageSegments.findIndex(
-        (segment) => segment.toLowerCase() === monthFolder.toLowerCase(),
-      );
-      if (monthIndex >= 0) {
-        const relativeParts = storageSegments.slice(monthIndex + 1);
-        if (relativeParts.length <= 1) return "DJGABO";
-        const brandPart = relativeParts[0];
-        if (!brandPart) return "DJGABO";
-        const cleaned = brandPart.replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim();
-        return this.canonicalBrandLabel(cleaned) || "DJGABO";
-      }
-    }
+    // La colección puede conservar un storagePath histórico. Para clasificar
+    // la marca usamos la ruta REAL del asset y localizamos la carpeta del mes
+    // (07_JULIO_2026, 05_MAYO_2026, etc.) por su parser.
+    const monthIndex = storageSegments.findIndex(
+      (segment) => parseMonthFolder(segment) === month,
+    );
 
-    // Fallback para instalaciones donde ambas rutas sí comparten prefijo.
-    const normalizedMonth = monthPath.replace(/\/$/, "");
-    if (!storageKey.toLowerCase().startsWith(normalizedMonth.toLowerCase())) return "DJGABO";
-    const relative = storageKey.slice(normalizedMonth.length).replace(/^\/+/, "");
-    const parts = relative.split("/").filter(Boolean);
-    if (parts.length <= 1) return "DJGABO";
-    const brandPart = parts[0];
+    if (monthIndex < 0) return "DJGABO";
+
+    const relativeParts = storageSegments.slice(monthIndex + 1);
+    // Si después del mes solo viene el archivo, está en la raíz del mes.
+    if (relativeParts.length <= 1) return "DJGABO";
+
+    const brandPart = relativeParts[0];
     if (!brandPart) return "DJGABO";
+
     const cleaned = brandPart.replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim();
     return this.canonicalBrandLabel(cleaned) || "DJGABO";
   }
