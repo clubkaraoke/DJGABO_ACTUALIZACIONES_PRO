@@ -44,6 +44,20 @@ export class StorageService {
     return this.provider.downloadFileStream(storageKey);
   }
 
+  async getSecureFileByProviderFileIdStream(providerFileId: string) {
+    if (!this.provider.downloadFileByProviderFileIdStream) {
+      throw new Error("SECURE_PROVIDER_ID_STREAM_NOT_SUPPORTED");
+    }
+    return this.provider.downloadFileByProviderFileIdStream(providerFileId);
+  }
+
+  async getCurrentPathForProviderFileId(providerFileId: string) {
+    if (!this.provider.getPathForProviderFileId) {
+      throw new Error("PROVIDER_ID_PATH_RESOLUTION_NOT_SUPPORTED");
+    }
+    return this.provider.getPathForProviderFileId(providerFileId);
+  }
+
   async getSecureFolderZipStream(storageKey: string) {
     if (!this.provider.downloadFolderZipStream) {
       throw new Error("SECURE_ZIP_STREAM_NOT_SUPPORTED");
