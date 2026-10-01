@@ -33,7 +33,7 @@ export class StorageIndexerService {
   ) {}
 
   async run(rootPath: string, options: { dryRun: boolean }): Promise<SyncResult> {
-    const items: SyncPlanItem[] = [];
+    const targets: Array<{ path: string; year: number; month: number }> = [];
     const yearEntries = await this.storage.listFolder(rootPath);
 
     for (const yearEntry of yearEntries.filter((e) => e.isFolder)) {
@@ -44,20 +44,44 @@ export class StorageIndexerService {
       for (const monthEntry of monthEntries.filter((e) => e.isFolder)) {
         const month = parseMonthFolder(monthEntry.name);
         if (month === null) continue;
+        targets.push({ path: monthEntry.path, year, month });
+      }
+    }
 
-        const monthContents = await this.storage.listFolder(monthEntry.path);
-        const fileEntries = await this.collectMasterCandidates(monthContents);
+    return this.runMonths(targets, options);
+  }
 
-        // Un solo listFolder para TODA la subcarpeta _PREVIEWS del mes, sin
-        // importar cuántos karaokes tenga. Los subfolders de marca son masters
-        // y se recorren por separado mediante collectMasterCandidates().
-        const previewsByFileName = await this.buildPreviewsMap(monthContents);
+  /**
+   * Indexa únicamente los meses afectados por un cambio de Dropbox.
+   * Esta es la ruta usada por el webhook incremental: evita recorrer años y
+   * meses que no cambiaron. Los targets se deduplican por año/mes.
+   */
+  async runMonths(
+    targets: Array<{ path: string; year: number; month: number }>,
+    options: { dryRun: boolean },
+  ): Promise<SyncResult> {
+    const items: SyncPlanItem[] = [];
+    const seen = new Set<string>();
 
-        for (const fileEntry of fileEntries) {
-          items.push(
-            await this.planFile(fileEntry, year, month, previewsByFileName.get(fileEntry.name), options.dryRun),
-          );
-        }
+    for (const target of targets) {
+      const key = `${target.year}-${target.month}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const monthContents = await this.storage.listFolder(target.path);
+      const fileEntries = await this.collectMasterCandidates(monthContents);
+      const previewsByFileName = await this.buildPreviewsMap(monthContents);
+
+      for (const fileEntry of fileEntries) {
+        items.push(
+          await this.planFile(
+            fileEntry,
+            target.year,
+            target.month,
+            previewsByFileName.get(fileEntry.name),
+            options.dryRun,
+          ),
+        );
       }
     }
 
