@@ -13,6 +13,8 @@ export interface DropboxConfig {
   appSecret: string;
   refreshToken: string;
   rootPath: string;
+  /** Namespace estable del catálogo compartido, usado solo como fallback de descargas seguras. */
+  downloadNamespaceId?: string;
   /** Inyectable para tests; por defecto usa el fetch global de Node 22+ */
   fetchImpl?: typeof fetch;
 }
@@ -159,26 +161,39 @@ export class DropboxStorageProvider implements StorageProvider {
   }
 
   /** Descargas binarias desde content.dropboxapi.com con el mismo manejo de auth/rate limit. */
-  private async content(endpoint: string, payload: unknown, attempt = 0): Promise<Response> {
+  private async content(
+    endpoint: string,
+    payload: unknown,
+    attempt = 0,
+    pathRootNamespaceId?: string,
+  ): Promise<Response> {
     const token = await this.getAccessToken();
     const res = await this.fetchImpl(`${CONTENT_URL}${endpoint}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Dropbox-API-Arg": JSON.stringify(payload),
+        ...(pathRootNamespaceId
+          ? {
+              "Dropbox-API-Path-Root": JSON.stringify({
+                ".tag": "namespace_id",
+                namespace_id: pathRootNamespaceId,
+              }),
+            }
+          : {}),
       },
     });
 
     if (res.status === 401 && attempt === 0) {
       this.accessToken = null;
-      return this.content(endpoint, payload, attempt + 1);
+      return this.content(endpoint, payload, attempt + 1, pathRootNamespaceId);
     }
 
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get("Retry-After") ?? "1");
       if (attempt < 2) {
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
-        return this.content(endpoint, payload, attempt + 1);
+        return this.content(endpoint, payload, attempt + 1, pathRootNamespaceId);
       }
       throw new StorageError("RATE_LIMITED", "Límite de peticiones de Dropbox excedido");
     }
@@ -299,7 +314,29 @@ export class DropboxStorageProvider implements StorageProvider {
 
   async downloadFolderZipStream(key: string): Promise<StorageDownloadStream> {
     const path = key.startsWith("id:") ? key : this.resolvePath(key);
-    const res = await this.content("/files/download_zip", { path });
+    let res: Response;
+    try {
+      res = await this.content("/files/download_zip", { path });
+    } catch (error) {
+      if (
+        error instanceof StorageError &&
+        error.reason === "NOT_FOUND" &&
+        !key.startsWith("id:") &&
+        this.config.downloadNamespaceId
+      ) {
+        const root = this.config.rootPath.replace(/\/$/, "");
+        let namespacePath = key.startsWith(root) ? key.slice(root.length) : key;
+        if (!namespacePath.startsWith("/")) namespacePath = `/${namespacePath}`;
+        res = await this.content(
+          "/files/download_zip",
+          { path: namespacePath },
+          0,
+          this.config.downloadNamespaceId,
+        );
+      } else {
+        throw error;
+      }
+    }
     const folderName = key.startsWith("id:")
       ? "coleccion"
       : path.split("/").filter(Boolean).pop() ?? "coleccion";
@@ -422,6 +459,7 @@ export function loadDropboxConfigFromEnv(env: NodeJS.ProcessEnv = process.env): 
   const appSecret = env.DROPBOX_APP_SECRET;
   const refreshToken = env.DROPBOX_REFRESH_TOKEN;
   const rootPath = env.DROPBOX_ROOT_PATH ?? "/ACTUALIZACIONES";
+  const downloadNamespaceId = env.DROPBOX_DOWNLOAD_NAMESPACE_ID;
   if (!appKey || !appSecret || !refreshToken) return null;
-  return { appKey, appSecret, refreshToken, rootPath };
+  return { appKey, appSecret, refreshToken, rootPath, downloadNamespaceId };
 }
