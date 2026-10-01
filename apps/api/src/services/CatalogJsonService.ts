@@ -160,7 +160,9 @@ export class CatalogJsonService {
       };
     });
 
-    const counts = new Map<string, number>();
+    const counts = new Map<string, number>(
+      this.defaultBrandLabels(year).map((name) => [name, 0] as const),
+    );
     for (const karaoke of karaokesOut) {
       counts.set(karaoke.brand, (counts.get(karaoke.brand) ?? 0) + 1);
     }
@@ -195,7 +197,37 @@ export class CatalogJsonService {
     if (parts.length <= 1) return "DJGABO";
     const brandPart = parts[0];
     if (!brandPart) return "DJGABO";
-    return brandPart.replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim() || "DJGABO";
+    const cleaned = brandPart.replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim();
+    return this.canonicalBrandLabel(cleaned) || "DJGABO";
+  }
+
+  private defaultBrandLabels(year: number): string[] {
+    if (year !== 2026) return [];
+    return [
+      "01 · Club Karaoke",
+      "02 · KK Live",
+      "03 · Luis Fer",
+      "04 · DJ SA",
+      "05 · RFK",
+    ];
+  }
+
+  private canonicalBrandLabel(value: string): string {
+    const normalized = value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .replace(/\s+/g, " ");
+
+    if (["club karaoke", "el club karaoke"].includes(normalized)) return "01 · Club Karaoke";
+    if (["kk live", "kkl"].includes(normalized)) return "02 · KK Live";
+    if (["luisfer", "luis fer"].includes(normalized)) return "03 · Luis Fer";
+    if (["dj sa", "dj sauly", "sauly"].includes(normalized)) return "04 · DJ SA";
+    if (["rf", "rf 01", "rfk", "rafiki", "ra f"].includes(normalized)) return "05 · RFK";
+
+    return value;
   }
 
   private extensionOf(fileName: string): string | null {
