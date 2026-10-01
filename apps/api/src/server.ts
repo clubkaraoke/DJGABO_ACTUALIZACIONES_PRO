@@ -22,10 +22,35 @@ async function main() {
   // El JSON público siempre nace desde la base persistente antes de aceptar
   // tráfico. En Dropbox real también sembramos el cursor actual para que el
   // siguiente webhook procese solo cambios posteriores, no 30k+ archivos.
-  await app.catalogJsonService.publishAll();
+  const catalogVersion = await app.catalogJsonService.publishAll();
   if (app.dropboxIncrementalSyncService) {
     await app.dropboxIncrementalSyncService.ensureCursor();
   }
+
+  const collectionDiagnostics = await db.query.collections.findMany({
+    orderBy: (c, { desc }) => [desc(c.year), desc(c.month)],
+  });
+  const karaokeDiagnostics = await db.query.karaokes.findMany();
+  const karaokeCountByCollection = new Map<string, number>();
+  for (const karaoke of karaokeDiagnostics) {
+    karaokeCountByCollection.set(
+      karaoke.collectionId,
+      (karaokeCountByCollection.get(karaoke.collectionId) ?? 0) + 1,
+    );
+  }
+
+  app.log.info(
+    {
+      catalogVersion: catalogVersion.version,
+      collections: collectionDiagnostics.map((collection) => ({
+        year: collection.year,
+        month: collection.month,
+        title: collection.title,
+        karaokes: karaokeCountByCollection.get(collection.id) ?? 0,
+      })),
+    },
+    "Catalog startup diagnostics",
+  );
 
   app.log.info(`Storage provider activo: ${provider.kind} (${reason})`);
 
