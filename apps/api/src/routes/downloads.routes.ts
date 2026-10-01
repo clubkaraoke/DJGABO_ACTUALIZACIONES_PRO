@@ -62,6 +62,12 @@ function safeFileName(value: string): string {
   return value.replace(/[\r\n"]/g, "_").trim() || "descarga";
 }
 
+function deriveYearFolder(year: number, storageKey: string): string | null {
+  const segments = storageKey.split("/").filter(Boolean);
+  const yearIndex = segments.findIndex((segment) => parseYearFolder(segment) === year);
+  return yearIndex >= 0 ? `/${segments.slice(0, yearIndex + 1).join("/")}` : null;
+}
+
 function deriveCollectionFolder(year: number, month: number, storageKey: string): string | null {
   const segments = storageKey.split("/").filter(Boolean);
   if (segments.length < 2) return null;
@@ -89,6 +95,37 @@ function deriveCollectionFolder(year: number, month: number, storageKey: string)
   }
 
   return monthIndex >= 0 ? `/${segments.slice(0, monthIndex + 1).join("/")}` : null;
+}
+
+async function resolveCollectionZipKey(
+  fastify: FastifyInstance,
+  year: number,
+  month: number,
+  currentStoragePath: string,
+): Promise<string | null> {
+  const collectionPath = deriveCollectionFolder(year, month, currentStoragePath);
+  if (!collectionPath) return null;
+
+  try {
+    const parentPath =
+      month === 0
+        ? collectionPath.split("/").slice(0, -1).join("/") || "/"
+        : deriveYearFolder(year, currentStoragePath);
+
+    if (!parentPath) return collectionPath;
+
+    const entries = await fastify.storageService.listFolderEntries(parentPath);
+    const folder = entries.find((entry) => {
+      if (!entry.isFolder) return false;
+      return month === 0
+        ? parseYearFolder(entry.name) === year
+        : parseMonthFolder(entry.name) === month;
+    });
+
+    return folder?.providerFileId ?? collectionPath;
+  } catch {
+    return collectionPath;
+  }
 }
 
 async function activeDevice(db: FastifyInstance["db"], userId: string, deviceId: string): Promise<boolean> {
@@ -513,7 +550,12 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const folderKey = deriveCollectionFolder(collection.year, collection.month, currentStoragePath);
+      const folderKey = await resolveCollectionZipKey(
+        fastify,
+        collection.year,
+        collection.month,
+        currentStoragePath,
+      );
       if (!folderKey) {
         return reply.code(409).send({ error: "COLLECTION_PATH_UNRESOLVED", message: "No se pudo resolver la carpeta real de esta colección.", statusCode: 409 });
       }
