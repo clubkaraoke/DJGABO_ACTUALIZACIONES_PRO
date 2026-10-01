@@ -141,6 +141,17 @@ export async function registerBase44BridgeRoutes(fastify: FastifyInstance) {
         ? await db.query.users.findFirst({ where: eq(users.id, identity.userId) })
         : await db.query.users.findFirst({ where: eq(users.email, normalizedEmail) });
 
+      if (
+        !user &&
+        env.BASE44_OWNER_EMAIL?.trim().toLowerCase() === normalizedEmail &&
+        env.BASE44_OWNER_SUBJECT === input.subject &&
+        env.BASE44_OWNER_RAILWAY_EMAIL
+      ) {
+        user = await db.query.users.findFirst({
+          where: eq(users.email, env.BASE44_OWNER_RAILWAY_EMAIL.trim().toLowerCase()),
+        });
+      }
+
       if (!user) {
         return reply.code(403).send({
           error: "RAILWAY_ACCOUNT_NOT_PROVISIONED",
