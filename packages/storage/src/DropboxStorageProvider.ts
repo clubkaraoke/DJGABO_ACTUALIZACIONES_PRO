@@ -89,7 +89,24 @@ export class DropboxStorageProvider implements StorageProvider {
     // exactamente DROPBOX_ROOT_PATH sin el slash final.
     const root = this.config.rootPath.replace(/\/$/, "");
     if (key === "/") return root;
-    return key.startsWith(root) ? key : `${root}${key}`;
+    if (!root) return key;
+    if (key.startsWith(root)) return key;
+
+    // get_metadata(id:...) devuelve path_display ABSOLUTO desde la raíz visible
+    // de Dropbox. Ese path puede contener carpetas personales antes de la raíz
+    // lógica configurada. Si ya contiene la carpeta raíz del catálogo, NO se
+    // debe anteponer DROPBOX_ROOT_PATH otra vez.
+    const rootName = root.split("/").filter(Boolean).at(-1)?.toLocaleLowerCase();
+    const keySegments = key.split("/").filter(Boolean);
+    if (
+      key.startsWith("/") &&
+      rootName &&
+      keySegments.some((segment) => segment.toLocaleLowerCase() === rootName)
+    ) {
+      return key;
+    }
+
+    return `${root}${key}`;
   }
 
   private toDownloadNamespacePath(key: string): string {
