@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { and, asc, desc, eq } from "drizzle-orm";
-import { parseMonthFolder } from "@djgabo/storage";
+import { parseMonthFolder, parseYearFolder } from "@djgabo/storage";
 import type { Db } from "../db/client.js";
 import { assets, collections, karaokes } from "../db/schema.js";
 
@@ -199,14 +199,16 @@ export class CatalogJsonService {
     // buscamos la carpeta del mes únicamente a partir de ese punto.
     let yearIndex = -1;
     for (let i = 0; i < storageSegments.length; i++) {
-      if (parseYearFolder(storageSegments[i]) === year) yearIndex = i;
+      const segment = storageSegments[i];
+      if (segment && parseYearFolder(segment) === year) yearIndex = i;
     }
 
     if (yearIndex < 0) return "DJGABO";
 
     let monthIndex = -1;
     for (let i = yearIndex + 1; i < storageSegments.length; i++) {
-      if (parseMonthFolder(storageSegments[i]) === month) {
+      const segment = storageSegments[i];
+      if (segment && parseMonthFolder(segment) === month) {
         monthIndex = i;
         break;
       }
