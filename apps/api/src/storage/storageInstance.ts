@@ -19,6 +19,7 @@ export function getStorageProvider(env: Env): { provider: StorageProvider; reaso
       DROPBOX_APP_SECRET: env.DROPBOX_APP_SECRET,
       DROPBOX_REFRESH_TOKEN: env.DROPBOX_REFRESH_TOKEN,
       DROPBOX_ROOT_PATH: env.DROPBOX_ROOT_PATH,
+      DROPBOX_DOWNLOAD_NAMESPACE_ID: env.DROPBOX_DOWNLOAD_NAMESPACE_ID,
     } as NodeJS.ProcessEnv,
     cachedMock,
   );
