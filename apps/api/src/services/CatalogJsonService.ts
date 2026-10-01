@@ -181,7 +181,7 @@ export class CatalogJsonService {
       collection: {
         id: collection.id,
         slug: collection.slug,
-        title: collection.title,
+        title: this.displayCollectionTitle(year, month, collection.title),
         cover_url: collection.coverUrl,
         active: collection.active,
       },
@@ -191,6 +191,10 @@ export class CatalogJsonService {
   }
 
   private deriveBrand(year: number, month: number, storageKey: string): string {
+    // 2012-2014 son colecciones anuales sin subcarpetas mensuales ni de
+    // productor. Se muestran como una sola colección anual real.
+    if (month === 0) return `Colección ${year}`;
+
     const storageSegments = storageKey.split("/").filter(Boolean);
 
     // Dropbox puede devolver rutas completas dentro del root principal o,
@@ -306,6 +310,14 @@ export class CatalogJsonService {
     ) return "05 · RFK";
 
     return value;
+  }
+
+  private displayCollectionTitle(year: number, month: number, fallback: string): string {
+    if (month === 0) return `Colección ${year}`;
+    // En Dropbox 2015 Mayo y Junio viven juntos en una sola carpeta histórica.
+    // La UI debe reflejar ese periodo real y no inventar un Junio separado.
+    if (year === 2015 && month === 5) return "Mayo - Junio 2015";
+    return fallback;
   }
 
   private extensionOf(fileName: string): string | null {
