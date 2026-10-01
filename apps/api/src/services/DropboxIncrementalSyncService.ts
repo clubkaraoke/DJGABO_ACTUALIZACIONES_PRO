@@ -139,12 +139,10 @@ export class DropboxIncrementalSyncService {
       const versionDoc = await this.catalog.publishMonths(targets);
       version = versionDoc.version;
 
-      await this.sheetMirror.publish({
-        source: "dropbox",
-        synced_at: new Date().toISOString(),
-        version: versionDoc.version,
-        months: targets.map(({ year, month }) => ({ year, month })),
-        changes: delta.entries.map((entry) => ({
+      await this.mirrorCurrentMonths(
+        targets,
+        versionDoc.version,
+        delta.entries.map((entry) => ({
           path: entry.path,
           name: entry.name,
           kind: entry.kind,
@@ -152,7 +150,7 @@ export class DropboxIncrementalSyncService {
           ...(typeof entry.size === "number" ? { size: entry.size } : {}),
           ...(entry.modifiedAt ? { modified_at: entry.modifiedAt.toISOString() } : {}),
         })),
-      });
+      );
     }
 
     await this.persistCursor(delta.cursor);
@@ -162,6 +160,79 @@ export class DropboxIncrementalSyncService {
     );
 
     return { processed: delta.entries.length, months: targets, version };
+  }
+
+  async mirrorCurrentMonths(
+    targets: MonthTarget[],
+    version: string,
+    changes: Array<{
+      path: string;
+      name: string;
+      kind: "file" | "folder" | "deleted";
+      provider_file_id?: string;
+      size?: number;
+      modified_at?: string;
+    }> = [],
+  ): Promise<void> {
+    if (!this.sheetMirror.enabled || targets.length === 0) return;
+
+    const snapshots = [];
+    for (const target of targets) {
+      snapshots.push({
+        year: target.year,
+        month: target.month,
+        month_path: target.path,
+        files: await this.collectMonthFiles(target.path),
+      });
+    }
+
+    await this.sheetMirror.publish({
+      source: "dropbox",
+      synced_at: new Date().toISOString(),
+      version,
+      months: targets.map(({ year, month }) => ({ year, month })),
+      changes,
+      snapshots,
+    });
+  }
+
+  private async collectMonthFiles(path: string): Promise<Array<{
+    path: string;
+    name: string;
+    size?: number;
+    modified_at?: string;
+    provider_file_id?: string;
+  }>> {
+    const out: Array<{
+      path: string;
+      name: string;
+      size?: number;
+      modified_at?: string;
+      provider_file_id?: string;
+    }> = [];
+    const stack = [path];
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current) continue;
+      const entries = await this.provider.listFolder(current);
+
+      for (const entry of entries) {
+        if (entry.isFolder) {
+          stack.push(entry.path);
+          continue;
+        }
+        out.push({
+          path: entry.path,
+          name: entry.name,
+          ...(typeof entry.size === "number" ? { size: entry.size } : {}),
+          ...(entry.modifiedAt ? { modified_at: entry.modifiedAt.toISOString() } : {}),
+          ...(entry.providerFileId ? { provider_file_id: entry.providerFileId } : {}),
+        });
+      }
+    }
+
+    return out;
   }
 
   private deriveMonthTargets(entries: DropboxChangeEntry[]): MonthTarget[] {
@@ -206,7 +277,9 @@ export class DropboxIncrementalSyncService {
       const month = parseMonthFolder(monthSegment);
       if (month === null) continue;
 
-      const monthPath = `${watchedRoot}/${segments.slice(0, monthSegmentIndex + 1).join("/")}`;
+      // target.path SIEMPRE es storage-relative al DROPBOX_ROOT_PATH. El provider
+      // agrega la raíz real internamente; nunca le pasamos la ruta completa.
+      const monthPath = `${syncRoot}/${segments.slice(0, monthSegmentIndex + 1).join("/")}`;
       byMonth.set(`${year}-${month}`, { path: monthPath, year, month });
     }
 
