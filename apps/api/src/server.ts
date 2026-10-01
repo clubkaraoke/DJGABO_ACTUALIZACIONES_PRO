@@ -145,11 +145,13 @@ async function main() {
       }
 
       let downloadSmokePath: string | null = null;
+      let yearPath: string | null = null;
       if (livePath) {
         const segments = livePath.split("/").filter(Boolean);
         const yearIndex = segments.findIndex((segment) => parseYearFolder(segment) === 2018);
         let monthIndex = -1;
         if (yearIndex >= 0) {
+          yearPath = `/${segments.slice(0, yearIndex + 1).join("/")}`;
           for (let i = yearIndex + 1; i < segments.length - 1; i++) {
             const segment = segments[i];
             if (segment && parseMonthFolder(segment) === 6) {
@@ -161,15 +163,27 @@ async function main() {
         if (monthIndex >= 0) downloadSmokePath = `/${segments.slice(0, monthIndex + 1).join("/")}`;
       }
 
-      if (!downloadSmokePath) {
+      if (!downloadSmokePath || !yearPath) {
         throw new Error(`No se pudo derivar la carpeta desde livePath=${livePath ?? "null"}`);
       }
 
+      const yearEntries = await provider.listFolder(yearPath);
+      const monthEntry = yearEntries.find((entry) => parseMonthFolder(entry.name) === 6);
+      const folderId = monthEntry?.providerFileId ?? null;
+
       console.log(
         "[DOWNLOAD_SMOKE_INPUT]",
-        JSON.stringify({ storageKey: smokeStorageKey, providerFileId, livePath, derivedPath: downloadSmokePath }),
+        JSON.stringify({
+          storageKey: smokeStorageKey,
+          providerFileId,
+          livePath,
+          yearPath,
+          derivedPath: downloadSmokePath,
+          folderId,
+          yearEntries: yearEntries.length,
+        }),
       );
-      const smoke = await provider.downloadFolderZipStream(downloadSmokePath);
+      const smoke = await provider.downloadFolderZipStream(folderId ?? downloadSmokePath);
       console.log(
         "[DOWNLOAD_SMOKE]",
         JSON.stringify({
