@@ -124,13 +124,15 @@ async function main() {
 
   // Smoke test opcional y temporal del ZIP de carpeta por Dropbox.
   // Solo abre el stream y lo cancela: no guarda ni descarga el ZIP completo.
-  if (env.DOWNLOAD_SMOKE_PATH && provider.downloadFolderZipStream) {
+  const downloadSmokePath =
+    env.DOWNLOAD_SMOKE_PATH ?? "/7.- HIts Karaoke 2018 (1)/06 - Top Hits - Junio 2018";
+  if (provider.downloadFolderZipStream) {
     try {
-      const smoke = await provider.downloadFolderZipStream(env.DOWNLOAD_SMOKE_PATH);
+      const smoke = await provider.downloadFolderZipStream(downloadSmokePath);
       console.log(
         "[DOWNLOAD_SMOKE]",
         JSON.stringify({
-          path: env.DOWNLOAD_SMOKE_PATH,
+          path: downloadSmokePath,
           fileName: smoke.fileName,
           contentType: smoke.contentType,
           contentLength: smoke.contentLength,
@@ -142,7 +144,7 @@ async function main() {
       console.error(
         "[DOWNLOAD_SMOKE_ERROR]",
         JSON.stringify({
-          path: env.DOWNLOAD_SMOKE_PATH,
+          path: downloadSmokePath,
           message: error instanceof Error ? error.message : String(error),
         }),
       );
