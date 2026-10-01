@@ -151,11 +151,15 @@ export class DropboxIncrementalSyncService {
       const segments = relative.split("/").filter(Boolean);
       if (segments.length < 2) continue;
 
-      const year = parseYearFolder(segments[0]);
-      const month = parseMonthFolder(segments[1]);
+      const yearSegment = segments[0];
+      const monthSegment = segments[1];
+      if (!yearSegment || !monthSegment) continue;
+
+      const year = parseYearFolder(yearSegment);
+      const month = parseMonthFolder(monthSegment);
       if (year === null || month === null) continue;
 
-      const monthPath = `${this.env.SYNC_ROOT_PATH.replace(/\/$/, "")}/${segments[0]}/${segments[1]}`;
+      const monthPath = `${this.env.SYNC_ROOT_PATH.replace(/\/$/, "")}/${yearSegment}/${monthSegment}`;
       byMonth.set(`${year}-${month}`, { path: monthPath, year, month });
     }
 
