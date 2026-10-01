@@ -16,6 +16,9 @@ const envSchema = z.object({
   DROPBOX_REFRESH_TOKEN: z.string().optional(),
   DROPBOX_ROOT_PATH: z.string().default("/ACTUALIZACIONES"),
   SYNC_ROOT_PATH: z.string().default("/ACTUALIZACIONES"),
+  CATALOG_JSON_DIR: z.string().default("./data/catalog"),
+  SHEET_SYNC_WEBHOOK_URL: z.string().url().optional(),
+  SHEET_SYNC_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
