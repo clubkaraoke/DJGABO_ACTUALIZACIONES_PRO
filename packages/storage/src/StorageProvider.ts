@@ -28,6 +28,14 @@ export interface StorageEntry {
   providerFileId?: string;
 }
 
+export interface StorageDownloadStream {
+  /** Flujo binario del archivo. Se transmite; nunca se guarda en disco. */
+  body: ReadableStream<Uint8Array>;
+  contentType: string;
+  contentLength: number | null;
+  fileName: string;
+}
+
 export interface TemporaryUrlOptions {
   /** Segundos de validez del link. Default definido por cada provider. */
   expiresInSeconds?: number;
@@ -63,6 +71,12 @@ export interface StorageProvider {
   getMetadata(key: string): Promise<StorageMetadata>;
   getTemporaryDownloadUrl(key: string, options?: TemporaryUrlOptions): Promise<string>;
   getTemporaryPreviewUrl(key: string, options?: TemporaryUrlOptions): Promise<string>;
+  /**
+   * Descarga segura vía backend. Es opcional para providers de prueba;
+   * producción Dropbox la implementa sin exponer links ni rutas al cliente.
+   */
+  downloadFileStream?(key: string): Promise<StorageDownloadStream>;
+  downloadFolderZipStream?(key: string): Promise<StorageDownloadStream>;
   listFolder(path: string): Promise<StorageEntry[]>;
 }
 
