@@ -37,6 +37,20 @@ export class StorageService {
     return { url, expiresAt: this.resolveKnownExpiry(ttlSeconds) };
   }
 
+  async getSecureFileStream(storageKey: string) {
+    if (!this.provider.downloadFileStream) {
+      throw new Error("SECURE_STREAM_NOT_SUPPORTED");
+    }
+    return this.provider.downloadFileStream(storageKey);
+  }
+
+  async getSecureFolderZipStream(storageKey: string) {
+    if (!this.provider.downloadFolderZipStream) {
+      throw new Error("SECURE_ZIP_STREAM_NOT_SUPPORTED");
+    }
+    return this.provider.downloadFolderZipStream(storageKey);
+  }
+
   /**
    * SEMÁNTICA DEL TTL (punto 3)
    * ============================
