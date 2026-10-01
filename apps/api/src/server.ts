@@ -20,6 +20,7 @@ async function main() {
   seedPendingDropboxFiles(provider);
 
   const app = await buildApp({ db, env, storageProvider: provider, storageProviderReason: reason });
+  let bootstrapTarget: { path: string; year: number; month: number } | null = null;
 
   // Bootstrap controlado de un mes que ya existía antes de activar el
   // webhook/cursor. Es idempotente y se usa solo durante la migración inicial.
@@ -29,10 +30,11 @@ async function main() {
     const month = [...parts].reverse().map(parseMonthFolder).find((value) => value !== null) ?? null;
 
     if (year !== null && month !== null) {
+      bootstrapTarget = { path: env.BOOTSTRAP_SYNC_MONTH_PATH, year, month };
       const repo = new DrizzleIndexerRepository(db, provider.kind);
       const indexer = new StorageIndexerService(provider, repo);
       const bootstrapResult = await indexer.runMonths(
-        [{ path: env.BOOTSTRAP_SYNC_MONTH_PATH, year, month }],
+        [bootstrapTarget],
         { dryRun: false },
       );
       console.log(
@@ -56,6 +58,25 @@ async function main() {
   const catalogVersion = await app.catalogJsonService.publishAll();
   if (app.dropboxIncrementalSyncService) {
     await app.dropboxIncrementalSyncService.ensureCursor();
+
+    // Si estamos haciendo un bootstrap controlado, reflejamos ese mismo mes
+    // al Sheet una vez. Luego se desactiva BOOTSTRAP_SYNC_MONTH_PATH y los
+    // siguientes cambios entran solo por webhook incremental.
+    if (bootstrapTarget && app.sheetMirrorService.enabled) {
+      await app.dropboxIncrementalSyncService.mirrorCurrentMonths(
+        [bootstrapTarget],
+        catalogVersion.version,
+      );
+      console.log(
+        "[SHEET_BOOTSTRAP_MIRROR]",
+        JSON.stringify({
+          year: bootstrapTarget.year,
+          month: bootstrapTarget.month,
+          path: bootstrapTarget.path,
+          version: catalogVersion.version,
+        }),
+      );
+    }
   }
 
   const collectionDiagnostics = await db.query.collections.findMany({
