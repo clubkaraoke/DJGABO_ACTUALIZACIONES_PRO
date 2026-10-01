@@ -46,7 +46,7 @@ export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
     void enrichMissingDeezerCovers(db, { limit: 60, concurrency: 6 })
       .then(async (covers) => {
         fastify.log.info({ covers }, "Deezer cover enrichment completed");
-        if (covers.updated > 0) await fastify.catalogJsonService.publishAll();
+        if (covers.matched > 0) await fastify.catalogJsonService.publishAll();
       })
       .catch((error) => fastify.log.warn({ err: error }, "Deezer cover enrichment failed"));
 
