@@ -165,26 +165,44 @@ export class DropboxIncrementalSyncService {
   }
 
   private deriveMonthTargets(entries: DropboxChangeEntry[]): MonthTarget[] {
-    const root = this.env.SYNC_ROOT_PATH.replace(/\/$/, "").toLowerCase();
+    const providerRoot = this.env.DROPBOX_ROOT_PATH.replace(/\/$/, "");
+    const syncRoot = this.env.SYNC_ROOT_PATH.replace(/\/$/, "");
+    const watchedRoot = `${providerRoot}${syncRoot}`.replace(/\/$/, "");
+    const watchedLower = watchedRoot.toLowerCase();
+    const watchedYear = parseYearFolder(syncRoot.split("/").filter(Boolean).pop() ?? "");
+
     const byMonth = new Map<string, MonthTarget>();
 
     for (const entry of entries) {
-      const lower = entry.path.toLowerCase();
-      if (!lower.startsWith(root)) continue;
+      const entryPath = entry.path.replace(/\/$/, "");
+      const lower = entryPath.toLowerCase();
+      if (!lower.startsWith(watchedLower)) continue;
 
-      const relative = entry.path.slice(this.env.SYNC_ROOT_PATH.replace(/\/$/, "").length);
+      const relative = entryPath.slice(watchedRoot.length).replace(/^\/+/, "");
       const segments = relative.split("/").filter(Boolean);
-      if (segments.length < 2) continue;
 
-      const yearSegment = segments[0];
-      const monthSegment = segments[1];
-      if (!yearSegment || !monthSegment) continue;
+      // Estructura real DJGABO:
+      // ROOT / "15.- Hits Karaoke 2026" / "07_JULIO_2026" / ...
+      // También soporta ROOT / 2026 / 07... si se usa una raíz más alta.
+      let year = watchedYear;
+      let monthSegmentIndex = -1;
 
-      const year = parseYearFolder(yearSegment);
-      const month = parseMonthFolder(monthSegment);
-      if (year === null || month === null) continue;
+      if (year !== null) {
+        monthSegmentIndex = segments.findIndex((segment) => parseMonthFolder(segment) !== null);
+      } else {
+        const yearIndex = segments.findIndex((segment) => parseYearFolder(segment) !== null);
+        if (yearIndex === -1) continue;
+        year = parseYearFolder(segments[yearIndex]);
+        monthSegmentIndex = segments.findIndex(
+          (segment, index) => index > yearIndex && parseMonthFolder(segment) !== null,
+        );
+      }
 
-      const monthPath = `${this.env.SYNC_ROOT_PATH.replace(/\/$/, "")}/${yearSegment}/${monthSegment}`;
+      if (year === null || monthSegmentIndex === -1) continue;
+      const month = parseMonthFolder(segments[monthSegmentIndex]);
+      if (month === null) continue;
+
+      const monthPath = `${watchedRoot}/${segments.slice(0, monthSegmentIndex + 1).join("/")}`;
       byMonth.set(`${year}-${month}`, { path: monthPath, year, month });
     }
 
