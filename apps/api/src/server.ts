@@ -104,6 +104,32 @@ async function main() {
     }),
   );
 
+  for (const target of [
+    { year: 2026, month: 6 },
+    { year: 2026, month: 1 },
+    { year: 2025, month: 1 },
+    { year: 2024, month: 1 },
+    { year: 2023, month: 1 },
+  ]) {
+    try {
+      const sample = await app.catalogJsonService.readMonth(target.year, target.month);
+      console.log(
+        "[CATALOG_SAMPLE_VERIFY]",
+        JSON.stringify({
+          year: target.year,
+          month: target.month,
+          total: sample.doc.karaokes.length,
+          brands: sample.doc.brands,
+        }),
+      );
+    } catch {
+      console.log(
+        "[CATALOG_SAMPLE_VERIFY]",
+        JSON.stringify({ year: target.year, month: target.month, missing: true }),
+      );
+    }
+  }
+
   try {
     const july = await app.catalogJsonService.readMonth(2026, 7);
     console.log(
