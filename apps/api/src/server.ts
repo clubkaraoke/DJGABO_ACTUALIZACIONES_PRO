@@ -39,8 +39,9 @@ async function main() {
     );
   }
 
-  app.log.info(
-    {
+  console.log(
+    "[CATALOG_DIAGNOSTICS]",
+    JSON.stringify({
       catalogVersion: catalogVersion.version,
       collections: collectionDiagnostics.map((collection) => ({
         year: collection.year,
@@ -48,11 +49,10 @@ async function main() {
         title: collection.title,
         karaokes: karaokeCountByCollection.get(collection.id) ?? 0,
       })),
-    },
-    "Catalog startup diagnostics",
+    }),
   );
 
-  app.log.info(`Storage provider activo: ${provider.kind} (${reason})`);
+  console.log(`[STORAGE_PROVIDER] ${provider.kind} (${reason})`);
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
 }
