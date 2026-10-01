@@ -12,6 +12,8 @@ const envSchema = z.object({
   DOWNLOAD_TICKET_SECRET: z.string().min(16).optional(),
   BASE44_BRIDGE_KEY: z.string().min(32).optional(),
   BASE44_APP_ID: z.string().min(1).optional(),
+  BASE44_OWNER_EMAIL: z.string().email().optional(),
+  BASE44_OWNER_SUBJECT: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   STORAGE_PROVIDER: z.enum(["mock", "dropbox"]).default("mock"),
   DROPBOX_APP_KEY: z.string().optional(),
