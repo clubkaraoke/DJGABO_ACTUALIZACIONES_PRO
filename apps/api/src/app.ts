@@ -59,6 +59,13 @@ export interface BuildAppOptions {
 export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: opts.env.NODE_ENV === "development" ? { level: "info" } : { level: "warn" },
+    // Los tickets de descarga son JWT firmados y viajan como un único
+    // parámetro de ruta. Fastify/find-my-way limita por defecto los params
+    // a 100 caracteres; 1024 permite el ticket actual sin abrir un límite
+    // innecesariamente grande.
+    routerOptions: {
+      maxParamLength: 1024,
+    },
   });
 
   await fastify.register(cors, { origin: opts.env.CORS_ORIGIN, credentials: true });
