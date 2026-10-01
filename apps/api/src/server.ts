@@ -118,39 +118,6 @@ async function main() {
     // Julio puede no existir aún en otras instalaciones.
   }
 
-  for (const target of [
-    { year: 2018, month: 8 },
-    { year: 2018, month: 9 },
-    { year: 2018, month: 10 },
-    { year: 2018, month: 11 },
-    { year: 2018, month: 12 },
-    { year: 2017, month: 11 },
-    { year: 2017, month: 12 },
-    { year: 2015, month: 5 },
-    { year: 2014, month: 0 },
-    { year: 2013, month: 0 },
-    { year: 2012, month: 0 },
-  ]) {
-    try {
-      const sample = await app.catalogJsonService.readMonth(target.year, target.month);
-      console.log(
-        "[CATALOG_SPECIAL_VERIFY]",
-        JSON.stringify({
-          year: target.year,
-          month: target.month,
-          title: sample.doc.collection?.title ?? null,
-          total: sample.doc.karaokes.length,
-          brands: sample.doc.brands,
-        }),
-      );
-    } catch {
-      console.log(
-        "[CATALOG_SPECIAL_VERIFY]",
-        JSON.stringify({ year: target.year, month: target.month, missing: true }),
-      );
-    }
-  }
-
   console.log(`[STORAGE_PROVIDER] ${provider.kind} (${reason})`);
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
