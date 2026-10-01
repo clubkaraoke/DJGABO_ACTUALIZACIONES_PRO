@@ -190,8 +190,32 @@ export class CatalogJsonService {
   }
 
   private deriveBrand(monthPath: string, storageKey: string): string {
+    const monthSegments = monthPath.split("/").filter(Boolean);
+    const monthFolder = monthSegments.at(-1);
+    const storageSegments = storageKey.split("/").filter(Boolean);
+
+    // Los assets de Dropbox pueden guardar la ruta completa del proveedor,
+    // mientras que collection.storagePath es storage-relative. Por eso no
+    // debemos exigir que storageKey empiece literalmente por monthPath.
+    // Encontramos la carpeta del mes dentro de la ruta real y tomamos el
+    // siguiente segmento como marca.
+    if (monthFolder) {
+      const monthIndex = storageSegments.findIndex(
+        (segment) => segment.toLowerCase() === monthFolder.toLowerCase(),
+      );
+      if (monthIndex >= 0) {
+        const relativeParts = storageSegments.slice(monthIndex + 1);
+        if (relativeParts.length <= 1) return "DJGABO";
+        const brandPart = relativeParts[0];
+        if (!brandPart) return "DJGABO";
+        const cleaned = brandPart.replace(/^\d+[._ -]*/, "").replace(/[_]+/g, " ").trim();
+        return this.canonicalBrandLabel(cleaned) || "DJGABO";
+      }
+    }
+
+    // Fallback para instalaciones donde ambas rutas sí comparten prefijo.
     const normalizedMonth = monthPath.replace(/\/$/, "");
-    if (!storageKey.startsWith(normalizedMonth)) return "DJGABO";
+    if (!storageKey.toLowerCase().startsWith(normalizedMonth.toLowerCase())) return "DJGABO";
     const relative = storageKey.slice(normalizedMonth.length).replace(/^\/+/, "");
     const parts = relative.split("/").filter(Boolean);
     if (parts.length <= 1) return "DJGABO";
