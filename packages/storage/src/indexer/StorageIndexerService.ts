@@ -74,8 +74,21 @@ export class StorageIndexerService {
         const children = await this.storage.listFolder(entry.path);
         const nestedMonths = children
           .filter((child) => child.isFolder)
-          .map((child) => ({ child, month: parseMonthFolder(child.name) }))
-          .filter((item): item is { child: StorageEntry; month: number } => item.month !== null);
+          .map((child) => ({
+            child,
+            month: parseMonthFolder(child.name),
+            childYear: parseYearFolder(child.name),
+          }))
+          // Un wrapper anual real (p. ej. 2016) contiene subcarpetas como
+          // "1.- ENERO 2016", "2.- FEBRERO 2016", etc. Las carpetas de
+          // productores también empiezan por números (01 Club, 02 LuisFer,
+          // 04 DJ SA...), pero NO llevan el año. Exigir childYear evita
+          // confundir productores con meses y repartir un mismo mes entre
+          // enero/marzo/abril/etc.
+          .filter(
+            (item): item is { child: StorageEntry; month: number; childYear: number } =>
+              item.month !== null && item.childYear === year,
+          );
 
         if (nestedMonths.length >= 3) {
           for (const { child, month } of nestedMonths) {
