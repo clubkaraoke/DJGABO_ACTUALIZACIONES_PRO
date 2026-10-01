@@ -158,6 +158,10 @@ async function main() {
         throw new Error(`No se pudo derivar la carpeta desde storageKey=${smokeStorageKey ?? "null"}`);
       }
 
+      console.log(
+        "[DOWNLOAD_SMOKE_INPUT]",
+        JSON.stringify({ storageKey: smokeStorageKey, derivedPath: downloadSmokePath }),
+      );
       const smoke = await provider.downloadFolderZipStream(downloadSmokePath);
       console.log(
         "[DOWNLOAD_SMOKE]",
