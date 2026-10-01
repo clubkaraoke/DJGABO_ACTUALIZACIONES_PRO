@@ -1,6 +1,7 @@
 import {
   StorageError,
   assertSafeStorageKey,
+  type StorageDownloadStream,
   type StorageEntry,
   type StorageMetadata,
   type StorageProvider,
@@ -18,6 +19,7 @@ export interface DropboxConfig {
 
 const TOKEN_URL = "https://api.dropboxapi.com/oauth2/token";
 const RPC_URL = "https://api.dropboxapi.com/2";
+const CONTENT_URL = "https://content.dropboxapi.com/2";
 
 interface DropboxApiError {
   error_summary?: string;
@@ -156,6 +158,55 @@ export class DropboxStorageProvider implements StorageProvider {
     return (await res.json()) as T;
   }
 
+  /** Descargas binarias desde content.dropboxapi.com con el mismo manejo de auth/rate limit. */
+  private async content(endpoint: string, payload: unknown, attempt = 0): Promise<Response> {
+    const token = await this.getAccessToken();
+    const res = await this.fetchImpl(`${CONTENT_URL}${endpoint}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Dropbox-API-Arg": JSON.stringify(payload),
+      },
+    });
+
+    if (res.status === 401 && attempt === 0) {
+      this.accessToken = null;
+      return this.content(endpoint, payload, attempt + 1);
+    }
+
+    if (res.status === 429) {
+      const retryAfter = Number(res.headers.get("Retry-After") ?? "1");
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, retryAfter * 1000));
+        return this.content(endpoint, payload, attempt + 1);
+      }
+      throw new StorageError("RATE_LIMITED", "Límite de peticiones de Dropbox excedido");
+    }
+
+    if (res.status === 409) {
+      const err = (await res.json().catch(() => ({}))) as DropboxApiError;
+      if (isPathNotFoundError(err)) {
+        throw new StorageError("NOT_FOUND", err.error_summary ?? "Recurso no encontrado en Dropbox", err);
+      }
+      throw new StorageError(
+        "CONFLICT",
+        err.error_summary ?? `Conflicto al descargar desde Dropbox (409)`,
+        err,
+      );
+    }
+
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as DropboxApiError;
+      throw new StorageError("UNKNOWN", err.error_summary ?? `Error Dropbox ${res.status}`, err);
+    }
+
+    if (!res.body) {
+      throw new StorageError("UNKNOWN", "Dropbox devolvió una descarga sin cuerpo");
+    }
+
+    return res;
+  }
+
   async exists(key: string): Promise<boolean> {
     try {
       await this.getMetadata(key);
@@ -196,6 +247,32 @@ export class DropboxStorageProvider implements StorageProvider {
     // Los previews son assets físicamente distintos (más cortos/comprimidos),
     // por eso comparten el mismo mecanismo de link temporal que la descarga.
     return this.getTemporaryDownloadUrl(key, options);
+  }
+
+  async downloadFileStream(key: string): Promise<StorageDownloadStream> {
+    const path = this.resolvePath(key);
+    const res = await this.content("/files/download", { path });
+    const fileName = path.split("/").filter(Boolean).pop() ?? "archivo";
+    const contentLengthHeader = res.headers.get("content-length");
+    return {
+      body: res.body!,
+      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+      contentLength: contentLengthHeader ? Number(contentLengthHeader) : null,
+      fileName,
+    };
+  }
+
+  async downloadFolderZipStream(key: string): Promise<StorageDownloadStream> {
+    const path = this.resolvePath(key);
+    const res = await this.content("/files/download_zip", { path });
+    const folderName = path.split("/").filter(Boolean).pop() ?? "coleccion";
+    const contentLengthHeader = res.headers.get("content-length");
+    return {
+      body: res.body!,
+      contentType: "application/zip",
+      contentLength: contentLengthHeader ? Number(contentLengthHeader) : null,
+      fileName: `${folderName}.zip`,
+    };
   }
 
   /**
