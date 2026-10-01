@@ -20,7 +20,7 @@ export async function registerCatalogRoutes(fastify: FastifyInstance) {
     async (request, reply) => {
       const year = Number(request.params.year);
       const month = Number(request.params.month);
-      if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+      if (!Number.isInteger(year) || !Number.isInteger(month) || month < 0 || month > 12) {
         return reply.code(400).send({ error: "INVALID_YEAR_MONTH" });
       }
 
