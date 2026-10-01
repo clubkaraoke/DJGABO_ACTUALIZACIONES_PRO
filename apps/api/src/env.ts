@@ -21,6 +21,7 @@ const envSchema = z.object({
   DROPBOX_APP_SECRET: z.string().optional(),
   DROPBOX_REFRESH_TOKEN: z.string().optional(),
   DROPBOX_ROOT_PATH: z.string().default("/ACTUALIZACIONES"),
+  DROPBOX_DOWNLOAD_NAMESPACE_ID: z.string().optional(),
   SYNC_ROOT_PATH: z.string().default("/ACTUALIZACIONES"),
   CATALOG_JSON_DIR: z.string().default("./data/catalog"),
   DROPBOX_WEBHOOK_DEBOUNCE_MS: z.coerce.number().int().min(500).max(60000).default(5000),
