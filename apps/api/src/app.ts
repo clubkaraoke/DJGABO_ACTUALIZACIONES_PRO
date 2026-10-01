@@ -2,7 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyError } from "fastify";
 import cors from "@fastify/cors";
 import rateLimit from "@fastify/rate-limit";
 import { AuthorizationService } from "@djgabo/domain";
-import type { StorageProvider } from "@djgabo/storage";
+import { DropboxStorageProvider, type StorageProvider } from "@djgabo/storage";
 
 import type { Env } from "./env.js";
 import type { Db } from "./db/client.js";
@@ -12,6 +12,9 @@ import { StorageService } from "./services/StorageService.js";
 import { PreviewService } from "./services/PreviewService.js";
 import { DownloadService } from "./services/DownloadService.js";
 import { BatchDownloadService } from "./services/BatchDownloadService.js";
+import { CatalogJsonService } from "./services/CatalogJsonService.js";
+import { SheetMirrorService } from "./services/SheetMirrorService.js";
+import { DropboxIncrementalSyncService } from "./services/DropboxIncrementalSyncService.js";
 
 import { registerAuthRoutes } from "./routes/auth.routes.js";
 import { registerCollectionsRoutes } from "./routes/collections.routes.js";
@@ -25,6 +28,8 @@ import { registerAdminCollectionsRoutes } from "./routes/admin/collections.route
 import { registerAdminKaraokesRoutes } from "./routes/admin/karaokes.routes.js";
 import { registerAdminDownloadsRoutes } from "./routes/admin/downloads.routes.js";
 import { registerAdminSyncRoutes } from "./routes/admin/sync.routes.js";
+import { registerCatalogRoutes } from "./routes/catalog.routes.js";
+import { registerDropboxWebhookRoutes } from "./routes/dropboxWebhook.routes.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -37,6 +42,9 @@ declare module "fastify" {
     previewService: PreviewService;
     downloadService: DownloadService;
     batchDownloadService: BatchDownloadService;
+    catalogJsonService: CatalogJsonService;
+    sheetMirrorService: SheetMirrorService;
+    dropboxIncrementalSyncService: DropboxIncrementalSyncService | null;
   }
 }
 
@@ -74,11 +82,36 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     new BatchDownloadService(opts.db, authorizationService, storageService),
   );
 
+  const catalogJsonService = new CatalogJsonService(opts.db, opts.env.CATALOG_JSON_DIR);
+  const sheetMirrorService = new SheetMirrorService(
+    opts.env.SHEET_SYNC_WEBHOOK_URL,
+    opts.env.SHEET_SYNC_WEBHOOK_SECRET,
+  );
+  const dropboxIncrementalSyncService =
+    opts.storageProvider instanceof DropboxStorageProvider
+      ? new DropboxIncrementalSyncService(
+          opts.db,
+          opts.storageProvider,
+          opts.env,
+          catalogJsonService,
+          sheetMirrorService,
+          fastify.log,
+        )
+      : null;
+
+  fastify.decorate("catalogJsonService", catalogJsonService);
+  fastify.decorate("sheetMirrorService", sheetMirrorService);
+  fastify.decorate("dropboxIncrementalSyncService", dropboxIncrementalSyncService);
+
   fastify.get("/api/health", async () => ({
     status: "ok",
     storageProvider: opts.storageProvider.kind,
+    incrementalSync: dropboxIncrementalSyncService ? "ready" : "disabled",
+    sheetMirror: sheetMirrorService.enabled ? "ready" : "disabled",
   }));
 
+  await registerCatalogRoutes(fastify);
+  await registerDropboxWebhookRoutes(fastify);
   await registerAuthRoutes(fastify, opts.env);
   await registerCollectionsRoutes(fastify);
   await registerKaraokesRoutes(fastify);

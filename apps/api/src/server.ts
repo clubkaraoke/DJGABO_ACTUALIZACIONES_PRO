@@ -19,6 +19,14 @@ async function main() {
 
   const app = await buildApp({ db, env, storageProvider: provider, storageProviderReason: reason });
 
+  // El JSON público siempre nace desde la base persistente antes de aceptar
+  // tráfico. En Dropbox real también sembramos el cursor actual para que el
+  // siguiente webhook procese solo cambios posteriores, no 30k+ archivos.
+  await app.catalogJsonService.publishAll();
+  if (app.dropboxIncrementalSyncService) {
+    await app.dropboxIncrementalSyncService.ensureCursor();
+  }
+
   app.log.info(`Storage provider activo: ${provider.kind} (${reason})`);
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });

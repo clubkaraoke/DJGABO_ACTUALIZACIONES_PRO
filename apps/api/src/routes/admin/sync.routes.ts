@@ -37,15 +37,27 @@ export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
 
   fastify.post("/api/admin/sync/run", guard, async (_request, reply) => {
     const result = await runIndexer(false);
+    await fastify.catalogJsonService.publishAll();
 
     // El sync de storage responde sin esperar a Deezer. La portada se resuelve
     // en segundo plano, con concurrencia limitada y persistencia local, para
     // que ni el panel admin ni las páginas del cliente sufran N requests
     // remotos o lag al renderizar tarjetas.
     void enrichMissingDeezerCovers(db, { limit: 60, concurrency: 6 })
-      .then((covers) => fastify.log.info({ covers }, "Deezer cover enrichment completed"))
+      .then(async (covers) => {
+        fastify.log.info({ covers }, "Deezer cover enrichment completed");
+        if (covers.matched > 0) await fastify.catalogJsonService.publishAll();
+      })
       .catch((error) => fastify.log.warn({ err: error }, "Deezer cover enrichment failed"));
 
+    return reply.send(result);
+  });
+
+  fastify.post("/api/admin/sync/incremental", guard, async (_request, reply) => {
+    if (!fastify.dropboxIncrementalSyncService) {
+      return reply.code(409).send({ error: "DROPBOX_INCREMENTAL_DISABLED" });
+    }
+    const result = await fastify.dropboxIncrementalSyncService.runNow();
     return reply.send(result);
   });
 }

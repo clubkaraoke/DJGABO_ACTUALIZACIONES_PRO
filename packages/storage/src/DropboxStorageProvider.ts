@@ -24,6 +24,20 @@ interface DropboxApiError {
   error?: unknown;
 }
 
+export interface DropboxChangeEntry {
+  path: string;
+  name: string;
+  kind: "file" | "folder" | "deleted";
+  size?: number;
+  modifiedAt?: Date;
+  providerFileId?: string;
+}
+
+export interface DropboxDeltaResult {
+  entries: DropboxChangeEntry[];
+  cursor: string;
+}
+
 /**
  * Un 409 de Dropbox significa "conflicto", NO necesariamente "no existe".
  * Dropbox lo usa para reportar cualquier error específico de la operación
@@ -179,6 +193,69 @@ export class DropboxStorageProvider implements StorageProvider {
     // Los previews son assets físicamente distintos (más cortos/comprimidos),
     // por eso comparten el mismo mecanismo de link temporal que la descarga.
     return this.getTemporaryDownloadUrl(key, options);
+  }
+
+  /**
+   * Devuelve un cursor de Dropbox para el estado ACTUAL de un árbol.
+   * Se usa una sola vez al arrancar el watcher incremental; después cada
+   * webhook continúa desde el cursor persistido y procesa únicamente deltas.
+   */
+  async getLatestCursor(path: string): Promise<string> {
+    const resolved = this.resolvePath(path);
+    const data = await this.rpc<{ cursor: string }>("/files/list_folder/get_latest_cursor", {
+      path: resolved === "" ? "" : resolved,
+      recursive: true,
+      include_deleted: true,
+      include_non_downloadable_files: true,
+    });
+    return data.cursor;
+  }
+
+  /**
+   * Consume TODAS las páginas pendientes desde un cursor de Dropbox.
+   * Incluye altas, cambios, moves/renames y tombstones (deleted). El cursor
+   * retornado solo debe persistirse después de que la capa superior termine
+   * de indexar/publicar correctamente, para no perder eventos ante un fallo.
+   */
+  async listChanges(cursor: string): Promise<DropboxDeltaResult> {
+    const entries: DropboxChangeEntry[] = [];
+    let nextCursor = cursor;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const data = await this.rpc<{
+        entries: Array<{
+          ".tag": "file" | "folder" | "deleted";
+          id?: string;
+          path_display?: string;
+          path_lower?: string;
+          name?: string;
+          size?: number;
+          client_modified?: string;
+        }>;
+        has_more: boolean;
+        cursor: string;
+      }>("/files/list_folder/continue", { cursor: nextCursor });
+
+      for (const e of data.entries) {
+        const pathDisplay = e.path_display ?? e.path_lower ?? "";
+        const name = e.name ?? pathDisplay.split("/").filter(Boolean).pop() ?? "";
+        if (!pathDisplay) continue;
+        entries.push({
+          path: pathDisplay,
+          name,
+          kind: e[".tag"],
+          size: e.size,
+          modifiedAt: e.client_modified ? new Date(e.client_modified) : undefined,
+          providerFileId: e.id,
+        });
+      }
+
+      nextCursor = data.cursor;
+      if (!data.has_more) break;
+    }
+
+    return { entries, cursor: nextCursor };
   }
 
   async listFolder(path: string): Promise<StorageEntry[]> {
