@@ -445,7 +445,9 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
           return reply.code(404).send({ error: "ASSET_NOT_AVAILABLE", message: describeReason("ASSET_NOT_AVAILABLE"), statusCode: 404 });
         }
 
-        const download = await fastify.storageService.getSecureFileStream(asset.storageKey);
+        const download = asset.providerFileId
+          ? await fastify.storageService.getSecureFileByProviderFileIdStream(asset.providerFileId)
+          : await fastify.storageService.getSecureFileStream(asset.storageKey);
 
         const consumeResult = await db
           .update(downloadTickets)
@@ -497,12 +499,21 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
         where: eq(karaokes.collectionId, collection.id),
         with: { masterAsset: true },
       });
-      const storageKey = firstKaraoke?.masterAsset?.storageKey;
-      if (!storageKey) {
+      const masterAsset = firstKaraoke?.masterAsset;
+      if (!masterAsset?.storageKey) {
         return reply.code(404).send({ error: "ASSET_NOT_AVAILABLE", message: describeReason("ASSET_NOT_AVAILABLE"), statusCode: 404 });
       }
 
-      const folderKey = deriveCollectionFolder(collection.year, collection.month, storageKey);
+      let currentStoragePath = masterAsset.storageKey;
+      if (masterAsset.providerFileId) {
+        try {
+          currentStoragePath = await fastify.storageService.getCurrentPathForProviderFileId(masterAsset.providerFileId);
+        } catch {
+          // Fallback al storageKey indexado si el provider no puede resolver el id.
+        }
+      }
+
+      const folderKey = deriveCollectionFolder(collection.year, collection.month, currentStoragePath);
       if (!folderKey) {
         return reply.code(409).send({ error: "COLLECTION_PATH_UNRESOLVED", message: "No se pudo resolver la carpeta real de esta colección.", statusCode: 409 });
       }
