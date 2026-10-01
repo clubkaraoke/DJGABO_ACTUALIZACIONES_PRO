@@ -1,7 +1,7 @@
 import type { StorageEntry, StorageProvider } from "../StorageProvider.js";
 import { resolveMimeType } from "../mimeTypes.js";
 import type { IndexerRepositoryPort, SyncPlanItem, SyncResult } from "./types.js";
-import { parseMonthFolder, parseYearFolder, parseKaraokeFileName, deriveCodeFromKey } from "./filenameParser.js";
+import { parseMonthFolder, parseYearFolder, parseKaraokeFileName, deriveCodeFromKey, hasExplicitMonthName } from "./filenameParser.js";
 import { deriveIdentityKey } from "./identity.js";
 
 const MONTH_TITLES = [
@@ -12,7 +12,7 @@ const MONTH_TITLES = [
 // Los catálogos reales combinan masters de audio/video y paquetes ZIP de
 // marcas externas. CDG y otros sidecars se siguen ignorando como masters
 // independientes para no duplicar un mismo karaoke lógico.
-const MASTER_EXTENSIONS = new Set(["mp4", "mp3", "wav", "mov", "mkv", "zip"]);
+const MASTER_EXTENSIONS = new Set(["mp4", "mp3", "wav", "mov", "mkv", "avi", "zip"]);
 const PREVIEWS_FOLDER_NAME = "_PREVIEWS";
 
 /**
@@ -70,7 +70,7 @@ export class StorageIndexerService {
 
       // Algunas carpetas anuales históricas tienen un wrapper redundante.
       // Solo lo tratamos como wrapper si dentro hay varias carpetas-mes.
-      if (parseYearFolder(entry.name) === year) {
+      if (parseYearFolder(entry.name) === year && !hasExplicitMonthName(entry.name)) {
         const children = await this.storage.listFolder(entry.path);
         const nestedMonths = children
           .filter((child) => child.isFolder)
@@ -79,12 +79,9 @@ export class StorageIndexerService {
             month: parseMonthFolder(child.name),
             childYear: parseYearFolder(child.name),
           }))
-          // Un wrapper anual real (p. ej. 2016) contiene subcarpetas como
-          // "1.- ENERO 2016", "2.- FEBRERO 2016", etc. Las carpetas de
-          // productores también empiezan por números (01 Club, 02 LuisFer,
-          // 04 DJ SA...), pero NO llevan el año. Exigir childYear evita
-          // confundir productores con meses y repartir un mismo mes entre
-          // enero/marzo/abril/etc.
+          // Solo un wrapper anual SIN nombre de mes explícito puede abrirse
+          // como segundo nivel. Esto evita confundir carpetas mensuales reales
+          // (por ejemplo "Noviembre 2017") con sus subcarpetas semanales.
           .filter(
             (item): item is { child: StorageEntry; month: number; childYear: number } =>
               item.month !== null && item.childYear === year,
@@ -101,6 +98,13 @@ export class StorageIndexerService {
       if (directMonth !== null) {
         out.push({ path: entry.path, year, month: directMonth });
       }
+    }
+
+    // 2012-2014 no tienen carpetas mensuales: los karaokes viven
+    // directamente dentro de la carpeta anual. Se representan como periodo
+    // anual month=0, sin inventar meses que no existen en Dropbox.
+    if (out.length === 0 && entries.some((entry) => !entry.isFolder)) {
+      out.push({ path: yearPath, year, month: 0 });
     }
 
     return out;
@@ -220,7 +224,7 @@ export class StorageIndexerService {
         collection = await this.repo.createCollection({
           year,
           month,
-          title: `${MONTH_TITLES[month - 1]} ${year}`,
+          title: month === 0 ? `Colección ${year}` : `${MONTH_TITLES[month - 1]} ${year}`,
           storagePath: this.collectionStoragePath(storageKey, month),
         });
       }
