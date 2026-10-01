@@ -76,6 +76,10 @@ export interface StorageProvider {
    * producción Dropbox la implementa sin exponer links ni rutas al cliente.
    */
   downloadFileStream?(key: string): Promise<StorageDownloadStream>;
+  /** Preferible para Dropbox: el id del provider sobrevive a moves/renames. */
+  downloadFileByProviderFileIdStream?(providerFileId: string): Promise<StorageDownloadStream>;
+  /** Resuelve el path actual a partir del id estable del provider. */
+  getPathForProviderFileId?(providerFileId: string): Promise<string>;
   downloadFolderZipStream?(key: string): Promise<StorageDownloadStream>;
   listFolder(path: string): Promise<StorageEntry[]>;
 }
