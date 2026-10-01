@@ -74,16 +74,57 @@ export async function registerBase44BridgeRoutes(fastify: FastifyInstance) {
       const input = parsed.data;
       const nowSec = Math.floor(Date.now() / 1000);
 
-      if (
-        input.appId !== env.BASE44_APP_ID ||
+      if (input.appId !== env.BASE44_APP_ID) {
+        request.log.warn(
+          { receivedAppId: input.appId },
+          "[BASE44_BRIDGE] appId mismatch",
+        );
+        return reply.code(401).send({
+          error: "BASE44_APP_MISMATCH",
+          message: "La app Base44 no coincide con la configurada en Railway.",
+          statusCode: 401,
+        });
+      }
+
+      const timeInvalid =
         input.iat > nowSec + 15 ||
         input.exp < nowSec ||
-        input.exp - input.iat > 90 ||
-        !verifySignature(env.BASE44_BRIDGE_KEY, canonical(input), input.signature)
-      ) {
+        input.exp - input.iat > 90;
+
+      if (timeInvalid) {
+        request.log.warn(
+          {
+            nowSec,
+            iat: input.iat,
+            exp: input.exp,
+            ttl: input.exp - input.iat,
+          },
+          "[BASE44_BRIDGE] assertion time invalid",
+        );
         return reply.code(401).send({
-          error: "BASE44_ASSERTION_INVALID",
-          message: "La autenticación Base44 no es válida o venció.",
+          error: "BASE44_ASSERTION_TIME_INVALID",
+          message: "La aserción Base44 tiene un timestamp inválido o ya venció.",
+          statusCode: 401,
+        });
+      }
+
+      if (!verifySignature(env.BASE44_BRIDGE_KEY, canonical(input), input.signature)) {
+        request.log.warn(
+          {
+            appId: input.appId,
+            subject: input.subject,
+            email: input.email.trim().toLowerCase(),
+            name: input.name,
+            avatarPresent: Boolean(input.avatarUrl),
+            iat: input.iat,
+            exp: input.exp,
+            jtiLength: input.jti.length,
+          },
+          "[BASE44_BRIDGE] signature mismatch",
+        );
+        return reply.code(401).send({
+          error: "BASE44_SIGNATURE_INVALID",
+          message: "La firma Base44 no coincide con la esperada por Railway.",
           statusCode: 401,
         });
       }
