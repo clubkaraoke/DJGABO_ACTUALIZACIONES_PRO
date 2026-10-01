@@ -122,7 +122,7 @@ async function resolveCollectionZipKey(
         : parseMonthFolder(entry.name) === month;
     });
 
-    return folder?.providerFileId ?? collectionPath;
+    return folder?.path ?? collectionPath;
   } catch {
     return collectionPath;
   }
