@@ -121,6 +121,37 @@ async function main() {
   console.log(`[STORAGE_PROVIDER] ${provider.kind} (${reason})`);
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
+
+  // Bootstrap masivo controlado del catálogo histórico. Se ejecuta DESPUÉS
+  // de levantar HTTP para no bloquear el healthcheck de Railway. Es
+  // idempotente: usa la identidad estable de Dropbox y solo crea/actualiza.
+  if (env.BOOTSTRAP_SYNC_ROOT_PATH && provider.kind === "dropbox") {
+    void (async () => {
+      try {
+        console.log(
+          "[BOOTSTRAP_ROOT_SYNC_START]",
+          JSON.stringify({ path: env.BOOTSTRAP_SYNC_ROOT_PATH }),
+        );
+        const repo = new DrizzleIndexerRepository(db, provider.kind);
+        const indexer = new StorageIndexerService(provider, repo);
+        const result = await indexer.run(env.BOOTSTRAP_SYNC_ROOT_PATH!, { dryRun: false });
+        const version = await app.catalogJsonService.publishAll();
+        console.log(
+          "[BOOTSTRAP_ROOT_SYNC_DONE]",
+          JSON.stringify({
+            path: env.BOOTSTRAP_SYNC_ROOT_PATH,
+            filesDetected: result.filesDetected,
+            newCount: result.newCount,
+            updatedCount: result.updatedCount,
+            errorCount: result.errorCount,
+            version: version.version,
+          }),
+        );
+      } catch (error) {
+        console.error("[BOOTSTRAP_ROOT_SYNC_ERROR]", error);
+      }
+    })();
+  }
 }
 
 main().catch((err) => {
