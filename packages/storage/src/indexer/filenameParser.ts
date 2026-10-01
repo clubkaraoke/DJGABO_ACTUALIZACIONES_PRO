@@ -1,18 +1,43 @@
-const MONTHS_ES = [
-  "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
-  "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
+const MONTH_ALIASES: Array<[number, string[]]> = [
+  [1, ["ENERO", "JANUARY"]],
+  [2, ["FEBRERO", "FEBRUARY"]],
+  [3, ["MARZO", "MARCH"]],
+  [4, ["ABRIL", "APRIL"]],
+  [5, ["MAYO", "MAY"]],
+  [6, ["JUNIO", "JUNE"]],
+  [7, ["JULIO", "JULY"]],
+  [8, ["AGOSTO", "AUGUST"]],
+  [9, ["SEPTIEMBRE", "SEPTEMBER"]],
+  [10, ["OCTUBRE", "OCTOBER"]],
+  [11, ["NOVIEMBRE", "NOVEMBER"]],
+  [12, ["DICIEMBRE", "DECEMBER"]],
 ];
 
-/** "09 SEPTIEMBRE" -> 9. Acepta también solo el nombre del mes. */
+export function hasExplicitMonthName(folderName: string): boolean {
+  const upper = folderName.trim().toUpperCase();
+  return MONTH_ALIASES.some(([, aliases]) => aliases.some((alias) => upper.includes(alias)));
+}
+
+/**
+ * Prefiere el nombre explícito del mes sobre el prefijo numérico.
+ * Esto corrige carpetas históricas como:
+ *   "09.- Top Hits - Agosto 2018" -> Agosto (8), no 9.
+ * El número inicial queda solo como fallback cuando no hay nombre de mes.
+ */
 export function parseMonthFolder(folderName: string): number | null {
   const upper = folderName.trim().toUpperCase();
+
+  for (const [month, aliases] of MONTH_ALIASES) {
+    if (aliases.some((alias) => upper.includes(alias))) return month;
+  }
+
   const numMatch = upper.match(/^(\d{1,2})/);
   if (numMatch) {
     const n = Number(numMatch[1]);
     if (n >= 1 && n <= 12) return n;
   }
-  const idx = MONTHS_ES.findIndex((m) => upper.includes(m));
-  return idx === -1 ? null : idx + 1;
+
+  return null;
 }
 
 /**
