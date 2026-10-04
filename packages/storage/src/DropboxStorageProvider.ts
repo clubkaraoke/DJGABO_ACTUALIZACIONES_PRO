@@ -210,6 +210,7 @@ export class DropboxStorageProvider implements StorageProvider {
     payload: unknown,
     attempt = 0,
     pathRootNamespaceId?: string,
+    extraHeaders?: Record<string, string>,
   ): Promise<Response> {
     const token = await this.getAccessToken();
     const res = await this.fetchImpl(`${CONTENT_URL}${endpoint}`, {
@@ -225,19 +226,20 @@ export class DropboxStorageProvider implements StorageProvider {
               }),
             }
           : {}),
+        ...(extraHeaders ?? {}),
       },
     });
 
     if (res.status === 401 && attempt === 0) {
       this.accessToken = null;
-      return this.content(endpoint, payload, attempt + 1, pathRootNamespaceId);
+      return this.content(endpoint, payload, attempt + 1, pathRootNamespaceId, extraHeaders);
     }
 
     if (res.status === 429) {
       const retryAfter = Number(res.headers.get("Retry-After") ?? "1");
       if (attempt < 2) {
         await new Promise((r) => setTimeout(r, retryAfter * 1000));
-        return this.content(endpoint, payload, attempt + 1, pathRootNamespaceId);
+        return this.content(endpoint, payload, attempt + 1, pathRootNamespaceId, extraHeaders);
       }
       throw new StorageError("RATE_LIMITED", "Límite de peticiones de Dropbox excedido");
     }
@@ -318,6 +320,28 @@ export class DropboxStorageProvider implements StorageProvider {
       contentType: res.headers.get("content-type") ?? "application/octet-stream",
       contentLength: contentLengthHeader ? Number(contentLengthHeader) : null,
       fileName,
+    };
+  }
+
+  async downloadFileRangeStream(key: string, rangeHeader: string): Promise<StorageDownloadStream> {
+    const path = this.resolvePath(key);
+    const res = await this.content(
+      "/files/download",
+      { path },
+      0,
+      undefined,
+      { Range: rangeHeader },
+    );
+    const fileName = path.split("/").filter(Boolean).pop() ?? "audio";
+    const contentLengthHeader = res.headers.get("content-length");
+    return {
+      body: res.body!,
+      contentType: res.headers.get("content-type") ?? "application/octet-stream",
+      contentLength: contentLengthHeader ? Number(contentLengthHeader) : null,
+      fileName,
+      statusCode: res.status,
+      contentRange: res.headers.get("content-range"),
+      acceptRanges: res.headers.get("accept-ranges") ?? "bytes",
     };
   }
 

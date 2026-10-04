@@ -34,6 +34,10 @@ export interface StorageDownloadStream {
   contentType: string;
   contentLength: number | null;
   fileName: string;
+  /** Para streaming multimedia con Range. */
+  statusCode?: number;
+  contentRange?: string | null;
+  acceptRanges?: string | null;
 }
 
 export interface TemporaryUrlOptions {
@@ -76,6 +80,8 @@ export interface StorageProvider {
    * producción Dropbox la implementa sin exponer links ni rutas al cliente.
    */
   downloadFileStream?(key: string): Promise<StorageDownloadStream>;
+  /** Streaming de preview con soporte HTTP Range, sin exponer Dropbox al navegador. */
+  downloadFileRangeStream?(key: string, rangeHeader: string): Promise<StorageDownloadStream>;
   /** Preferible para Dropbox: el id del provider sobrevive a moves/renames. */
   downloadFileByProviderFileIdStream?(providerFileId: string): Promise<StorageDownloadStream>;
   /** Resuelve el path actual a partir del id estable del provider. */

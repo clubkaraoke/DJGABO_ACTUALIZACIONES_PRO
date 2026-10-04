@@ -15,6 +15,7 @@ import { BatchDownloadService } from "./services/BatchDownloadService.js";
 import { CatalogJsonService } from "./services/CatalogJsonService.js";
 import { SheetMirrorService } from "./services/SheetMirrorService.js";
 import { DropboxIncrementalSyncService } from "./services/DropboxIncrementalSyncService.js";
+import { DemoPlayerSettingsService } from "./services/DemoPlayerSettingsService.js";
 
 import { registerAuthRoutes } from "./routes/auth.routes.js";
 import { registerBase44BridgeRoutes } from "./routes/base44Bridge.routes.js";
@@ -31,6 +32,7 @@ import { registerAdminDownloadsRoutes } from "./routes/admin/downloads.routes.js
 import { registerAdminSyncRoutes } from "./routes/admin/sync.routes.js";
 import { registerCatalogRoutes } from "./routes/catalog.routes.js";
 import { registerDropboxWebhookRoutes } from "./routes/dropboxWebhook.routes.js";
+import { registerDemoPlayerRoutes } from "./routes/demoPlayer.routes.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -46,6 +48,7 @@ declare module "fastify" {
     catalogJsonService: CatalogJsonService;
     sheetMirrorService: SheetMirrorService;
     dropboxIncrementalSyncService: DropboxIncrementalSyncService | null;
+    demoPlayerSettingsService: DemoPlayerSettingsService;
   }
 }
 
@@ -110,6 +113,10 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   fastify.decorate("catalogJsonService", catalogJsonService);
   fastify.decorate("sheetMirrorService", sheetMirrorService);
   fastify.decorate("dropboxIncrementalSyncService", dropboxIncrementalSyncService);
+  fastify.decorate(
+    "demoPlayerSettingsService",
+    new DemoPlayerSettingsService(`${opts.env.CATALOG_JSON_DIR ?? "./data/catalog"}/demo-player-settings.json`),
+  );
 
   fastify.get("/api/health", async () => ({
     status: "ok",
@@ -126,6 +133,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await registerKaraokesRoutes(fastify);
   await registerDownloadsRoutes(fastify);
   await registerPreviewRoutes(fastify);
+  await registerDemoPlayerRoutes(fastify);
   await registerDeviceRoutes(fastify);
   await registerAdminClientsRoutes(fastify);
   await registerAdminPlansRoutes(fastify);

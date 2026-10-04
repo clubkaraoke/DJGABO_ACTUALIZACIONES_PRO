@@ -37,11 +37,22 @@ export class StorageService {
     return { url, expiresAt: this.resolveKnownExpiry(ttlSeconds) };
   }
 
+  async exists(storageKey: string): Promise<boolean> {
+    return this.provider.exists(storageKey);
+  }
+
   async getSecureFileStream(storageKey: string) {
     if (!this.provider.downloadFileStream) {
       throw new Error("SECURE_STREAM_NOT_SUPPORTED");
     }
     return this.provider.downloadFileStream(storageKey);
+  }
+
+  async getSecureFileRangeStream(storageKey: string, rangeHeader: string) {
+    if (!this.provider.downloadFileRangeStream) {
+      return this.getSecureFileStream(storageKey);
+    }
+    return this.provider.downloadFileRangeStream(storageKey, rangeHeader);
   }
 
   async getSecureFileByProviderFileIdStream(providerFileId: string) {
