@@ -1,7 +1,6 @@
 import { useState } from "react";
-import type { KaraokeSummaryDTO, TemporaryUrlDTO } from "@djgabo/shared";
-import { api } from "../lib/apiClient";
-import { withDeviceToken } from "../lib/deviceToken";
+import type { KaraokeSummaryDTO } from "@djgabo/shared";
+import { createKaraokeDownloadTicket, openSecureDownload } from "../lib/secureDownloads";
 import { PreviewModal } from "./PreviewModal";
 
 function formatSize(bytes: number | null): string {
@@ -13,31 +12,16 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function triggerDownload(url: string, fileName: string) {
-  if (url.startsWith("http")) {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-}
-
 export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
   const [showPreview, setShowPreview] = useState(false);
-  const [downloadState, setDownloadState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
 
   async function handleDownload() {
     setDownloadState("loading");
     try {
-      const res = await withDeviceToken((deviceToken) =>
-        api.post<TemporaryUrlDTO>(`/downloads/karaoke/${karaoke.id}`, undefined, { "X-Device-Token": deviceToken }),
-      );
-      // El nombre y la extensión reales vienen del backend (punto 1).
-      triggerDownload(res.url, res.fileName);
-      setDownloadState("done");
-      setTimeout(() => setDownloadState("idle"), 2000);
+      const ticket = await createKaraokeDownloadTicket(karaoke.id);
+      openSecureDownload(ticket.downloadPath);
+      setDownloadState("idle");
     } catch {
       setDownloadState("error");
       setTimeout(() => setDownloadState("idle"), 2500);
@@ -69,7 +53,7 @@ export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
             onClick={handleDownload}
             className="rounded-md bg-accent-soft px-2.5 py-1 text-xs text-accent hover:bg-accent/20 disabled:opacity-30"
           >
-            {downloadState === "done" ? "✓" : "↓"}
+            {downloadState === "loading" ? "…" : downloadState === "error" ? "!" : "↓"}
           </button>
         </div>
       </td>
