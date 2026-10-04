@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: "/admin/colecciones", label: "Colecciones" },
   { to: "/admin/karaokes", label: "Karaokes" },
   { to: "/admin/descargas", label: "Descargas" },
+  { to: "/admin/reproductor", label: "Reproductor CDG" },
   { to: "/admin/sincronizacion", label: "Sincronización" },
 ];
 

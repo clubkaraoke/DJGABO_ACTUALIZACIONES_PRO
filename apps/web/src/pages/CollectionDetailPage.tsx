@@ -11,6 +11,13 @@ import { BatchDownloadModal } from "../components/BatchDownloadModal";
 import { EmptyState } from "../components/primitives";
 import { buildPublicFolderAliases, publicKaraokeDisplay, publicSearchMatches } from "../lib/publicCatalogPresentation";
 
+interface DemoPlayerSettings {
+  enabled: boolean;
+  startSeconds: number;
+  durationSeconds: number;
+  quality: "ORIGINAL" | "SDF_LAB_V2" | "SDF_KARAOKE_PRO";
+}
+
 interface CatalogMonthDocument {
   schema_version: 1;
   version: string;
@@ -66,6 +73,13 @@ export default function CollectionDetailPage() {
     queryKey: ["collection", id],
     queryFn: () => api.get<CollectionDetailDTO>(`/collections/${id}`),
     enabled: Boolean(id),
+    retry: false,
+  });
+
+  const { data: demoSettings } = useQuery({
+    queryKey: ["demo-player-settings"],
+    queryFn: () => api.get<DemoPlayerSettings>("/demo-player/settings"),
+    staleTime: 30_000,
     retry: false,
   });
 
@@ -285,7 +299,11 @@ export default function CollectionDetailPage() {
                                 </thead>
                                 <tbody>
                                   {karaokes.map((karaoke) => (
-                                    <KaraokeRow key={karaoke.id} karaoke={karaoke} />
+                                    <KaraokeRow
+                                      key={karaoke.id}
+                                      karaoke={karaoke}
+                                      demoAllowed={name === "Club Karaoke" && demoSettings?.enabled === true}
+                                    />
                                   ))}
                                 </tbody>
                               </table>

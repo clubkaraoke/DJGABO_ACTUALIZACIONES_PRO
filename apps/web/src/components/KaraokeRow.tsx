@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { KaraokeSummaryDTO } from "@djgabo/shared";
 import { createKaraokeDownloadTicket, openSecureDownload } from "../lib/secureDownloads";
-import { PreviewModal } from "./PreviewModal";
+import { CdgDemoModal } from "./CdgDemoModal";
 import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
 
 function formatSize(bytes: number | null): string {
@@ -9,7 +9,7 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / 1_000_000).toFixed(0)} MB`;
 }
 
-export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
+export function KaraokeRow({ karaoke, demoAllowed = false }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean }) {
   const display = publicKaraokeDisplay(karaoke);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
@@ -58,13 +58,14 @@ export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
 
       <td className="px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <button
-            disabled={!karaoke.hasPreview}
-            onClick={() => setShowPreview(true)}
-            className="rounded-md border border-white/[0.10] px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-white/[0.04] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
-          >
-            ▶ Play
-          </button>
+          {demoAllowed && (
+            <button
+              onClick={() => setShowPreview(true)}
+              className="rounded-md border border-white/[0.10] px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+            >
+              ▶ Play
+            </button>
+          )}
           <button
             disabled={!karaoke.hasMaster || downloadState === "loading"}
             onClick={handleDownload}
@@ -76,10 +77,9 @@ export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
       </td>
 
       {showPreview && (
-        <PreviewModal
+        <CdgDemoModal
           karaokeId={karaoke.id}
-          title={display.title}
-          artist={display.artist}
+          title={display.label}
           onClose={() => setShowPreview(false)}
         />
       )}

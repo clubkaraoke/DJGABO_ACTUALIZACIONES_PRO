@@ -1,0 +1,469 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DJGABO CDG Player Online</title>
+  <link rel="stylesheet" href="styles.css" />
+
+<style>
+html.embed-mode body { background:#070708 !important; overflow:hidden; }
+html.embed-mode .app-shell { max-width:none !important; padding:0 !important; margin:0 !important; }
+html.embed-mode .topbar,
+html.embed-mode .quality-bar,
+html.embed-mode .sdf-panel,
+html.embed-mode .fidelity-panel,
+html.embed-mode .scale2x-panel,
+html.embed-mode .gloss-panel,
+html.embed-mode .sdf-pro-panel,
+html.embed-mode .vector-panel,
+html.embed-mode .file-row,
+html.embed-mode .track-info,
+html.embed-mode .fine-controls,
+html.embed-mode .notes { display:none !important; }
+html.embed-mode .player-card { border:0 !important; box-shadow:none !important; border-radius:0 !important; padding:0 !important; background:#070708 !important; }
+html.embed-mode .screen-wrap { margin:0 !important; border-radius:8px !important; }
+html.embed-mode .transport { margin:10px 0 0 !important; padding:0 4px !important; }
+html.embed-mode #seek { pointer-events:none; }
+html.embed-mode .status-line { margin:7px 4px 0 !important; font-size:11px !important; }
+</style>
+<script>
+if (new URLSearchParams(location.search).get('embed') === '1') {
+  document.documentElement.classList.add('embed-mode');
+}
+</script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">DJGABO · CD+G ENGINE</p>
+        <h1>Reproductor CDG Online</h1>
+      </div>
+      <span class="badge" id="engineStatus">Motor listo</span>
+    </header>
+
+    <section class="player-card">
+      <div class="quality-bar" aria-label="Calidad de render">
+        <span class="quality-label">CALIDAD</span>
+        <div class="quality-switch">
+          <button id="qualityOriginal" class="quality-btn" type="button">ORIGINAL</button>
+          <button id="qualityHD" class="quality-btn active" type="button">SDF LAB V2</button>
+          <button id="qualityFidelity" class="quality-btn" type="button">CDG FIDELITY</button>
+          <button id="qualityScale2x" class="quality-btn" type="button">SCALE2X</button>
+          <button id="qualityGloss" class="quality-btn" type="button">KARAOKE HD</button>
+          <button id="qualitySdfPro" class="quality-btn" type="button">SDF KARAOKE PRO</button>
+        </div>
+        <span class="quality-note" id="qualityNote">SDF LAB V2 · Halo/Corte/Gamma/Radius · fondo plomo</span>
+      </div>
+
+      <div class="screen-wrap hd-mode" id="screenWrap">
+        <canvas id="cdgCanvas" width="288" height="192" aria-label="Pantalla CDG original"></canvas>
+        <canvas id="cdgCanvasHD" width="1152" height="768" aria-label="Pantalla CDG SDF LAB V2"></canvas>
+        <div id="vectorStage" class="vector-stage" aria-label="Pantalla CDG vectorizada"></div>
+        <canvas id="vectorCanvasV2" width="1152" height="768" aria-label="Pantalla CDG VECTOR V2"></canvas>
+        <canvas id="fidelityCanvas" width="2304" height="1536" aria-label="Pantalla CDG FIDELITY"></canvas>
+        <canvas id="scale2xCanvas" width="1152" height="768" aria-label="Pantalla CDG SCALE2X"></canvas>
+        <canvas id="glossCanvas" width="1152" height="768" aria-label="Pantalla CDG KARAOKE HD"></canvas>
+        <canvas id="sdfProCanvas" width="288" height="192" aria-label="Pantalla CDG SDF KARAOKE PRO"></canvas>
+        <div class="empty-state" id="emptyState">
+          <strong>Carga un CDG + audio</strong>
+          <span>Carga un ZIP o un par CDG + audio. Todo se procesa localmente en tu navegador.</span>
+        </div>
+      </div>
+
+      <section class="sdf-panel" id="sdfPanel">
+        <div class="sdf-panel-head">
+          <div>
+            <strong>SDF LAB V2</strong>
+            <span>Laboratorio de bordes · fondo plomo para comparar el contorno.</span>
+          </div>
+          <button id="sdfReset" class="sdf-reset" type="button">Preset DJGABO V1</button>
+        </div>
+
+        <div class="sdf-tip">
+          <strong>Prueba primero:</strong>
+          baja/sube <b>Halo</b> y <b>Corte relleno</b>. Esa separación define directamente cuánto borde negro aparece.
+        </div>
+
+        <div class="sdf-controls">
+          <label class="sdf-control">
+            <div><span>Halo / borde</span><output id="sdfHaloValue">0.41</output></div>
+            <input id="sdfHalo" type="range" min="0.05" max="0.90" step="0.01" value="0.41" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Corte relleno</span><output id="sdfCutoffValue">0.54</output></div>
+            <input id="sdfCutoff" type="range" min="0.20" max="0.95" step="0.01" value="0.54" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Gamma / AA</span><output id="sdfGammaValue">0.85</output></div>
+            <input id="sdfGamma" type="range" min="0" max="4" step="0.05" value="0.85" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Radius SDF</span><output id="sdfRadiusValue">7 px</output></div>
+            <input id="sdfRadius" type="range" min="1" max="32" step="1" value="7" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Umbral máscara</span><output id="sdfThresholdValue">0.01</output></div>
+            <input id="sdfThreshold" type="range" min="0.01" max="0.90" step="0.01" value="0.01" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Pre-suavizado máscara</span><output id="sdfPreSmoothValue">0</output></div>
+            <input id="sdfPreSmooth" type="range" min="0" max="4" step="1" value="0" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Expansión</span><output id="sdfExpansionValue">0.60 px</output></div>
+            <input id="sdfExpansion" type="range" min="-4" max="4" step="0.10" value="0.60" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Resolución interna</span><output id="sdfScaleValue">8×</output></div>
+            <input id="sdfScale" type="range" min="2" max="8" step="1" value="8" />
+          </label>
+        </div>
+      </section>
+
+      <section class="fidelity-panel is-hidden" id="fidelityPanel">
+        <div class="sdf-panel-head">
+          <div>
+            <strong>CDG FIDELITY V2 · CLUT ORIGINAL</strong>
+            <span>Sin VTracer. Máscara tomada de los índices de color reales del CDG.</span>
+          </div>
+          <span class="vector-engine-status" id="fidelityStatus">GPU listo</span>
+        </div>
+
+        <div class="sdf-tip">
+          <strong>Objetivo:</strong>
+          mantener el diseño original del CDG usando su paleta/indexado real y suavizar solo el borde visible.
+        </div>
+
+        <div class="fidelity-controls">
+          <label class="sdf-control">
+            <div><span>Suavizado borde</span><output id="fidelitySoftenValue">0.28</output></div>
+            <input id="fidelitySoften" type="range" min="0" max="0.75" step="0.01" value="0.28" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Antialias</span><output id="fidelityAAValue">0.075</output></div>
+            <input id="fidelityAA" type="range" min="0.01" max="0.20" step="0.005" value="0.075" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Contorno negro</span><output id="fidelityOutlineValue">0.72 px</output></div>
+            <input id="fidelityOutline" type="range" min="0" max="1.5" step="0.02" value="0.72" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Resolución interna</span><output id="fidelityScaleValue">8×</output></div>
+            <input id="fidelityScale" type="range" min="4" max="8" step="1" value="8" />
+          </label>
+        </div>
+      </section>
+
+      <section class="scale2x-panel is-hidden" id="scale2xPanel">
+        <div class="sdf-panel-head">
+          <div>
+            <strong>SCALE2X · CLUT ORIGINAL</strong>
+            <span>Suavizado pixel-art sobre los índices reales del CDG. Sin VTracer ni spline.</span>
+          </div>
+          <span class="vector-engine-status" id="scale2xStatus">Listo · 30 fps</span>
+        </div>
+
+        <div class="sdf-tip">
+          <strong>Objetivo:</strong>
+          conservar el diseño original del CDG y reducir los escalones de diagonales y curvas sin cambiar la fuente.
+        </div>
+
+        <div class="scale2x-controls">
+          <label class="sdf-control">
+            <div><span>Modo</span><output id="scale2xPassesValue">Scale4X</output></div>
+            <input id="scale2xPasses" type="range" min="1" max="2" step="1" value="2" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Contorno negro</span><output id="scale2xOutlineValue">1 px</output></div>
+            <input id="scale2xOutline" type="range" min="0" max="3" step="1" value="1" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Resolución final</span><output id="scale2xOutputScaleValue">4×</output></div>
+            <input id="scale2xOutputScale" type="range" min="2" max="8" step="1" value="4" />
+          </label>
+
+          <label class="sdf-control scale2x-check">
+            <div><span>AA ligero</span><output id="scale2xAAValue">ON</output></div>
+            <input id="scale2xAA" type="checkbox" checked />
+          </label>
+        </div>
+      </section>
+
+      <section class="gloss-panel is-hidden" id="glossPanel">
+        <div class="sdf-panel-head">
+          <div>
+            <strong>KARAOKE HD · PK GRADIENT CURVE</strong>
+            <span>Curva de 64 fases derivada del comportamiento del motor PKLib + degradado independiente por línea.</span>
+          </div>
+          <button id="glossReset" class="sdf-reset" type="button">Preset PK Style</button>
+        </div>
+
+        <div class="sdf-tip">
+          <strong>Objetivo:</strong>
+          detectar la altura real de cada línea y usar el perfil del programa: oscuro arriba → brillo máximo cerca del 66% → oscuro abajo.
+        </div>
+
+        <div class="gloss-metrics">
+          <span>Líneas detectadas <b id="glossLineCount">—</b></span>
+          <span>Curva <b>64 fases · pico 66%</b></span>
+          <span>Smart Resolution <b id="glossSmartSource">Inicializando HQ4X…</b></span>
+        </div>
+
+        <div class="gloss-controls">
+          <label class="sdf-control">
+            <div><span>Gradiente programa</span><output id="glossGradientValue">1.00</output></div>
+            <input id="glossGradient" type="range" min="0" max="1" step="0.05" value="1.00" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Contorno negro</span><output id="glossOutlineValue">0.75 px</output></div>
+            <input id="glossOutline" type="range" min="0" max="2.5" step="0.05" value="0.75" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Sombra X</span><output id="glossShadowXValue">1.00 px</output></div>
+            <input id="glossShadowX" type="range" min="-2" max="4" step="0.25" value="1.00" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Sombra Y</span><output id="glossShadowYValue">1.00 px</output></div>
+            <input id="glossShadowY" type="range" min="-2" max="5" step="0.25" value="1.00" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Suavidad sombra</span><output id="glossShadowBlurValue">0.35 px</output></div>
+            <input id="glossShadowBlur" type="range" min="0" max="3" step="0.05" value="0.35" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Opacidad sombra</span><output id="glossShadowAlphaValue">0.40</output></div>
+            <input id="glossShadowAlpha" type="range" min="0" max="0.9" step="0.05" value="0.40" />
+          </label>
+        </div>
+      </section>
+
+      <section class="sdf-pro-panel is-hidden" id="sdfProPanel">
+        <div class="sdf-panel-head">
+          <div>
+            <strong>SDF KARAOKE PRO</strong>
+            <span>SDF LAB V2 completo + Gradiente Programa + contorno + sombra.</span>
+          </div>
+          <button id="sdfProReset" class="sdf-reset" type="button">Preset BASE V1</button>
+        </div>
+
+        <div class="sdf-tip">
+          <strong>Base:</strong>
+          conserva los controles del preset SDF LAB V2 y agrega los efectos de KARAOKE HD en un motor separado.
+        </div>
+
+        <div class="sdf-pro-metrics">
+          <span>Motor <b>SDF + KARAOKE HD</b></span>
+          <span>Líneas detectadas <b id="sdfProLineCount">—</b></span>
+          <span>Gradiente <b>1–100 · 25 ≈ máximo anterior</b></span>
+        </div>
+
+        <div class="sdf-pro-section-title">SDF LAB V2</div>
+        <div class="sdf-controls">
+          <label class="sdf-control">
+            <div><span>Halo / borde</span><output id="sdfProHaloValue">0.47</output></div>
+            <input id="sdfProHalo" type="range" min="0.05" max="0.90" step="0.01" value="0.47" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Corte relleno</span><output id="sdfProCutoffValue">0.54</output></div>
+            <input id="sdfProCutoff" type="range" min="0.20" max="0.95" step="0.01" value="0.54" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Gamma / AA</span><output id="sdfProGammaValue">0.85</output></div>
+            <input id="sdfProGamma" type="range" min="0" max="4" step="0.05" value="0.85" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Radius SDF</span><output id="sdfProRadiusValue">7 px</output></div>
+            <input id="sdfProRadius" type="range" min="1" max="32" step="1" value="7" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Umbral máscara</span><output id="sdfProThresholdValue">0.01</output></div>
+            <input id="sdfProThreshold" type="range" min="0.01" max="0.90" step="0.01" value="0.01" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Pre-suavizado máscara</span><output id="sdfProPreSmoothValue">0</output></div>
+            <input id="sdfProPreSmooth" type="range" min="0" max="4" step="1" value="0" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Expansión</span><output id="sdfProExpansionValue">0.60 px</output></div>
+            <input id="sdfProExpansion" type="range" min="-4" max="4" step="0.10" value="0.60" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Resolución interna</span><output id="sdfProScaleValue">8×</output></div>
+            <input id="sdfProScale" type="range" min="2" max="8" step="1" value="8" />
+          </label>
+        </div>
+
+        <div class="sdf-pro-section-title">KARAOKE HD</div>
+        <div class="gloss-controls">
+          <label class="sdf-control">
+            <div><span>Gradiente programa</span><output id="sdfProGradientValue">Nivel 35</output></div>
+            <input id="sdfProGradient" type="range" min="1" max="100" step="1" value="35" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Contorno negro</span><output id="sdfProOutlineValue">0.60 px</output></div>
+            <input id="sdfProOutline" type="range" min="0" max="2.5" step="0.05" value="0.60" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Sombra X</span><output id="sdfProShadowXValue">1.25 px</output></div>
+            <input id="sdfProShadowX" type="range" min="-2" max="4" step="0.25" value="1.25" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Sombra Y</span><output id="sdfProShadowYValue">1.00 px</output></div>
+            <input id="sdfProShadowY" type="range" min="-2" max="5" step="0.25" value="1.00" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Suavidad sombra</span><output id="sdfProShadowBlurValue">0.85 px</output></div>
+            <input id="sdfProShadowBlur" type="range" min="0" max="3" step="0.05" value="0.85" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Opacidad sombra</span><output id="sdfProShadowAlphaValue">0.75</output></div>
+            <input id="sdfProShadowAlpha" type="range" min="0" max="0.9" step="0.05" value="0.75" />
+          </label>
+        </div>
+
+        <div class="sdf-levels sdf-levels-100" aria-hidden="true">
+          <span>1</span><span>25</span><span>50</span><span>75</span><span>100</span>
+        </div>
+      </section>
+
+      <section class="vector-panel is-hidden" id="vectorPanel">
+        <div class="sdf-panel-head">
+          <div>
+            <strong>VECTOR TRACE · VTracer WASM</strong>
+            <span>Raster CDG → curvas SVG spline reales. El preset SDF queda intacto.</span>
+          </div>
+          <span class="vector-engine-status" id="vectorEngineStatus">Cargando motor…</span>
+        </div>
+
+        <div class="sdf-tip">
+          <strong>Qué mirar:</strong>
+          pausa en una palabra con diagonales (A, M, N, R, V) y ajusta <b>Contorno</b> y <b>Curvas</b>.
+        </div>
+
+        <div class="vector-controls">
+          <label class="sdf-control">
+            <div><span>Contorno negro</span><output id="vectorStrokeValue">1.15 px</output></div>
+            <input id="vectorStroke" type="range" min="0" max="3" step="0.05" value="1.15" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Curvas / esquina</span><output id="vectorCornerValue">30°</output></div>
+            <input id="vectorCorner" type="range" min="0" max="180" step="5" value="30" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Longitud segmento</span><output id="vectorLengthValue">4.0</output></div>
+            <input id="vectorLength" type="range" min="3.5" max="10" step="0.25" value="4" />
+          </label>
+
+          <label class="sdf-control">
+            <div><span>Actualización</span><output id="vectorFpsValue">6 fps</output></div>
+            <input id="vectorFps" type="range" min="1" max="12" step="1" value="6" />
+          </label>
+        </div>
+      </section>
+
+      <section class="vector-panel is-hidden" id="vectorV2Panel">
+        <div class="sdf-panel-head">
+          <div>
+            <strong>VECTOR TRACE V2 · FIDELIDAD</strong>
+            <span>Geometría vectorial cacheada + color CDG en vivo, sin revectorizar el amarillo.</span>
+          </div>
+          <span class="vector-engine-status" id="vectorV2EngineStatus">Esperando…</span>
+        </div>
+
+        <div class="sdf-tip">
+          <strong>Objetivo V2:</strong>
+          conservar la forma original de la fuente, eliminar frames atrasados y mantener el blanco/amarillo sincronizado.
+        </div>
+
+        <div class="vector-v2-metrics">
+          <span>Curvas <b id="vectorV2PathCount">—</b></span>
+          <span>Geometría <b id="vectorV2GeometryState">—</b></span>
+          <span>Color <b>30 fps</b></span>
+          <span>Perfil <b>Fidelidad alta</b></span>
+        </div>
+      </section>
+
+      <div class="file-row">
+        <label class="file-button">
+          <input id="pairInput" type="file" multiple accept=".zip,.cdg,.mp3,.wav,.ogg,.m4a,.aac,application/zip,audio/*" />
+          <span>Cargar ZIP o CDG + audio</span>
+        </label>
+        <button id="fullscreenBtn" class="secondary" type="button">Pantalla completa</button>
+      </div>
+
+      <div class="track-info">
+        <div><span>CDG</span><strong id="cdgName">—</strong></div>
+        <div><span>Audio</span><strong id="audioName">—</strong></div>
+      </div>
+
+      <audio id="audio" preload="metadata"></audio>
+
+      <div class="transport">
+        <button id="playBtn" class="play" type="button" disabled>▶</button>
+        <span class="time" id="currentTime">00:00</span>
+        <input id="seek" type="range" min="0" max="1000" value="0" disabled aria-label="Posición" />
+        <span class="time" id="duration">00:00</span>
+      </div>
+
+      <div class="fine-controls">
+        <label>
+          <span>Volumen</span>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="1" />
+        </label>
+        <label>
+          <span>Offset CDG</span>
+          <div class="offset-control">
+            <button id="offsetMinus" type="button">−0.1 s</button>
+            <output id="offsetValue">0.0 s</output>
+            <button id="offsetPlus" type="button">+0.1 s</button>
+          </div>
+        </label>
+      </div>
+
+      <p class="status-line" id="statusLine">Esperando archivos…</p>
+    </section>
+
+    <section class="notes">
+      <strong>Prueba A/B del renderer:</strong>
+      <span>ORIGINAL = CDG nativo · SDF LAB V2 = preset estable · CDG FIDELITY = suavizado subpíxel · SCALE2X = escalado CLUT · KARAOKE HD = curva PK de 64 fases por línea + contorno + sombra · SDF KARAOKE PRO = SDF LAB V2 + efectos KARAOKE HD en motor independiente.</span>
+    </section>
+  </main>
+
+  <script src="sdf-renderer.js?v=4"></script>
+  <script src="sdf-karaoke-pro-renderer.js?v=4"></script>
+  <script src="app.js?v=22"></script>
+</body>
+</html>
