@@ -1,0 +1,31 @@
+server {
+  listen ${PORT};
+  server_name _;
+
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # El navegador usa /api en el MISMO dominio del frontend.
+  # Nginx lo reenvía al backend estable; así no dependemos de CORS
+  # y no modificamos la configuración del API que todavía usa Base44.
+  location /api/ {
+    proxy_pass https://djgabo-actualizaciones-webapi-production.up.railway.app;
+    proxy_ssl_server_name on;
+    proxy_set_header Host djgabo-actualizaciones-webapi-production.up.railway.app;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_http_version 1.1;
+
+    # Las descargas grandes deben transmitirse, no almacenarse en el proxy.
+    proxy_buffering off;
+    proxy_request_buffering off;
+    proxy_read_timeout 3600s;
+    proxy_send_timeout 3600s;
+  }
+
+  # React Router / SPA fallback.
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
