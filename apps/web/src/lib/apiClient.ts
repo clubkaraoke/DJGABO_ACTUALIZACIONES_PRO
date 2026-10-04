@@ -17,8 +17,8 @@ type RefreshFn = () => Promise<string | null>;
 let getAccessToken: TokenGetter = () => null;
 let refreshAccessToken: RefreshFn = async () => null;
 
-const rawApiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
-export const API_BASE_URL = rawApiBase.replace(/\/+$/, "");
+// Preview Railway: todas las llamadas van por el mismo origen y Nginx reenvía /api al backend.
+export const API_BASE_URL = "";
 
 export function apiEndpoint(path: string): string {
   const suffix = path.startsWith("/api/") ? path : `/api${path.startsWith("/") ? path : `/${path}`}`;
