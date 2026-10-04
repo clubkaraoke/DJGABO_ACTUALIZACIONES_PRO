@@ -6,15 +6,35 @@ import { assets, collections, karaokes } from "../db/schema.js";
 import { deriveSourceGroup } from "../services/sourceGroup.js";
 import { signDemoTicket, verifyDemoTicket } from "../auth/demoTicket.js";
 import {
+  DEMO_BACKGROUND_TYPES,
   DEMO_PLAYER_QUALITIES,
   type DemoPlayerSettings,
 } from "../services/DemoPlayerSettingsService.js";
+
+const presetSchema = z.object({
+  id: z.string().min(1).max(64).regex(/^[a-zA-Z0-9_-]+$/),
+  name: z.string().min(1).max(60),
+  backgroundType: z.enum(DEMO_BACKGROUND_TYPES),
+  backgroundValue: z.string().max(600),
+  logoUrl: z.string().max(300).nullable(),
+  logoX: z.number().min(0).max(100),
+  logoY: z.number().min(0).max(100),
+  logoWidth: z.number().min(4).max(45),
+  logoOpacity: z.number().min(0.1).max(1),
+});
 
 const settingsSchema = z.object({
   enabled: z.boolean(),
   startSeconds: z.number().int().min(0).max(600),
   durationSeconds: z.number().int().min(15).max(90),
   quality: z.enum(DEMO_PLAYER_QUALITIES),
+  activePresetId: z.string().min(1).max(64),
+  presets: z.array(presetSchema).min(1).max(20),
+});
+
+const uploadSchema = z.object({
+  kind: z.enum(["background", "logo"]),
+  dataUrl: z.string().min(20),
 });
 
 function normalize(value: string): string {
@@ -99,7 +119,7 @@ async function resolveDemoMedia(
       const metadata = await fastify.storageService.getMetadata(audioKey);
       audioProviderFileId = metadata.providerFileId ?? null;
     } catch {
-      // Si el provider no puede resolver metadata por path, mantenemos el fallback por storageKey.
+      // Fallback por storageKey.
     }
   }
 
@@ -162,12 +182,37 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
     async (_request, reply) => reply.send(await fastify.demoPlayerSettingsService.get()),
   );
 
+  fastify.get<{ Params: { fileName: string } }>(
+    "/api/demo-player/assets/:fileName",
+    { config: { rateLimit: { max: 120, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const asset = await fastify.demoPlayerSettingsService.readImage(request.params.fileName);
+      if (!asset) {
+        return reply.code(404).send({ error: "ASSET_NOT_FOUND", message: "Imagen no encontrada.", statusCode: 404 });
+      }
+      reply.header("Content-Type", asset.contentType);
+      reply.header("Cache-Control", "public, max-age=31536000, immutable");
+      reply.header("X-Content-Type-Options", "nosniff");
+      return reply.send(asset.data);
+    },
+  );
+
   fastify.get<{ Params: { id: string } }>(
     "/api/preview/cdg/:id/config",
     { preHandler: fastify.authenticate },
     async (request, reply) => {
       const resolved = await resolveDemoMedia(fastify, request.authUser!.sub, request.params.id);
       if (!resolved.ok) return reply.code(resolved.status).send(resolved);
+
+      const activePreset =
+        resolved.settings.presets.find((preset) => preset.id === resolved.settings.activePresetId) ??
+        resolved.settings.presets[0]!;
+
+      const ticket = signDemoTicket(fastify.env, {
+        sub: request.authUser!.sub,
+        resourceId: resolved.karaoke.id,
+      });
+      const encoded = encodeURIComponent(ticket);
 
       return reply.send({
         karaokeId: resolved.karaoke.id,
@@ -177,17 +222,9 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
         sourceStartSeconds: resolved.settings.startSeconds,
         durationSeconds: resolved.settings.durationSeconds,
         quality: resolved.settings.quality,
-        ...(() => {
-          const ticket = signDemoTicket(fastify.env, {
-            sub: request.authUser!.sub,
-            resourceId: resolved.karaoke.id,
-          });
-          const encoded = encodeURIComponent(ticket);
-          return {
-            audioUrl: `/api/preview/cdg/${resolved.karaoke.id}/audio?ticket=${encoded}`,
-            cdgUrl: `/api/preview/cdg/${resolved.karaoke.id}/cdg?ticket=${encoded}`,
-          };
-        })(),
+        visualPreset: activePreset,
+        audioUrl: `/api/preview/cdg/${resolved.karaoke.id}/audio?ticket=${encoded}`,
+        cdgUrl: `/api/preview/cdg/${resolved.karaoke.id}/cdg?ticket=${encoded}`,
       });
     },
   );
@@ -242,9 +279,6 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
       );
       if (!resolved.ok) return reply.code(resolved.status).send(resolved);
 
-      // Seguridad: el navegador NUNCA recibe el master completo. Dropbox se
-      // transmite a ffmpeg por stdin y solo se devuelve el intervalo aprobado
-      // por Admin. Aunque alguien copie este endpoint, solo obtiene el demo.
       const source = resolved.audioProviderFileId
         ? await fastify.storageService.getSecureFileByProviderFileIdStream(resolved.audioProviderFileId)
         : await fastify.storageService.getSecureFileStream(resolved.audioKey);
@@ -308,17 +342,52 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
     return reply.send(await fastify.demoPlayerSettingsService.get());
   });
 
-  fastify.put("/api/admin/demo-player-settings", adminGuard, async (request, reply) => {
-    const parsed = settingsSchema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.code(400).send({
-        error: "INVALID_INPUT",
-        message: "Configuración del demo inválida.",
-        statusCode: 400,
-      });
-    }
-    return reply.send(await fastify.demoPlayerSettingsService.update(parsed.data));
-  });
+  fastify.put(
+    "/api/admin/demo-player-settings",
+    {
+      ...adminGuard,
+      config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+      bodyLimit: 512 * 1024,
+    },
+    async (request, reply) => {
+      const parsed = settingsSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({
+          error: "INVALID_INPUT",
+          message: "Configuración del demo inválida.",
+          statusCode: 400,
+        });
+      }
+      return reply.send(await fastify.demoPlayerSettingsService.update(parsed.data));
+    },
+  );
+
+  fastify.post(
+    "/api/admin/demo-player-assets",
+    {
+      ...adminGuard,
+      config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+      bodyLimit: 9 * 1024 * 1024,
+    },
+    async (request, reply) => {
+      const parsed = uploadSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: "INVALID_IMAGE", message: "Imagen inválida.", statusCode: 400 });
+      }
+      try {
+        const url = await fastify.demoPlayerSettingsService.saveImage(parsed.data.kind, parsed.data.dataUrl);
+        return reply.send({ url });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "INVALID_IMAGE";
+        const tooLarge = message === "IMAGE_TOO_LARGE";
+        return reply.code(tooLarge ? 413 : 400).send({
+          error: message,
+          message: tooLarge ? "La imagen supera 6 MB." : "Usa PNG, JPG o WEBP.",
+          statusCode: tooLarge ? 413 : 400,
+        });
+      }
+    },
+  );
 
   fastify.get("/api/admin/demo-player-settings/sample", adminGuard, async (_request, reply) => {
     const candidates = await fastify.db.query.karaokes.findMany({
@@ -329,11 +398,21 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
 
     for (const candidate of candidates) {
       if (!candidate.masterAsset || !candidate.collection) continue;
-      const group = deriveSourceGroup(candidate.masterAsset.storageKey, candidate.collection.storagePath);
+
+      let currentPath = candidate.masterAsset.storageKey;
+      if (candidate.masterAsset.providerFileId) {
+        try {
+          currentPath = await fastify.storageService.getCurrentPathForProviderFileId(candidate.masterAsset.providerFileId);
+        } catch {
+          // Continúa con storageKey.
+        }
+      }
+
+      const group = deriveSourceGroup(currentPath, candidate.collection.storagePath);
       if (!isClubKaraokeSource(group)) continue;
 
-      const cdgLower = replaceExtension(candidate.masterAsset.storageKey, "cdg");
-      const cdgUpper = replaceExtension(candidate.masterAsset.storageKey, "CDG");
+      const cdgLower = replaceExtension(currentPath, "cdg");
+      const cdgUpper = replaceExtension(currentPath, "CDG");
       if (!(await fastify.storageService.exists(cdgLower)) && !(await fastify.storageService.exists(cdgUpper))) {
         continue;
       }
