@@ -13,8 +13,6 @@ COPY tsconfig.base.json ./
 COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web
 RUN npm run build --workspace=packages/shared
-ARG VITE_API_BASE_URL
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run build --workspace=apps/web
 
 FROM nginx:1.27-alpine AS runtime
