@@ -17,6 +17,14 @@ type RefreshFn = () => Promise<string | null>;
 let getAccessToken: TokenGetter = () => null;
 let refreshAccessToken: RefreshFn = async () => null;
 
+const rawApiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ?? "";
+export const API_BASE_URL = rawApiBase.replace(/\/+$/, "");
+
+export function apiEndpoint(path: string): string {
+  const suffix = path.startsWith("/api/") ? path : `/api${path.startsWith("/") ? path : `/${path}`}`;
+  return `${API_BASE_URL}${suffix}`;
+}
+
 /** El AuthProvider registra aquí cómo leer/renovar el token, sin acoplar este módulo a React. */
 export function configureApiClient(getToken: TokenGetter, refresh: RefreshFn): void {
   getAccessToken = getToken;
@@ -27,7 +35,7 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
   const token = getAccessToken();
   const hasBody = init.body !== undefined && init.body !== null;
 
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(apiEndpoint(path), {
     ...init,
     headers: {
       ...(hasBody ? { "Content-Type": "application/json" } : {}),
@@ -46,7 +54,11 @@ async function request<T>(path: string, init: RequestInit = {}, retried = false)
   const body = await res.json().catch(() => null);
   if (!res.ok) {
     const err = body as ApiErrorDTO | null;
-    throw new ApiError(res.status, err?.error ?? "UNKNOWN_ERROR", err?.message ?? "Ocurrió un error inesperado");
+    throw new ApiError(
+      res.status,
+      err?.error ?? "UNKNOWN_ERROR",
+      err?.message ?? "Ocurrió un error inesperado",
+    );
   }
   return body as T;
 }
