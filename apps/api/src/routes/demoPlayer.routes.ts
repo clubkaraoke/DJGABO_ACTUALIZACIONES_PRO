@@ -48,7 +48,9 @@ type DemoMedia =
       collection: typeof collections.$inferSelect;
       audioAsset: typeof assets.$inferSelect;
       audioKey: string;
+      audioProviderFileId: string | null;
       cdgKey: string;
+      cdgProviderFileId: string | null;
       settings: DemoPlayerSettings;
     }
   | { ok: false; status: number; error: string; message: string };
@@ -85,11 +87,19 @@ async function resolveDemoMedia(
   }
 
   let audioKey = audioAsset.storageKey;
-  if (audioAsset.providerFileId) {
+  let audioProviderFileId = audioAsset.providerFileId ?? null;
+  if (audioProviderFileId) {
     try {
-      audioKey = await fastify.storageService.getCurrentPathForProviderFileId(audioAsset.providerFileId);
+      audioKey = await fastify.storageService.getCurrentPathForProviderFileId(audioProviderFileId);
     } catch {
       // El storageKey indexado sigue siendo un fallback válido.
+    }
+  } else {
+    try {
+      const metadata = await fastify.storageService.getMetadata(audioKey);
+      audioProviderFileId = metadata.providerFileId ?? null;
+    } catch {
+      // Si el provider no puede resolver metadata por path, mantenemos el fallback por storageKey.
     }
   }
 
@@ -104,14 +114,23 @@ async function resolveDemoMedia(
   }
 
   let cdgKey = replaceExtension(audioKey, "cdg");
+  let cdgProviderFileId: string | null = null;
+
   if (options.requireCdg !== false) {
-    let exists = await fastify.storageService.exists(cdgKey);
-    if (!exists) {
+    let metadata = null;
+    try {
+      metadata = await fastify.storageService.getMetadata(cdgKey);
+    } catch {
       const upper = replaceExtension(audioKey, "CDG");
-      exists = await fastify.storageService.exists(upper);
-      if (exists) cdgKey = upper;
+      try {
+        metadata = await fastify.storageService.getMetadata(upper);
+        cdgKey = upper;
+      } catch {
+        metadata = null;
+      }
     }
-    if (!exists) {
+
+    if (!metadata) {
       return {
         ok: false,
         status: 404,
@@ -119,9 +138,21 @@ async function resolveDemoMedia(
         message: "No se encontró el archivo CDG asociado a este karaoke.",
       };
     }
+
+    cdgProviderFileId = metadata.providerFileId ?? null;
   }
 
-  return { ok: true, karaoke, collection, audioAsset, audioKey, cdgKey, settings };
+  return {
+    ok: true,
+    karaoke,
+    collection,
+    audioAsset,
+    audioKey,
+    audioProviderFileId,
+    cdgKey,
+    cdgProviderFileId,
+    settings,
+  };
 }
 
 export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
@@ -178,7 +209,9 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
       const resolved = await resolveDemoMedia(fastify, ticket.sub, request.params.id);
       if (!resolved.ok) return reply.code(resolved.status).send(resolved);
 
-      const stream = await fastify.storageService.getSecureFileStream(resolved.cdgKey);
+      const stream = resolved.cdgProviderFileId
+        ? await fastify.storageService.getSecureFileByProviderFileIdStream(resolved.cdgProviderFileId)
+        : await fastify.storageService.getSecureFileStream(resolved.cdgKey);
       reply.header("Content-Type", "application/octet-stream");
       reply.header("Cache-Control", "private, max-age=300");
       reply.header("X-Content-Type-Options", "nosniff");
@@ -212,7 +245,9 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
       // Seguridad: el navegador NUNCA recibe el master completo. Dropbox se
       // transmite a ffmpeg por stdin y solo se devuelve el intervalo aprobado
       // por Admin. Aunque alguien copie este endpoint, solo obtiene el demo.
-      const source = await fastify.storageService.getSecureFileStream(resolved.audioKey);
+      const source = resolved.audioProviderFileId
+        ? await fastify.storageService.getSecureFileByProviderFileIdStream(resolved.audioProviderFileId)
+        : await fastify.storageService.getSecureFileStream(resolved.audioKey);
       const input = Readable.fromWeb(source.body as never);
       const ffmpeg = spawn(
         "ffmpeg",

@@ -41,6 +41,10 @@ export class StorageService {
     return this.provider.exists(storageKey);
   }
 
+  async getMetadata(storageKey: string) {
+    return this.provider.getMetadata(storageKey);
+  }
+
   async getSecureFileStream(storageKey: string) {
     if (!this.provider.downloadFileStream) {
       throw new Error("SECURE_STREAM_NOT_SUPPORTED");
