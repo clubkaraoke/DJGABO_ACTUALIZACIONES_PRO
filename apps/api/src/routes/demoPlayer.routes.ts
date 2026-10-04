@@ -4,6 +4,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { assets, collections, karaokes } from "../db/schema.js";
 import { deriveSourceGroup } from "../services/sourceGroup.js";
+import { signDemoTicket, verifyDemoTicket } from "../auth/demoTicket.js";
 import {
   DEMO_PLAYER_QUALITIES,
   type DemoPlayerSettings,
@@ -145,17 +146,36 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
         sourceStartSeconds: resolved.settings.startSeconds,
         durationSeconds: resolved.settings.durationSeconds,
         quality: resolved.settings.quality,
-        audioUrl: `/api/preview/cdg/${resolved.karaoke.id}/audio`,
-        cdgUrl: `/api/preview/cdg/${resolved.karaoke.id}/cdg`,
+        ...(() => {
+          const ticket = signDemoTicket(fastify.env, {
+            sub: request.authUser!.sub,
+            resourceId: resolved.karaoke.id,
+          });
+          const encoded = encodeURIComponent(ticket);
+          return {
+            audioUrl: `/api/preview/cdg/${resolved.karaoke.id}/audio?ticket=${encoded}`,
+            cdgUrl: `/api/preview/cdg/${resolved.karaoke.id}/cdg?ticket=${encoded}`,
+          };
+        })(),
       });
     },
   );
 
-  fastify.get<{ Params: { id: string } }>(
+  fastify.get<{ Params: { id: string }; Querystring: { ticket?: string } }>(
     "/api/preview/cdg/:id/cdg",
-    { preHandler: fastify.authenticate },
+    { config: { rateLimit: { max: 40, timeWindow: "1 minute" } } },
     async (request, reply) => {
-      const resolved = await resolveDemoMedia(fastify, request.authUser!.sub, request.params.id);
+      let ticket;
+      try {
+        ticket = verifyDemoTicket(fastify.env, request.query.ticket ?? "");
+      } catch {
+        return reply.code(401).send({ error: "DEMO_TICKET_INVALID", message: "El demo venció. Ábrelo nuevamente.", statusCode: 401 });
+      }
+      if (ticket.resourceId !== request.params.id) {
+        return reply.code(401).send({ error: "DEMO_TICKET_INVALID", message: "El demo no corresponde a este karaoke.", statusCode: 401 });
+      }
+
+      const resolved = await resolveDemoMedia(fastify, ticket.sub, request.params.id);
       if (!resolved.ok) return reply.code(resolved.status).send(resolved);
 
       const stream = await fastify.storageService.getSecureFileStream(resolved.cdgKey);
@@ -167,13 +187,23 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.get<{ Params: { id: string } }>(
+  fastify.get<{ Params: { id: string }; Querystring: { ticket?: string } }>(
     "/api/preview/cdg/:id/audio",
-    { preHandler: fastify.authenticate },
+    { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } },
     async (request, reply) => {
+      let ticket;
+      try {
+        ticket = verifyDemoTicket(fastify.env, request.query.ticket ?? "");
+      } catch {
+        return reply.code(401).send({ error: "DEMO_TICKET_INVALID", message: "El demo venció. Ábrelo nuevamente.", statusCode: 401 });
+      }
+      if (ticket.resourceId !== request.params.id) {
+        return reply.code(401).send({ error: "DEMO_TICKET_INVALID", message: "El demo no corresponde a este karaoke.", statusCode: 401 });
+      }
+
       const resolved = await resolveDemoMedia(
         fastify,
-        request.authUser!.sub,
+        ticket.sub,
         request.params.id,
         { requireCdg: false },
       );
