@@ -2,184 +2,54 @@ import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { CollectionDetailDTO, KaraokeSummaryDTO } from "@djgabo/shared";
+import { ChevronDown, ChevronRight, Folder, Loader2, Share2 } from "lucide-react";
 import { api, ApiError } from "../lib/apiClient";
-import { ClientPortalShell } from "../components/ClientPortalShell";
-import { KaraokeCard } from "../components/KaraokeCard";
+import { coverFor } from "../lib/covers";
+import { VipShell } from "../components/VipShell";
 import { KaraokeRow } from "../components/KaraokeRow";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
-import { Button, EmptyState, Skeleton } from "../components/primitives";
+import { EmptyState } from "../components/primitives";
 
-type ViewMode = "grid" | "list";
-type SortMode = "title" | "artist";
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
+function groupLabel(group: string, index: number) {
+  if (group === "__GENERAL__") return `Top Hits ${String(index + 1).padStart(2, "0")}`;
+  return `Top Hits ${String(index + 1).padStart(2, "0")}`;
 }
 
-function sourceGroupLabel(group: string): string {
-  if (group === "__GENERAL__") return "General";
-  return group
-    .replace(/^\d{1,2}[_ .-]*/, "")
-    .replace(/_/g, " ")
-    .replace(/\bkk\b/gi, "KK")
-    .replace(/\bdj\b/gi, "DJ")
-    .replace(/\brfk\b/gi, "RFK")
-    .trim();
-}
+export default function CollectionDetailPage(){
+  const {id}=useParams<{id:string}>();
+  const [query,setQuery]=useState("");
+  const [open,setOpen]=useState<string|null>(null);
+  const [showBatch,setShowBatch]=useState(false);
+  const {data,isLoading,error}=useQuery({queryKey:["collection",id],queryFn:()=>api.get<CollectionDetailDTO>(`/collections/${id}`),enabled:Boolean(id),retry:false});
 
-function sourceGroupOrder(a: string, b: string): number {
-  if (a === "__GENERAL__") return -1;
-  if (b === "__GENERAL__") return 1;
-  return a.localeCompare(b, "es", { numeric: true, sensitivity: "base" });
-}
-
-export default function CollectionDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const [query, setQuery] = useState("");
-  const [view, setView] = useState<ViewMode>("grid");
-  const [sort, setSort] = useState<SortMode>("title");
-  const [showBatch, setShowBatch] = useState(false);
-
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["collection", id],
-    queryFn: () => api.get<CollectionDetailDTO>(`/collections/${id}`),
-    enabled: Boolean(id),
-    retry: false,
-  });
-
-  const filtered = useMemo(() => {
-    if (!data) return [];
-    const q = query.trim().toLowerCase();
-    let list = data.karaokes;
-    if (q) {
-      list = list.filter((k) => k.title.toLowerCase().includes(q) || k.artist.toLowerCase().includes(q) || k.code.toLowerCase().includes(q));
+  const groups=useMemo(()=>{
+    if(!data) return [] as [string,KaraokeSummaryDTO[]][];
+    const q=query.trim().toLowerCase();
+    const map=new Map<string,KaraokeSummaryDTO[]>();
+    for(const k of data.karaokes){
+      if(q && ![k.title,k.artist,k.code].some(v=>v.toLowerCase().includes(q))) continue;
+      const key=k.sourceGroup||"__GENERAL__"; const arr=map.get(key)||[]; arr.push(k); map.set(key,arr);
     }
-    return [...list].sort((a, b) => (sort === "title" ? a.title.localeCompare(b.title) : a.artist.localeCompare(b.artist)));
-  }, [data, query, sort]);
+    return [...map.entries()].sort(([a],[b])=>a.localeCompare(b,"es",{numeric:true,sensitivity:"base"}));
+  },[data,query]);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, KaraokeSummaryDTO[]>();
-    for (const karaoke of filtered) {
-      const key = karaoke.sourceGroup || "__GENERAL__";
-      const current = map.get(key) ?? [];
-      current.push(karaoke);
-      map.set(key, current);
-    }
-    return [...map.entries()].sort(([a], [b]) => sourceGroupOrder(a, b));
-  }, [filtered]);
+  if(error instanceof ApiError) return <VipShell><div className="mx-auto max-w-4xl"><EmptyState title={error.statusCode===403?"No tienes acceso a esta actualización":"Actualización no encontrada"} description={error.message}/></div></VipShell>;
 
-  if (error instanceof ApiError) {
-    return (
-      <ClientPortalShell active="actualizaciones">
-        <div className="mx-auto max-w-[1500px]">
-          <EmptyState
-            title={error.statusCode === 403 ? "No tienes acceso a esta actualización" : "Actualización no encontrada"}
-            description={error.message}
-            action={<Link to="/"><Button variant="secondary">Volver al inicio</Button></Link>}
-          />
+  return <VipShell searchValue={query} onSearchChange={setQuery} searchPlaceholder="Buscar karaoke, artista o código...">
+    <div className="space-y-5">
+      <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground"><Link to="/panel/actualizaciones" className="hover:text-foreground">Actualizaciones</Link><ChevronRight className="h-3.5 w-3.5"/><span className="truncate text-foreground">{data?.collection.title||"Cargando..."}</span></div>
+      {isLoading && <div className="flex justify-center py-20"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground"/></div>}
+      {data && <>
+        <div className="flex flex-col gap-4 rounded-[10px] border border-white/[0.06] bg-card p-4 sm:flex-row">
+          <div className="h-28 w-28 shrink-0 overflow-hidden rounded-md bg-secondary">{(coverFor(data.collection.year,data.collection.month)||data.collection.coverUrl)?<img src={coverFor(data.collection.year,data.collection.month)||data.collection.coverUrl||""} alt={data.collection.title} className="h-full w-full object-cover"/>:<div className="flex h-full items-center justify-center font-mono text-[13px] font-bold text-primary">DJGABO</div>}</div>
+          <div className="min-w-0 flex-1"><h1 className="mb-2.5 truncate text-xl font-bold">{data.collection.title}</h1><dl className="space-y-1 text-[12px]"><div className="flex gap-2"><dt className="text-muted-foreground">Karaokes:</dt><dd className="font-mono">{data.collection.karaokeCount}</dd></div><div className="flex gap-2"><dt className="text-muted-foreground">Estado:</dt><dd className="text-emerald-400">Actualización completada</dd></div></dl><div className="mt-3.5 flex flex-wrap gap-2.5"><button onClick={()=>navigator.clipboard?.writeText(window.location.href)} className="inline-flex items-center gap-2 rounded-md border border-white/[0.12] px-3.5 py-2 text-[13px] font-medium hover:bg-white/[0.04]"><Share2 className="h-3.5 w-3.5"/>Compartir</button>{!data.collection.locked&&<button onClick={()=>setShowBatch(true)} className="rounded-md bg-primary px-3.5 py-2 text-[13px] font-semibold text-black hover:brightness-95">Descargar todo</button>}</div></div>
         </div>
-      </ClientPortalShell>
-    );
-  }
 
-  return (
-    <ClientPortalShell
-      active="actualizaciones"
-      searchValue={query}
-      onSearchChange={setQuery}
-      searchPlaceholder="Buscar karaoke, artista o código..."
-    >
-      <div className="mx-auto max-w-[1500px] space-y-6">
-        <Link to="/" className="inline-flex items-center gap-2 text-sm font-medium text-ink-secondary hover:text-accent">← Volver al inicio</Link>
-
-        {isLoading && (
-          <div className="space-y-5">
-            <Skeleton className="h-56 w-full rounded-xl" />
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
-              {Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} className="aspect-square w-full" />)}
-            </div>
-          </div>
-        )}
-
-        {data && (
-          <>
-            <section className="relative overflow-hidden rounded-2xl border border-graphite-border bg-graphite p-6 sm:p-8">
-              <div className="absolute inset-y-0 right-0 w-1/2 opacity-25">
-                {data.collection.coverUrl && <img src={data.collection.coverUrl} alt="" className="h-full w-full object-cover" />}
-                <div className="absolute inset-0 bg-gradient-to-r from-graphite via-graphite/60 to-transparent" />
-              </div>
-              <div className="relative max-w-3xl">
-                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent">Actualización mensual</span>
-                <h1 className="mt-2 font-display text-3xl font-extrabold text-ink sm:text-4xl">{data.collection.title}</h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-secondary">{data.collection.description ?? "Revisa la colección completa, escucha los previews disponibles y descarga los karaokes incluidos en tu membresía."}</p>
-                <div className="mt-5 flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink-secondary">
-                  <span><strong className="text-ink">{data.collection.karaokeCount}</strong> karaokes</span>
-                  <span>Actualizado {formatDate(data.collection.updatedAt)}</span>
-                  {data.collection.publishedAt && <span>Publicado {formatDate(data.collection.publishedAt)}</span>}
-                </div>
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <Button variant="primary" onClick={() => setShowBatch(true)}>Descargar actualización</Button>
-                  <span className="inline-flex items-center rounded-lg border border-graphite-border bg-carbon/40 px-4 py-2 text-xs font-medium text-ink-secondary">Busca arriba por título, artista o código</span>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-xl border border-graphite-border bg-graphite p-4 sm:p-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="mr-auto">
-                  <h2 className="font-display text-lg font-bold text-ink">Karaokes de esta actualización</h2>
-                  <p className="mt-1 text-xs text-ink-secondary">{filtered.length} de {data.karaokes.length} resultados · organizados por marca/origen</p>
-                </div>
-                <select value={sort} onChange={(e) => setSort(e.target.value as SortMode)} className="rounded-lg border border-graphite-border bg-carbon px-3 py-2 text-sm text-ink">
-                  <option value="title">Ordenar por título</option>
-                  <option value="artist">Ordenar por artista</option>
-                </select>
-                <div className="flex rounded-lg border border-graphite-border bg-carbon p-1">
-                  <button onClick={() => setView("grid")} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${view === "grid" ? "bg-accent text-carbon" : "text-ink-secondary hover:text-ink"}`}>Tarjetas</button>
-                  <button onClick={() => setView("list")} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${view === "list" ? "bg-accent text-carbon" : "text-ink-secondary hover:text-ink"}`}>Lista</button>
-                </div>
-              </div>
-            </section>
-
-            {filtered.length === 0 && <EmptyState title="Sin resultados" description={`No encontramos karaokes que coincidan con "${query}".`} />}
-
-            {grouped.map(([group, karaokes]) => (
-              <section key={group} className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <h3 className="font-display text-base font-bold text-ink">{sourceGroupLabel(group)}</h3>
-                  <span className="rounded-full border border-graphite-border bg-carbon px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-ink-tertiary">
-                    {karaokes.length} {karaokes.length === 1 ? "karaoke" : "karaokes"}
-                  </span>
-                </div>
-
-                {view === "grid" ? (
-                  <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
-                    {karaokes.map((k) => <KaraokeCard key={k.id} karaoke={k} />)}
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto rounded-xl border border-graphite-border bg-graphite">
-                    <table className="w-full min-w-[760px]">
-                      <thead>
-                        <tr className="border-b border-graphite-border bg-carbon/60 text-left text-xs uppercase tracking-wide text-ink-tertiary">
-                          <th className="px-4 py-3 font-medium">Título</th>
-                          <th className="px-4 py-3 font-medium">Artista</th>
-                          <th className="px-4 py-3 font-medium">Código</th>
-                          <th className="px-4 py-3 font-medium">Fecha</th>
-                          <th className="px-4 py-3 font-medium">Tamaño</th>
-                          <th className="px-4 py-3 font-medium">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>{karaokes.map((k) => <KaraokeRow key={k.id} karaoke={k} />)}</tbody>
-                    </table>
-                  </div>
-                )}
-              </section>
-            ))}
-
-            {showBatch && <BatchDownloadModal collectionId={data.collection.id} title={data.collection.title} onClose={() => setShowBatch(false)} />}
-          </>
-        )}
-      </div>
-    </ClientPortalShell>
-  );
+        <div className="overflow-hidden rounded-[10px] border border-white/[0.06] bg-card">
+          {groups.length===0?<div className="px-4 py-10 text-center text-[13px] text-muted-foreground">No hay resultados.</div>:groups.map(([name,karaokes],index)=>{const expanded=open===name || (open===null&&index===0); return <div key={name} className="border-b border-white/[0.06] last:border-0"><button onClick={()=>setOpen(expanded?"__CLOSED__":name)} className="flex w-full items-center gap-2.5 px-3.5 py-2.5 hover:bg-white/[0.04]">{expanded?<ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground"/>:<ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground"/>}<Folder className="h-4 w-4 shrink-0 text-primary"/><span className="flex-1 truncate text-left text-[13px] font-semibold">{groupLabel(name,index)}</span><span className="font-mono text-[11px] text-muted-foreground">{karaokes.length}</span></button>{expanded&&<div className="border-t border-white/[0.06]"><div className="overflow-x-auto"><table className="w-full min-w-[760px]"><thead><tr className="border-b border-white/[0.06] text-left font-mono text-[10px] uppercase tracking-wide text-muted-foreground"><th className="px-4 py-2.5">Título</th><th className="px-4 py-2.5">Artista</th><th className="px-4 py-2.5">Código</th><th className="px-4 py-2.5">Fecha</th><th className="px-4 py-2.5">Tamaño</th><th className="px-4 py-2.5">Acciones</th></tr></thead><tbody>{karaokes.map(k=><KaraokeRow key={k.id} karaoke={k}/>)}</tbody></table></div></div>}</div>})}
+        </div>
+        {showBatch&&<BatchDownloadModal collectionId={data.collection.id} title={data.collection.title} onClose={()=>setShowBatch(false)}/>} 
+      </>}
+    </div>
+  </VipShell>
 }

@@ -1,84 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { Crown, Loader2, Lock, Mail } from "lucide-react";
 import { useAuth } from "../lib/authContext";
-import { Button } from "../components/primitives";
 
-export default function LoginPage() {
-  const { user, login, loginError } = useAuth();
-  const location = useLocation();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  if (user) {
-    const from = (location.state as { from?: Location })?.from?.pathname;
-    return <Navigate to={from ?? "/"} replace />;
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    await login(email, password);
-    setSubmitting(false);
-  }
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-carbon px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="font-display text-2xl font-bold text-ink">
-            DJGABO <span className="text-accent">ACTUALIZACIONES PRO</span>
-          </h1>
-          <p className="mt-2 text-sm text-ink-secondary">Portal privado de distribución de actualizaciones</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-graphite-border bg-graphite p-6 shadow-card">
-          <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-ink-secondary">
-              Correo electrónico
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-graphite-border bg-graphite-elevated px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
-              placeholder="tu@correo.com"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-ink-secondary">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-graphite-border bg-graphite-elevated px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {loginError && (
-            <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">
-              {loginError}
-            </p>
-          )}
-
-          <Button type="submit" disabled={submitting} className="w-full">
-            {submitting ? "Ingresando..." : "Ingresar"}
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center text-xs text-ink-tertiary">
-          Cuentas demo: carlos@demo.com · maria@demo.com · admin@djgabo.com — contraseña Djgabo2026!
-        </p>
-      </div>
-    </div>
-  );
+export default function LoginPage(){
+  const {user,login,loginError}=useAuth(); const location=useLocation(); const [email,setEmail]=useState(""); const [password,setPassword]=useState(""); const [loading,setLoading]=useState(false);
+  if(user){const from=(location.state as {from?:Location})?.from?.pathname; return <Navigate to={from??"/panel"} replace/>}
+  async function submit(e:FormEvent){e.preventDefault();setLoading(true);await login(email,password);setLoading(false)}
+  return <div className="flex min-h-screen items-center justify-center bg-background px-4"><div className="w-full max-w-[420px]"><div className="mb-7 text-center"><div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-black"><Crown className="h-6 w-6"/></div><h1 className="text-2xl font-black">DJGABO <span className="text-primary">KARAOKE VIP</span></h1><p className="mt-2 text-[13px] text-muted-foreground">Accede a tus actualizaciones, paquetes y contenido exclusivo.</p></div><form onSubmit={submit} className="space-y-4 rounded-[10px] border border-white/[0.06] bg-card p-6 shadow-card"><div><label className="mb-1.5 block text-[12px] font-medium text-muted-foreground">Correo electrónico</label><div className="relative"><Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><input type="email" required autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@correo.com" className="h-11 w-full rounded-md border border-white/[0.08] bg-secondary pl-10 pr-3 text-[13px] outline-none focus:border-primary/50"/></div></div><div><label className="mb-1.5 block text-[12px] font-medium text-muted-foreground">Contraseña</label><div className="relative"><Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"/><input type="password" required autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" className="h-11 w-full rounded-md border border-white/[0.08] bg-secondary pl-10 pr-3 text-[13px] outline-none focus:border-primary/50"/></div></div>{loginError&&<p className="rounded-md bg-danger/10 px-3 py-2 text-[12px] text-danger">{loginError}</p>}<button disabled={loading} className="flex h-11 w-full items-center justify-center rounded-md bg-primary text-[13px] font-semibold text-black hover:brightness-95 disabled:opacity-50">{loading?<><Loader2 className="mr-2 h-4 w-4 animate-spin"/>Ingresando...</>:"Ingresar"}</button></form></div></div>
 }
