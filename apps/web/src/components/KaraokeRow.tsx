@@ -7,10 +7,6 @@ function formatSize(bytes: number | null): string {
   if (!bytes) return "—";
   return `${(bytes / 1_000_000).toFixed(0)} MB`;
 }
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
-}
 
 export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
   const [showPreview, setShowPreview] = useState(false);
@@ -29,37 +25,64 @@ export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
   }
 
   return (
-    <tr className="border-b border-graphite-border last:border-0 hover:bg-graphite-elevated/50">
-      <td className="max-w-[220px] truncate px-4 py-3 text-sm font-medium text-ink" title={karaoke.title}>
-        {karaoke.title}
+    <tr className="border-b border-white/[0.05] last:border-0 hover:bg-white/[0.025]">
+      <td className="px-4 py-2.5">
+        <div className="h-9 w-9 overflow-hidden rounded-[4px] bg-secondary">
+          {karaoke.coverUrl ? (
+            <img src={karaoke.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-[11px] text-muted-foreground">♪</div>
+          )}
+        </div>
       </td>
-      <td className="max-w-[160px] truncate px-4 py-3 text-sm text-ink-secondary" title={karaoke.artist}>
-        {karaoke.artist}
+
+      <td className="max-w-[330px] px-4 py-2.5">
+        <p className="truncate text-[13px] font-semibold text-foreground" title={karaoke.title}>
+          {karaoke.title}
+        </p>
+        <p className="truncate text-[11px] text-muted-foreground" title={karaoke.artist}>
+          {karaoke.artist}
+        </p>
       </td>
-      <td className="px-4 py-3 text-xs uppercase text-ink-tertiary">{karaoke.code}</td>
-      <td className="px-4 py-3 text-sm text-ink-secondary">{formatDate(karaoke.publishedAt)}</td>
-      <td className="px-4 py-3 text-sm text-ink-secondary">{formatSize(karaoke.size)}</td>
-      <td className="px-4 py-3">
-        <div className="flex gap-2">
+
+      <td className="px-4 py-2.5 font-mono text-[11px] uppercase text-muted-foreground">
+        {karaoke.code}
+      </td>
+
+      <td className="px-4 py-2.5 text-[12px] text-muted-foreground">
+        {karaoke.format || "—"}
+      </td>
+
+      <td className="px-4 py-2.5 text-[12px] text-muted-foreground">
+        {formatSize(karaoke.size)}
+      </td>
+
+      <td className="px-4 py-2.5">
+        <div className="flex items-center gap-2">
           <button
             disabled={!karaoke.hasPreview}
             onClick={() => setShowPreview(true)}
-            className="rounded-md border border-graphite-border px-2.5 py-1 text-xs text-ink-secondary hover:text-ink disabled:opacity-30"
+            className="rounded-md border border-white/[0.10] px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-white/[0.04] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"
           >
-            ▶
+            ▶ Play
           </button>
           <button
             disabled={!karaoke.hasMaster || downloadState === "loading"}
             onClick={handleDownload}
-            className="rounded-md bg-accent-soft px-2.5 py-1 text-xs text-accent hover:bg-accent/20 disabled:opacity-30"
+            className="rounded-md bg-primary/10 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            {downloadState === "loading" ? "…" : downloadState === "error" ? "!" : "↓"}
+            {downloadState === "loading" ? "…" : downloadState === "error" ? "Error" : "↓ Descargar"}
           </button>
         </div>
       </td>
 
       {showPreview && (
-        <PreviewModal karaokeId={karaoke.id} title={karaoke.title} artist={karaoke.artist} onClose={() => setShowPreview(false)} />
+        <PreviewModal
+          karaokeId={karaoke.id}
+          title={karaoke.title}
+          artist={karaoke.artist}
+          onClose={() => setShowPreview(false)}
+        />
       )}
     </tr>
   );
