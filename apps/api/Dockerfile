@@ -5,7 +5,7 @@
 
 FROM node:22-slim AS base
 WORKDIR /repo
-RUN apt-get update && apt-get install -y --no-install-recursive python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 FROM base AS deps
 COPY package.json package-lock.json* ./
