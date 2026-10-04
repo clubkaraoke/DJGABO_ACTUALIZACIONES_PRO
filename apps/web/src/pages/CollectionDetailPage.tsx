@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { CollectionDetailDTO, KaraokeSummaryDTO } from "@djgabo/shared";
 import { ChevronDown, ChevronRight, Folder, Loader2, Share2 } from "lucide-react";
 import { api, ApiError } from "../lib/apiClient";
-import { coverFor } from "../lib/covers";
+import { CoverArt } from "../components/CoverArt";
 import { VipShell } from "../components/VipShell";
 import { KaraokeRow } from "../components/KaraokeRow";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
@@ -41,7 +41,7 @@ export default function CollectionDetailPage(){
       {isLoading && <div className="flex justify-center py-20"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground"/></div>}
       {data && <>
         <div className="flex flex-col gap-4 rounded-[10px] border border-white/[0.06] bg-card p-4 sm:flex-row">
-          <div className="h-28 w-28 shrink-0 overflow-hidden rounded-md bg-secondary">{(coverFor(data.collection.year,data.collection.month)||data.collection.coverUrl)?<img src={coverFor(data.collection.year,data.collection.month)||data.collection.coverUrl||""} alt={data.collection.title} className="h-full w-full object-cover"/>:<div className="flex h-full items-center justify-center font-mono text-[13px] font-bold text-primary">DJGABO</div>}</div>
+          <div className="h-28 w-28 shrink-0 overflow-hidden rounded-md bg-secondary"><CoverArt year={data.collection.year} month={data.collection.month} fallbackUrl={data.collection.coverUrl} alt={data.collection.title} className="h-full w-full" /></div>
           <div className="min-w-0 flex-1"><h1 className="mb-2.5 truncate text-xl font-bold">{data.collection.title}</h1><dl className="space-y-1 text-[12px]"><div className="flex gap-2"><dt className="text-muted-foreground">Karaokes:</dt><dd className="font-mono">{data.collection.karaokeCount}</dd></div><div className="flex gap-2"><dt className="text-muted-foreground">Estado:</dt><dd className="text-emerald-400">Actualización completada</dd></div></dl><div className="mt-3.5 flex flex-wrap gap-2.5"><button onClick={()=>navigator.clipboard?.writeText(window.location.href)} className="inline-flex items-center gap-2 rounded-md border border-white/[0.12] px-3.5 py-2 text-[13px] font-medium hover:bg-white/[0.04]"><Share2 className="h-3.5 w-3.5"/>Compartir</button>{!data.collection.locked&&<button onClick={()=>setShowBatch(true)} className="rounded-md bg-primary px-3.5 py-2 text-[13px] font-semibold text-black hover:brightness-95">Descargar todo</button>}</div></div>
         </div>
 

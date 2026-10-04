@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { CollectionSummaryDTO } from "@djgabo/shared";
 import { CheckCircle2, Crown, FolderOpen, Loader2 } from "lucide-react";
 import { api } from "../lib/apiClient";
-import { coverFor } from "../lib/covers";
+import { CoverArt } from "../components/CoverArt";
 import { VipShell } from "../components/VipShell";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
 
@@ -30,7 +30,7 @@ export default function HomePage() {
             <section className="overflow-hidden rounded-[10px] border border-white/[0.06] bg-card">
               <div className="flex flex-col gap-5 p-4 sm:flex-row sm:p-5">
                 <div className="relative mx-auto aspect-square w-full max-w-[280px] shrink-0 overflow-hidden rounded-md bg-secondary sm:mx-0 sm:h-[280px] sm:w-[280px]">
-                 {(coverFor(latest.year,latest.month) || latest.coverUrl) ? <img src={coverFor(latest.year,latest.month) || latest.coverUrl || ""} alt={latest.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center font-mono text-sm font-bold text-primary">DJGABO</div>}
+                 <CoverArt year={latest.year} month={latest.month} fallbackUrl={latest.coverUrl} alt={latest.title} className="h-full w-full" />
                   <div className="absolute left-2.5 top-2.5 inline-flex items-center gap-1.5 rounded-full bg-black/70 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary backdrop-blur"><Crown className="h-3 w-3" /> TOP HITS</div>
                 </div>
                 <div className="flex min-w-0 flex-1 flex-col justify-center">
@@ -53,7 +53,7 @@ export default function HomePage() {
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {recent.map((c) => <Link key={c.id} to={`/panel/actualizaciones/${c.id}`} className="group overflow-hidden rounded-[10px] border border-white/[0.06] bg-card hover:border-white/[0.12]">
-                  <div className="aspect-square bg-secondary">{(coverFor(c.year,c.month) || c.coverUrl) ? <img src={coverFor(c.year,c.month) || c.coverUrl || ""} alt={c.title} loading="lazy" className={`h-full w-full object-cover ${c.locked ? "grayscale opacity-60" : ""}`} /> : <div className="flex h-full items-center justify-center font-mono text-xs font-bold text-muted-foreground">DJGABO</div>}</div>
+                  <div className="aspect-square bg-secondary"><CoverArt year={c.year} month={c.month} fallbackUrl={c.coverUrl} alt={c.title} className={`h-full w-full ${c.locked ? "grayscale opacity-60" : ""}`} /></div>
                   <div className="p-3"><div className="truncate text-[13px] font-semibold group-hover:text-primary">{c.title}</div><div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{c.karaokeCount} temas{c.locked ? " • BLOQUEADO" : ""}</div></div>
                 </Link>)}
               </div>
