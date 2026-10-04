@@ -57,28 +57,17 @@ function knownFolderAlias(realName: string): string | null {
  * Convierte nombres físicos/privados de carpetas en alias de presentación.
  * Nunca altera el path ni el identificador real que usa Dropbox.
  */
+export function publicFolderAlias(realName?: string | null): string | null {
+  if (!realName || realName === "__GENERAL__") return null;
+  return knownFolderAlias(realName);
+}
+
 export function buildPublicFolderAliases(realNames: string[]): Map<string, string> {
-  const unique = [...new Set(realNames.filter(Boolean))];
   const aliases = new Map<string, string>();
-  const used = new Set<number>();
-
-  for (const realName of unique) {
-    const alias = knownFolderAlias(realName);
-    if (!alias) continue;
-    aliases.set(realName, alias);
-    const match = alias.match(/^Top Hits (\d{2})$/);
-    if (match) used.add(Number(match[1]));
+  for (const realName of [...new Set(realNames.filter(Boolean))]) {
+    const alias = publicFolderAlias(realName);
+    if (alias) aliases.set(realName, alias);
   }
-
-  let next = 1;
-  for (const realName of unique) {
-    if (aliases.has(realName)) continue;
-    while (used.has(next)) next += 1;
-    aliases.set(realName, `Top Hits ${String(next).padStart(2, "0")}`);
-    used.add(next);
-    next += 1;
-  }
-
   return aliases;
 }
 

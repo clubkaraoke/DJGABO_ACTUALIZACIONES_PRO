@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { CollectionDetailDTO, KaraokeSummaryDTO } from "@djgabo/shared";
 import { ChevronDown, ChevronRight, Folder, Loader2, Share2 } from "lucide-react";
@@ -52,8 +52,10 @@ function formatUpdatedAt(iso: string): string {
 
 export default function CollectionDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const requestedFolder = searchParams.get("folder");
+  const [query] = useState("");
+  const [open, setOpen] = useState<string | null>(requestedFolder);
   const [showBatch, setShowBatch] = useState(false);
 
   const {
@@ -77,6 +79,10 @@ export default function CollectionDetailPage() {
     retry: false,
     staleTime: 10_000,
   });
+
+  useEffect(() => {
+    if (requestedFolder) setOpen(requestedFolder);
+  }, [requestedFolder]);
 
   const groups = useMemo(() => {
     if (!data) return [] as Array<[string, KaraokeSummaryDTO[]]>;
@@ -154,11 +160,7 @@ export default function CollectionDetailPage() {
   }
 
   return (
-    <VipShell
-      searchValue={query}
-      onSearchChange={setQuery}
-      searchPlaceholder="Buscar karaoke, artista, código o carpeta..."
-    >
+    <VipShell searchPlaceholder="Buscar karaoke, artista o código...">
       <div className="space-y-5">
         <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <Link to="/panel/actualizaciones" className="hover:text-foreground">
