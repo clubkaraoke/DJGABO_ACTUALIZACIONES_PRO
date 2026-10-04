@@ -1,4 +1,5 @@
 # Dockerfile del API — se construye con contexto en la RAÍZ del monorepo:
+# Railway: usar este Dockerfile para incluir ffmpeg en runtime.
 #   docker build -f apps/api/Dockerfile -t djgabo-api .
 # (docker-compose.yml ya apunta el context correctamente)
 
