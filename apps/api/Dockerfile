@@ -26,6 +26,9 @@ RUN npm run build --workspace=packages/shared \
 FROM node:22-slim AS runtime
 WORKDIR /repo
 ENV NODE_ENV=production
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=build /repo/node_modules ./node_modules
 COPY --from=build /repo/package.json ./package.json
 COPY --from=build /repo/packages ./packages

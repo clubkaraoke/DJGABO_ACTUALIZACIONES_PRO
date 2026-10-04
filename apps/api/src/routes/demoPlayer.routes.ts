@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { spawn } from "node:child_process";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { assets, collections, karaokes } from "../db/schema.js";
@@ -140,7 +141,8 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
         karaokeId: resolved.karaoke.id,
         title: resolved.karaoke.title,
         artist: resolved.karaoke.artist,
-        startSeconds: resolved.settings.startSeconds,
+        startSeconds: 0,
+        sourceStartSeconds: resolved.settings.startSeconds,
         durationSeconds: resolved.settings.durationSeconds,
         quality: resolved.settings.quality,
         audioUrl: `/api/preview/cdg/${resolved.karaoke.id}/audio`,
@@ -177,18 +179,57 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
       );
       if (!resolved.ok) return reply.code(resolved.status).send(resolved);
 
-      const range = request.headers.range;
-      const stream = range
-        ? await fastify.storageService.getSecureFileRangeStream(resolved.audioKey, range)
-        : await fastify.storageService.getSecureFileStream(resolved.audioKey);
+      // Seguridad: el navegador NUNCA recibe el master completo. Dropbox se
+      // transmite a ffmpeg por stdin y solo se devuelve el intervalo aprobado
+      // por Admin. Aunque alguien copie este endpoint, solo obtiene el demo.
+      const source = await fastify.storageService.getSecureFileStream(resolved.audioKey);
+      const input = Readable.fromWeb(source.body as never);
+      const ffmpeg = spawn(
+        "ffmpeg",
+        [
+          "-hide_banner",
+          "-loglevel", "error",
+          "-i", "pipe:0",
+          "-ss", String(resolved.settings.startSeconds),
+          "-t", String(resolved.settings.durationSeconds),
+          "-vn",
+          "-map_metadata", "-1",
+          "-ac", "2",
+          "-ar", "44100",
+          "-c:a", "libmp3lame",
+          "-b:a", "160k",
+          "-f", "mp3",
+          "pipe:1",
+        ],
+        { stdio: ["pipe", "pipe", "pipe"] },
+      );
 
-      reply.code(stream.statusCode ?? 200);
-      reply.header("Content-Type", resolved.audioAsset.mimeType || stream.contentType || "audio/wav");
+      let stderr = "";
+      ffmpeg.stderr.on("data", (chunk) => {
+        if (stderr.length < 4000) stderr += String(chunk);
+      });
+
+      input.on("error", () => ffmpeg.stdin.destroy());
+      ffmpeg.stdin.on("error", () => input.destroy());
+      input.pipe(ffmpeg.stdin);
+
+      ffmpeg.once("close", (code) => {
+        input.destroy();
+        if (code !== 0 && code !== null) {
+          request.log.warn({ code, stderr: stderr.slice(-1000) }, "ffmpeg demo preview failed");
+        }
+      });
+
+      request.raw.once("close", () => {
+        input.destroy();
+        if (!ffmpeg.killed) ffmpeg.kill("SIGKILL");
+      });
+
+      reply.header("Content-Type", "audio/mpeg");
       reply.header("Cache-Control", "private, no-store");
-      reply.header("Accept-Ranges", stream.acceptRanges ?? "bytes");
-      if (stream.contentRange) reply.header("Content-Range", stream.contentRange);
-      if (stream.contentLength !== null) reply.header("Content-Length", String(stream.contentLength));
-      return reply.send(Readable.fromWeb(stream.body as never));
+      reply.header("Accept-Ranges", "none");
+      reply.header("X-Content-Type-Options", "nosniff");
+      return reply.send(ffmpeg.stdout);
     },
   );
 
