@@ -1,5 +1,5 @@
-# Dockerfile del frontend — contexto en la RAÍZ del monorepo:
-#   docker build -f apps/web/Dockerfile -t djgabo-web .
+# Frontend VIP Karaoke Hub preview.
+# Build context: repository root.
 
 FROM node:22-slim AS deps
 WORKDIR /repo
@@ -17,9 +17,7 @@ ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN npm run build --workspace=apps/web
 
-FROM node:22-slim AS runtime
-WORKDIR /app
-RUN npm install -g serve@14
-COPY --from=build /repo/apps/web/dist ./dist
-EXPOSE 80
-CMD ["sh", "-c", "serve -s dist -l tcp://0.0.0.0:${PORT:-80}"]
+FROM nginx:1.27-alpine AS runtime
+COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
+EXPOSE 8080
