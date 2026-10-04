@@ -135,6 +135,14 @@
   const audioName = document.getElementById('audioName');
   const emptyState = document.getElementById('emptyState');
   const statusLine = document.getElementById('statusLine');
+  const embedMode = new URLSearchParams(window.location.search).get('embed') === '1';
+  if (embedMode && emptyState) {
+    const title = emptyState.querySelector('strong');
+    const subtitle = emptyState.querySelector('span');
+    if (title) title.textContent = 'Preparando demo…';
+    if (subtitle) subtitle.textContent = 'Cargando karaoke de forma segura.';
+    if (statusLine) statusLine.textContent = 'Preparando demo…';
+  }
   const engineStatus = document.getElementById('engineStatus');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const screenWrap = document.getElementById('screenWrap');
