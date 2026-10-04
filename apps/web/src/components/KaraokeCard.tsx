@@ -1,37 +1,21 @@
 import { useState } from "react";
-import type { KaraokeSummaryDTO, TemporaryUrlDTO } from "@djgabo/shared";
-import { api, ApiError } from "../lib/apiClient";
-import { withDeviceToken } from "../lib/deviceToken";
+import type { KaraokeSummaryDTO } from "@djgabo/shared";
+import { ApiError } from "../lib/apiClient";
+import { createKaraokeDownloadTicket, openSecureDownload } from "../lib/secureDownloads";
 import { PreviewModal } from "./PreviewModal";
-
-function triggerDownload(url: string, fileName: string) {
-  if (url.startsWith("http")) {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    a.rel = "noopener";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }
-}
 
 export function KaraokeCard({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
   const [showPreview, setShowPreview] = useState(false);
-  const [downloadState, setDownloadState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
   async function handleDownload() {
     setDownloadState("loading");
+    setErrorMsg("");
     try {
-      const res = await withDeviceToken((deviceToken) =>
-        api.post<TemporaryUrlDTO>(`/downloads/karaoke/${karaoke.id}`, undefined, { "X-Device-Token": deviceToken }),
-      );
-      // El nombre y la extensión reales vienen del backend (punto 1): nunca
-      // se asume .mp4 — un preview/master puede ser .mp3, .wav, etc.
-      triggerDownload(res.url, res.fileName);
-      setDownloadState("done");
-      setTimeout(() => setDownloadState("idle"), 2000);
+      const ticket = await createKaraokeDownloadTicket(karaoke.id);
+      openSecureDownload(ticket.downloadPath);
+      setDownloadState("idle");
     } catch (err) {
       setErrorMsg(err instanceof ApiError ? err.message : "No se pudo descargar");
       setDownloadState("error");
@@ -68,7 +52,7 @@ export function KaraokeCard({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
             onClick={handleDownload}
             className="flex-1 rounded-md bg-accent-soft py-1.5 text-xs font-medium text-accent hover:bg-accent/20 disabled:cursor-not-allowed disabled:opacity-30"
           >
-            {downloadState === "loading" ? "..." : downloadState === "done" ? "✓ Listo" : downloadState === "error" ? "Error" : "↓ Descargar"}
+            {downloadState === "loading" ? "..." : downloadState === "error" ? "Error" : "↓ Descargar"}
           </button>
         </div>
         {downloadState === "error" && <p className="text-[11px] text-danger">{errorMsg}</p>}
