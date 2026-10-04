@@ -163,12 +163,13 @@
 
       float shadowOnly = max(0.0, shadowMask - haloAlpha);
 
-      vec3 color = u_labBackground;
+      vec3 color = vec3(0.0);
       color = mix(color, vec3(0.0), shadowOnly * u_shadowAlpha);
       color = mix(color, vec3(0.0), haloAlpha);
       color = mix(color, fillColor, fillAlpha);
+      float alpha = max(max(shadowOnly * u_shadowAlpha, haloAlpha), fillAlpha);
 
-      gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+      gl_FragColor = vec4(clamp(color, 0.0, 1.0), alpha);
     }
   `;
 
@@ -223,11 +224,11 @@
       this.needsGradientRebuild = true;
 
       const gl = canvas.getContext('webgl', {
-        alpha: false,
+        alpha: true,
         antialias: false,
         depth: false,
         stencil: false,
-        premultipliedAlpha: false,
+        premultipliedAlpha: true,
         preserveDrawingBuffer: false
       });
 

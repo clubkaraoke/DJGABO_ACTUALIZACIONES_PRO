@@ -9,7 +9,7 @@ import { VipShell } from "../components/VipShell";
 import { KaraokeRow } from "../components/KaraokeRow";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
 import { EmptyState } from "../components/primitives";
-import { buildPublicFolderAliases, publicKaraokeDisplay, publicSearchMatches } from "../lib/publicCatalogPresentation";
+import { buildPublicFolderAliases, publicSearchMatches } from "../lib/publicCatalogPresentation";
 
 interface DemoPlayerSettings {
   enabled: boolean;
@@ -102,33 +102,43 @@ export default function CollectionDetailPage() {
     if (!data) return [] as Array<[string, KaraokeSummaryDTO[]]>;
 
     const search = query.trim();
+    const catalogIds = catalog
+      ? new Set(catalog.karaokes.map((karaoke) => karaoke.id))
+      : null;
     const brandByKaraokeId = new Map(
       (catalog?.karaokes ?? []).map((karaoke) => [karaoke.id, karaoke.brand]),
     );
 
     const realGroups = [
       ...(catalog?.brands ?? []).map((brand) => brand.name),
-      ...data.karaokes.map((karaoke) =>
-        brandByKaraokeId.get(karaoke.id) ?? fallbackGroupLabel(karaoke.sourceGroup),
-      ),
+      ...data.karaokes
+        .filter((karaoke) => !catalogIds || catalogIds.has(karaoke.id))
+        .map((karaoke) =>
+          brandByKaraokeId.get(karaoke.id) ?? fallbackGroupLabel(karaoke.sourceGroup),
+        ),
     ];
     const aliases = buildPublicFolderAliases(realGroups);
     const map = new Map<string, KaraokeSummaryDTO[]>();
 
-    // El JSON mensual sigue siendo la fuente estructural, pero el cliente
-    // nunca recibe su nombre físico como etiqueta visual.
+    // index.json manda. Sus cinco marcas se muestran incluso con count=0.
+    // Ningún grupo desconocido recibe un alias inventado.
     if (!search) {
       for (const brand of catalog?.brands ?? []) {
-        const alias = aliases.get(brand.name) ?? "Top Hits";
-        if (!map.has(alias)) map.set(alias, []);
+        const alias = aliases.get(brand.name);
+        if (alias && !map.has(alias)) map.set(alias, []);
       }
     }
 
     for (const karaoke of data.karaokes) {
+      // Si existe index.json, cualquier registro que no esté publicado allí
+      // (incluido el seed técnico de 9 temas) queda fuera del portal.
+      if (catalogIds && !catalogIds.has(karaoke.id)) continue;
+
       const realBrand =
         brandByKaraokeId.get(karaoke.id) ??
         fallbackGroupLabel(karaoke.sourceGroup);
-      const publicBrand = aliases.get(realBrand) ?? "Top Hits";
+      const publicBrand = aliases.get(realBrand);
+      if (!publicBrand) continue;
 
       const matchesSearch =
         !search ||
@@ -217,11 +227,11 @@ export default function CollectionDetailPage() {
                   </div>
                   <div className="flex gap-2">
                     <dt className="text-muted-foreground">Karaokes:</dt>
-                    <dd className="font-mono">{data.collection.karaokeCount}</dd>
+                    <dd className="font-mono">{catalog ? catalog.karaokes.length : groups.reduce((total, [, items]) => total + items.length, 0)}</dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="text-muted-foreground">Carpetas:</dt>
-                    <dd className="font-mono">{catalog?.brands.length ?? groups.length}</dd>
+                    <dd className="font-mono">{groups.length}</dd>
                   </div>
                   <div className="flex gap-2">
                     <dt className="text-muted-foreground">Estado:</dt>

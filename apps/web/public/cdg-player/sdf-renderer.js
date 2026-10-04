@@ -120,11 +120,12 @@
       if (luminance(fillColor) < u_threshold) fillColor = c1;
       if (luminance(fillColor) < u_threshold) fillColor = c2;
 
-      vec3 color = u_labBackground;
+      vec3 color = vec3(0.0);
       color = mix(color, vec3(0.0), haloAlpha);
       color = mix(color, fillColor, fillAlpha);
+      float alpha = max(haloAlpha, fillAlpha);
 
-      gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+      gl_FragColor = vec4(clamp(color, 0.0, 1.0), alpha);
     }
   `;
 
@@ -168,11 +169,11 @@
       this.needsEncode = true;
 
       const gl = canvas.getContext('webgl', {
-        alpha: false,
+        alpha: true,
         antialias: false,
         depth: false,
         stencil: false,
-        premultipliedAlpha: false,
+        premultipliedAlpha: true,
         preserveDrawingBuffer: false
       });
 

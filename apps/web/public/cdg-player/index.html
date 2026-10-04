@@ -7,8 +7,9 @@
   <link rel="stylesheet" href="styles.css" />
 
 <style>
-html.embed-mode body { background:#070708 !important; overflow:hidden; }
-html.embed-mode .app-shell { max-width:none !important; padding:0 !important; margin:0 !important; }
+html.embed-mode,
+html.embed-mode body { margin:0; background:transparent !important; overflow:hidden; }
+html.embed-mode .app-shell { width:100% !important; max-width:none !important; padding:0 !important; margin:0 !important; }
 html.embed-mode .topbar,
 html.embed-mode .quality-bar,
 html.embed-mode .sdf-panel,
@@ -20,12 +21,44 @@ html.embed-mode .vector-panel,
 html.embed-mode .file-row,
 html.embed-mode .track-info,
 html.embed-mode .fine-controls,
-html.embed-mode .notes { display:none !important; }
-html.embed-mode .player-card { border:0 !important; box-shadow:none !important; border-radius:0 !important; padding:0 !important; background:#070708 !important; }
-html.embed-mode .screen-wrap { margin:0 !important; border-radius:8px !important; }
-html.embed-mode .transport { margin:10px 0 0 !important; padding:0 4px !important; }
-html.embed-mode #seek { pointer-events:none; }
-html.embed-mode .status-line { margin:7px 4px 0 !important; font-size:11px !important; }
+html.embed-mode .notes,
+html.embed-mode .status-line { display:none !important; }
+html.embed-mode .player-card {
+  border:0 !important;
+  box-shadow:none !important;
+  border-radius:0 !important;
+  padding:0 !important;
+  background:transparent !important;
+}
+html.embed-mode .screen-wrap {
+  width:100% !important;
+  max-height:none !important;
+  aspect-ratio:3/2 !important;
+  margin:0 !important;
+  border-radius:9px !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  background:#0A0A0B;
+}
+html.embed-mode .transport {
+  grid-template-columns:38px 44px 1fr 44px !important;
+  gap:8px !important;
+  align-items:center !important;
+  margin:8px 0 0 !important;
+  padding:8px 10px !important;
+  border:1px solid rgba(255,255,255,.07) !important;
+  border-radius:9px !important;
+  background:#101012 !important;
+}
+html.embed-mode .play {
+  width:36px !important;
+  height:36px !important;
+  font-size:14px !important;
+  background:#FFD60A !important;
+  color:#050506 !important;
+  box-shadow:none !important;
+}
+html.embed-mode .time { font-size:11px !important; color:#A1A1A6 !important; opacity:1 !important; }
+html.embed-mode #seek { pointer-events:none; accent-color:#FFD60A; }
 </style>
 <script>
 if (new URLSearchParams(location.search).get('embed') === '1') {
@@ -66,6 +99,7 @@ if (new URLSearchParams(location.search).get('embed') === '1') {
         <canvas id="scale2xCanvas" width="1152" height="768" aria-label="Pantalla CDG SCALE2X"></canvas>
         <canvas id="glossCanvas" width="1152" height="768" aria-label="Pantalla CDG KARAOKE HD"></canvas>
         <canvas id="sdfProCanvas" width="288" height="192" aria-label="Pantalla CDG SDF KARAOKE PRO"></canvas>
+        <img id="brandLogo" class="brand-logo" alt="" draggable="false" />
         <div class="empty-state" id="emptyState">
           <strong>Carga un CDG + audio</strong>
           <span>Carga un ZIP o un par CDG + audio. Todo se procesa localmente en tu navegador.</span>
@@ -462,8 +496,8 @@ if (new URLSearchParams(location.search).get('embed') === '1') {
     </section>
   </main>
 
-  <script src="sdf-renderer.js?v=4"></script>
-  <script src="sdf-karaoke-pro-renderer.js?v=4"></script>
-  <script src="app.js?v=22"></script>
+  <script src="sdf-renderer.js?v=5"></script>
+  <script src="sdf-karaoke-pro-renderer.js?v=5"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>

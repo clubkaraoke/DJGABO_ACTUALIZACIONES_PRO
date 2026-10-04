@@ -120,7 +120,7 @@
   }
 
   const canvas = document.getElementById('cdgCanvas');
-  const ctx = canvas.getContext('2d', { alpha: false });
+  const ctx = canvas.getContext('2d', { alpha: true });
   ctx.imageSmoothingEnabled = false;
 
   const hdCanvas = document.getElementById('cdgCanvasHD');
@@ -146,6 +146,7 @@
   const engineStatus = document.getElementById('engineStatus');
   const fullscreenBtn = document.getElementById('fullscreenBtn');
   const screenWrap = document.getElementById('screenWrap');
+  const brandLogo = document.getElementById('brandLogo');
   const offsetMinus = document.getElementById('offsetMinus');
   const offsetPlus = document.getElementById('offsetPlus');
   const offsetValue = document.getElementById('offsetValue');
@@ -1291,11 +1292,14 @@
         const sx = Math.min(WIDTH - 1, VISIBLE_X + x + hFine);
         const colorIndex = decoder.frame[sy * WIDTH + sx] & 0x0f;
         visibleIndices[ii++] = colorIndex;
+        const isBackground =
+          colorIndex === decoder.memoryColor ||
+          colorIndex === decoder.transparent;
         const rgba = decoder.palette[colorIndex];
-        out[o++] = rgba[0];
-        out[o++] = rgba[1];
-        out[o++] = rgba[2];
-        out[o++] = 255;
+        out[o++] = isBackground ? 0 : rgba[0];
+        out[o++] = isBackground ? 0 : rgba[1];
+        out[o++] = isBackground ? 0 : rgba[2];
+        out[o++] = isBackground ? 0 : 255;
       }
     }
 
@@ -1655,8 +1659,49 @@
     startLoop();
   }
 
+  function applyBrandingFromQuery(params) {
+    if (!screenWrap) return;
+
+    const bgType = String(params.get('bgType') || 'gradient').toLowerCase();
+    const bg = params.get('bg') || 'linear-gradient(135deg,#0A0A0B 0%,#17171B 55%,#0A0A0B 100%)';
+
+    screenWrap.style.backgroundImage = '';
+    screenWrap.style.backgroundColor = '#0A0A0B';
+    screenWrap.style.backgroundSize = '';
+    screenWrap.style.backgroundPosition = '';
+
+    if (bgType === 'image' && /^\/api\/demo-player\/assets\/[a-zA-Z0-9._-]+$/.test(bg)) {
+      screenWrap.style.backgroundImage =
+        'linear-gradient(rgba(0,0,0,.12),rgba(0,0,0,.12)),url("' + bg.replace(/"/g, '') + '")';
+      screenWrap.style.backgroundSize = 'cover';
+      screenWrap.style.backgroundPosition = 'center';
+    } else if (bgType === 'solid' && /^#[0-9a-fA-F]{6}$/.test(bg)) {
+      screenWrap.style.backgroundColor = bg;
+    } else if (bgType === 'gradient' && /^linear-gradient\([^<>]+\)$/.test(bg)) {
+      screenWrap.style.backgroundImage = bg;
+    }
+
+    const logo = params.get('logo');
+    if (brandLogo && logo && /^\/api\/demo-player\/assets\/[a-zA-Z0-9._-]+$/.test(logo)) {
+      const clamp = (value, min, max, fallback) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+      };
+      brandLogo.src = logo;
+      brandLogo.style.display = 'block';
+      brandLogo.style.left = clamp(params.get('logoX'), 0, 100, 88) + '%';
+      brandLogo.style.top = clamp(params.get('logoY'), 0, 100, 12) + '%';
+      brandLogo.style.width = clamp(params.get('logoWidth'), 4, 45, 14) + '%';
+      brandLogo.style.opacity = String(clamp(params.get('logoOpacity'), 0.1, 1, 0.95));
+    } else if (brandLogo) {
+      brandLogo.removeAttribute('src');
+      brandLogo.style.display = 'none';
+    }
+  }
+
   function loadFromQueryString() {
     const params = new URLSearchParams(window.location.search);
+    applyBrandingFromQuery(params);
     const audioParam = params.get('audio');
     const cdgParam = params.get('cdg');
     if (!audioParam || !cdgParam) return;
