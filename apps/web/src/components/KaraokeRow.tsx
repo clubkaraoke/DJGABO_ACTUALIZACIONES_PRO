@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { KaraokeSummaryDTO } from "@djgabo/shared";
 import { createKaraokeDownloadTicket, openSecureDownload } from "../lib/secureDownloads";
 import { PreviewModal } from "./PreviewModal";
+import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
 
 function formatSize(bytes: number | null): string {
   if (!bytes) return "—";
@@ -9,6 +10,7 @@ function formatSize(bytes: number | null): string {
 }
 
 export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
+  const display = publicKaraokeDisplay(karaoke);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
 
@@ -36,12 +38,9 @@ export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
         </div>
       </td>
 
-      <td className="max-w-[330px] px-4 py-2.5">
-        <p className="truncate text-[13px] font-semibold text-foreground" title={karaoke.title}>
-          {karaoke.title}
-        </p>
-        <p className="truncate text-[11px] text-muted-foreground" title={karaoke.artist}>
-          {karaoke.artist}
+      <td className="max-w-[420px] px-4 py-2.5">
+        <p className="truncate text-[13px] font-semibold text-foreground" title={display.label}>
+          {display.label}
         </p>
       </td>
 
@@ -79,8 +78,8 @@ export function KaraokeRow({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
       {showPreview && (
         <PreviewModal
           karaokeId={karaoke.id}
-          title={karaoke.title}
-          artist={karaoke.artist}
+          title={display.title}
+          artist={display.artist}
           onClose={() => setShowPreview(false)}
         />
       )}

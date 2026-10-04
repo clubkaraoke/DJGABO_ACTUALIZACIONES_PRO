@@ -9,6 +9,7 @@ import { VipShell } from "../components/VipShell";
 import { KaraokeRow } from "../components/KaraokeRow";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
 import { EmptyState } from "../components/primitives";
+import { buildPublicFolderAliases, publicKaraokeDisplay, publicSearchMatches } from "../lib/publicCatalogPresentation";
 
 interface CatalogMonthDocument {
   schema_version: 1;
@@ -38,13 +39,7 @@ interface CatalogMonthDocument {
 
 function fallbackGroupLabel(group?: string | null): string {
   if (!group || group === "__GENERAL__") return "DJGABO";
-
-  const normalized = group.replace(/_/g, " ").trim();
-  const prefixed = normalized.match(/^(\d{1,2})[ .-]+(.+)$/);
-  if (prefixed) {
-    return `${prefixed[1]!.padStart(2, "0")} · ${prefixed[2]!.trim()}`;
-  }
-  return normalized;
+  return group.replace(/_/g, " ").trim();
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -86,41 +81,52 @@ export default function CollectionDetailPage() {
   const groups = useMemo(() => {
     if (!data) return [] as Array<[string, KaraokeSummaryDTO[]]>;
 
-    const search = query.trim().toLowerCase();
+    const search = query.trim();
     const brandByKaraokeId = new Map(
       (catalog?.karaokes ?? []).map((karaoke) => [karaoke.id, karaoke.brand]),
     );
 
+    const realGroups = [
+      ...(catalog?.brands ?? []).map((brand) => brand.name),
+      ...data.karaokes.map((karaoke) =>
+        brandByKaraokeId.get(karaoke.id) ?? fallbackGroupLabel(karaoke.sourceGroup),
+      ),
+    ];
+    const aliases = buildPublicFolderAliases(realGroups);
     const map = new Map<string, KaraokeSummaryDTO[]>();
 
-    // El JSON mensual es la fuente de verdad visual de las carpetas.
-    // Se siembran incluso las marcas con count=0 para que la estructura
-    // de Dropbox/maestro no desaparezca de la interfaz.
+    // El JSON mensual sigue siendo la fuente estructural, pero el cliente
+    // nunca recibe su nombre físico como etiqueta visual.
     if (!search) {
-      for (const brand of catalog?.brands ?? []) map.set(brand.name, []);
+      for (const brand of catalog?.brands ?? []) {
+        const alias = aliases.get(brand.name) ?? "Top Hits";
+        if (!map.has(alias)) map.set(alias, []);
+      }
     }
 
     for (const karaoke of data.karaokes) {
-      const brand =
+      const realBrand =
         brandByKaraokeId.get(karaoke.id) ??
         fallbackGroupLabel(karaoke.sourceGroup);
+      const publicBrand = aliases.get(realBrand) ?? "Top Hits";
 
       const matchesSearch =
         !search ||
-        brand.toLowerCase().includes(search) ||
-        [karaoke.title, karaoke.artist, karaoke.code, karaoke.format ?? ""]
-          .some((value) => value.toLowerCase().includes(search));
+        publicBrand.toLowerCase().includes(search.toLowerCase()) ||
+        publicSearchMatches(karaoke, search);
 
       if (!matchesSearch) continue;
 
-      const items = map.get(brand) ?? [];
+      const items = map.get(publicBrand) ?? [];
       items.push(karaoke);
-      map.set(brand, items);
+      map.set(publicBrand, items);
     }
 
-    const order = new Map(
-      (catalog?.brands ?? []).map((brand, index) => [brand.name, index]),
-    );
+    const order = new Map<string, number>();
+    for (const realBrand of realGroups) {
+      const alias = aliases.get(realBrand);
+      if (alias && !order.has(alias)) order.set(alias, order.size);
+    }
 
     return [...map.entries()]
       .filter(([, items]) => !search || items.length > 0)

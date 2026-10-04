@@ -3,8 +3,10 @@ import type { KaraokeSummaryDTO } from "@djgabo/shared";
 import { ApiError } from "../lib/apiClient";
 import { createKaraokeDownloadTicket, openSecureDownload } from "../lib/secureDownloads";
 import { PreviewModal } from "./PreviewModal";
+import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
 
 export function KaraokeCard({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
+  const display = publicKaraokeDisplay(karaoke);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
@@ -31,11 +33,8 @@ export function KaraokeCard({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1 p-3">
-        <p className="truncate text-sm font-semibold text-ink" title={karaoke.title}>
-          {karaoke.title}
-        </p>
-        <p className="truncate text-xs text-ink-secondary" title={karaoke.artist}>
-          {karaoke.artist}
+        <p className="truncate text-sm font-semibold text-ink" title={display.label}>
+          {display.label}
         </p>
         <p className="text-[11px] uppercase tracking-wide text-ink-tertiary">{karaoke.code}</p>
 
@@ -59,7 +58,7 @@ export function KaraokeCard({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
       </div>
 
       {showPreview && (
-        <PreviewModal karaokeId={karaoke.id} title={karaoke.title} artist={karaoke.artist} onClose={() => setShowPreview(false)} />
+        <PreviewModal karaokeId={karaoke.id} title={display.title} artist={display.artist} onClose={() => setShowPreview(false)} />
       )}
     </div>
   );
