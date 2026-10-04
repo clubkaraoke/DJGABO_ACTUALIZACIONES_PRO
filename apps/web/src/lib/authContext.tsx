@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LoginResponseDTO, MeDTO } from "@djgabo/shared";
-import { api, ApiError, configureApiClient } from "./apiClient";
+import { api, ApiError, apiEndpoint, configureApiClient } from "./apiClient";
 
 const REFRESH_TOKEN_KEY = "djgabo.refreshToken";
 
@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const stored = localStorage.getItem(REFRESH_TOKEN_KEY);
     if (!stored) return null;
     try {
-      const res = await fetch("/api/auth/refresh", {
+      const res = await fetch(apiEndpoint("/auth/refresh"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken: stored }),
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<boolean> => {
     setLoginError(null);
     try {
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(apiEndpoint("/auth/login"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -96,13 +96,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     if (stored) {
       try {
-        await fetch("/api/auth/logout", {
+        await fetch(apiEndpoint("/auth/logout"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ refreshToken: stored }),
         });
       } catch {
-        // el logout local ya ocurrió; si la red falla, no bloqueamos al usuario
+        // El logout local ya ocurrió; si la red falla, no bloqueamos al usuario.
       }
     }
   }, []);
