@@ -235,31 +235,35 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
       );
 
       let stderr = "";
+      const chunks: Buffer[] = [];
       ffmpeg.stderr.on("data", (chunk) => {
         if (stderr.length < 4000) stderr += String(chunk);
       });
+      ffmpeg.stdout.on("data", (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
 
       input.on("error", () => ffmpeg.stdin.destroy());
       ffmpeg.stdin.on("error", () => input.destroy());
       input.pipe(ffmpeg.stdin);
 
-      ffmpeg.once("close", (code) => {
-        input.destroy();
-        if (code !== 0 && code !== null) {
+      const output = await new Promise<Buffer>((resolve, reject) => {
+        ffmpeg.once("error", reject);
+        ffmpeg.once("close", (code) => {
+          input.destroy();
+          if (code === 0) {
+            resolve(Buffer.concat(chunks));
+            return;
+          }
           request.log.warn({ code, stderr: stderr.slice(-1000) }, "ffmpeg demo preview failed");
-        }
-      });
-
-      request.raw.once("close", () => {
-        input.destroy();
-        if (!ffmpeg.killed) ffmpeg.kill("SIGKILL");
+          reject(new Error("DEMO_TRANSCODE_FAILED"));
+        });
       });
 
       reply.header("Content-Type", "audio/mpeg");
+      reply.header("Content-Length", String(output.length));
       reply.header("Cache-Control", "private, no-store");
       reply.header("Accept-Ranges", "none");
       reply.header("X-Content-Type-Options", "nosniff");
-      return reply.send(ffmpeg.stdout);
+      return reply.send(output);
     },
   );
 
