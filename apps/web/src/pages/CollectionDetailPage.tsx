@@ -312,6 +312,7 @@ export default function CollectionDetailPage() {
                                     <KaraokeRow
                                       key={karaoke.id}
                                       karaoke={karaoke}
+                                      fallbackCoverUrl={data.collection.coverUrl}
                                       demoAllowed={name === "Club Karaoke" && demoSettings?.enabled === true}
                                     />
                                   ))}

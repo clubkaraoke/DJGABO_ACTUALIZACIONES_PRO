@@ -9,7 +9,7 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / 1_000_000).toFixed(0)} MB`;
 }
 
-export function KaraokeRow({ karaoke, demoAllowed = false }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean }) {
+export function KaraokeRow({ karaoke, demoAllowed = false, fallbackCoverUrl = null }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean; fallbackCoverUrl?: string | null }) {
   const display = publicKaraokeDisplay(karaoke);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
@@ -30,10 +30,17 @@ export function KaraokeRow({ karaoke, demoAllowed = false }: { karaoke: KaraokeS
     <tr className="border-b border-white/[0.05] last:border-0 hover:bg-white/[0.025]">
       <td className="px-4 py-2.5">
         <div className="h-9 w-9 overflow-hidden rounded-[4px] bg-secondary">
-          {karaoke.coverUrl ? (
-            <img src={karaoke.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
+          {karaoke.coverUrl || fallbackCoverUrl ? (
+            <img
+              src={karaoke.coverUrl || fallbackCoverUrl || ""}
+              alt=""
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-[11px] text-muted-foreground">♪</div>
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 to-white/[0.04] text-[11px] font-semibold text-primary">
+              DJ
+            </div>
           )}
         </div>
       </td>
