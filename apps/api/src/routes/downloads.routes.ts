@@ -639,11 +639,17 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
         return reply.code(status).send({ error: denial, message: describeReason(denial), statusCode: status });
       }
 
-      const firstKaraoke = await db.query.karaokes.findFirst({
+      const collectionKaraokes = await db.query.karaokes.findMany({
         where: eq(karaokes.collectionId, collection.id),
         with: { masterAsset: true },
       });
-      const masterAsset = firstKaraoke?.masterAsset;
+      const masterAsset =
+        collectionKaraokes.find(
+          (karaoke) =>
+            karaoke.masterAsset?.provider === "dropbox" &&
+            Boolean(karaoke.masterAsset.providerFileId),
+        )?.masterAsset ??
+        collectionKaraokes.find((karaoke) => Boolean(karaoke.masterAsset?.storageKey))?.masterAsset;
       if (!masterAsset?.storageKey) {
         return reply.code(404).send({ error: "ASSET_NOT_AVAILABLE", message: describeReason("ASSET_NOT_AVAILABLE"), statusCode: 404 });
       }
