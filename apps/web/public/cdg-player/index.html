@@ -59,10 +59,18 @@ html.embed-mode .play {
 }
 html.embed-mode .time { font-size:11px !important; color:#A1A1A6 !important; opacity:1 !important; }
 html.embed-mode #seek { pointer-events:none; accent-color:#FFD60A; }
+
+html.branding-preview .empty-state,
+html.branding-preview .transport { display:none !important; }
+html.branding-preview .screen-wrap { border-radius:9px !important; }
 </style>
 <script>
-if (new URLSearchParams(location.search).get('embed') === '1') {
+const pageParams = new URLSearchParams(location.search);
+if (pageParams.get('embed') === '1') {
   document.documentElement.classList.add('embed-mode');
+}
+if (pageParams.get('brandingPreview') === '1') {
+  document.documentElement.classList.add('branding-preview');
 }
 </script>
 </head>
