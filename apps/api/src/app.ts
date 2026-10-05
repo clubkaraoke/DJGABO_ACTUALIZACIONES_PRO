@@ -16,6 +16,7 @@ import { CatalogJsonService } from "./services/CatalogJsonService.js";
 import { SheetMirrorService } from "./services/SheetMirrorService.js";
 import { DropboxIncrementalSyncService } from "./services/DropboxIncrementalSyncService.js";
 import { DemoPlayerSettingsService } from "./services/DemoPlayerSettingsService.js";
+import { KaraokeRequestService } from "./services/KaraokeRequestService.js";
 
 import { registerAuthRoutes } from "./routes/auth.routes.js";
 import { registerBase44BridgeRoutes } from "./routes/base44Bridge.routes.js";
@@ -33,6 +34,7 @@ import { registerAdminSyncRoutes } from "./routes/admin/sync.routes.js";
 import { registerCatalogRoutes } from "./routes/catalog.routes.js";
 import { registerDropboxWebhookRoutes } from "./routes/dropboxWebhook.routes.js";
 import { registerDemoPlayerRoutes } from "./routes/demoPlayer.routes.js";
+import { registerKaraokeRequestRoutes } from "./routes/karaokeRequests.routes.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -49,6 +51,7 @@ declare module "fastify" {
     sheetMirrorService: SheetMirrorService;
     dropboxIncrementalSyncService: DropboxIncrementalSyncService | null;
     demoPlayerSettingsService: DemoPlayerSettingsService;
+    karaokeRequestService: KaraokeRequestService;
   }
 }
 
@@ -117,6 +120,13 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     "demoPlayerSettingsService",
     new DemoPlayerSettingsService(`${opts.env.CATALOG_JSON_DIR ?? "./data/catalog"}/demo-player-settings.json`),
   );
+  fastify.decorate(
+    "karaokeRequestService",
+    new KaraokeRequestService(
+      opts.db,
+      `${opts.env.CATALOG_JSON_DIR ?? "./data/catalog"}/karaoke-requests.json`,
+    ),
+  );
 
   fastify.get("/api/health", async () => ({
     status: "ok",
@@ -134,6 +144,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await registerDownloadsRoutes(fastify);
   await registerPreviewRoutes(fastify);
   await registerDemoPlayerRoutes(fastify);
+  await registerKaraokeRequestRoutes(fastify);
   await registerDeviceRoutes(fastify);
   await registerAdminClientsRoutes(fastify);
   await registerAdminPlansRoutes(fastify);
