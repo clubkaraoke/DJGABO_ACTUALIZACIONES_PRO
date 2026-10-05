@@ -24,6 +24,7 @@ export interface KaraokeRequestRecord {
   updatedAt: string;
   readyAt: string | null;
   readyEmailSentAt?: string | null;
+  readyEmailEligibleAt?: string | null;
 }
 
 interface YoutubeMetadata {
@@ -244,6 +245,7 @@ export class KaraokeRequestService {
       updatedAt: now,
       readyAt: null,
       readyEmailSentAt: null,
+      readyEmailEligibleAt: null,
     };
     items.unshift(record);
     await this.writeAll(items);
@@ -267,10 +269,16 @@ export class KaraokeRequestService {
         item.matchedCollectionTitle = match.collectionTitle;
         item.updatedAt = new Date().toISOString();
         item.readyAt = item.updatedAt;
+        item.readyEmailEligibleAt = item.updatedAt;
         changed = true;
       }
 
-      if (item.status === "READY" && item.matchedCollectionId && !item.readyEmailSentAt) {
+      if (
+        item.status === "READY" &&
+        item.matchedCollectionId &&
+        item.readyEmailEligibleAt &&
+        !item.readyEmailSentAt
+      ) {
         try {
           if (await this.sendReadyEmail(item)) {
             item.readyEmailSentAt = new Date().toISOString();
@@ -305,12 +313,15 @@ export class KaraokeRequestService {
     if (status !== "READY") {
       item.readyAt = null;
       item.readyEmailSentAt = null;
+      item.readyEmailEligibleAt = null;
       if (status === "REJECTED") {
         item.matchedKaraokeId = null;
         item.matchedCollectionId = null;
         item.matchedCollectionTitle = null;
       }
     } else if (item.matchedCollectionId && !item.readyEmailSentAt) {
+      item.readyAt = item.readyAt ?? new Date().toISOString();
+      item.readyEmailEligibleAt = item.readyEmailEligibleAt ?? item.readyAt;
       try {
         if (await this.sendReadyEmail(item)) {
           item.readyEmailSentAt = new Date().toISOString();
