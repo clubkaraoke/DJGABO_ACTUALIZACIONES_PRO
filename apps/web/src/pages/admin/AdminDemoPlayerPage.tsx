@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, ImagePlus, Save, Trash2, Upload } from "lucide-react";
 import { api, ApiError } from "../../lib/apiClient";
 import { Button } from "../../components/primitives";
@@ -36,20 +36,6 @@ const QUALITY_OPTIONS: Array<{ value: DemoPlayerQuality; label: string; descript
 
 const VIP_GRADIENT = "linear-gradient(135deg,#0A0A0B 0%,#17171B 55%,#0A0A0B 100%)";
 const GRAPHITE_GRADIENT = "linear-gradient(135deg,#111113 0%,#27272A 55%,#111113 100%)";
-
-function presetBackground(preset: DemoVisualPreset): CSSProperties {
-  if (preset.backgroundType === "image" && preset.backgroundValue) {
-    return {
-      backgroundImage: `linear-gradient(rgba(0,0,0,.16),rgba(0,0,0,.16)),url("${preset.backgroundValue}")`,
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-    };
-  }
-  if (preset.backgroundType === "gradient") {
-    return { backgroundImage: preset.backgroundValue };
-  }
-  return { background: preset.backgroundValue || "#0A0A0B" };
-}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -89,6 +75,17 @@ export default function AdminDemoPlayerPage() {
     if (!settings) return null;
     return settings.presets.find((preset) => preset.id === settings.activePresetId) ?? settings.presets[0] ?? null;
   }, [settings]);
+
+  const brandingPreviewUrl = useMemo(() => {
+    if (!activePreset) return "";
+    const params = new URLSearchParams({
+      embed: "1",
+      brandingPreview: "1",
+      bgType: activePreset.backgroundType,
+      bg: activePreset.backgroundValue,
+    });
+    return `/cdg-player/index.html?${params.toString()}`;
+  }, [activePreset]);
 
   function updatePreset(patch: Partial<DemoVisualPreset>) {
     if (!settings || !activePreset) return;
@@ -430,17 +427,23 @@ export default function AdminDemoPlayerPage() {
           <div>
             <div
               ref={stageRef}
-              className="relative aspect-[3/2] w-full select-none overflow-hidden rounded-[10px] border border-white/[0.10] shadow-inner"
-              style={presetBackground(activePreset)}
+              className="relative aspect-[3/2] w-full select-none overflow-hidden rounded-[10px] border border-white/[0.10] bg-[#0A0A0B] shadow-inner"
               onPointerMove={(e) => {
                 if (draggingLogo) positionLogo(e.clientX, e.clientY);
               }}
               onPointerUp={() => setDraggingLogo(false)}
               onPointerCancel={() => setDraggingLogo(false)}
             >
-              <div className="absolute inset-0 bg-black/5" />
-              <div className="absolute inset-x-[8%] top-1/2 -translate-y-1/2 text-center font-black uppercase tracking-wide text-white [text-shadow:0_2px_0_#000,2px_0_0_#000,-2px_0_0_#000,0_-2px_0_#000]">
-                <div className="text-[clamp(18px,3.2vw,38px)] text-yellow-300">VISTA PREVIA KARAOKE</div>
+              <iframe
+                key={brandingPreviewUrl}
+                title="Vista real del preset"
+                src={brandingPreviewUrl}
+                className="pointer-events-none absolute inset-0 h-full w-full border-0"
+                aria-hidden="true"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-black/[0.03]" />
+              <div className="pointer-events-none absolute inset-x-[8%] top-1/2 -translate-y-1/2 text-center font-black uppercase tracking-wide text-white [text-shadow:0_2px_0_#000,2px_0_0_#000,-2px_0_0_#000,0_-2px_0_#000]">
+                <div className="text-[clamp(18px,3.2vw,38px)] text-yellow-300">VISTA REAL DEL PRESET</div>
                 <div className="mt-1 text-[clamp(16px,2.8vw,34px)]">MUEVE TU LOGO AQUÍ</div>
               </div>
               {activePreset.logoUrl && (
@@ -467,7 +470,7 @@ export default function AdminDemoPlayerPage() {
               )}
             </div>
             <div className="mt-2 flex justify-between text-[11px] text-ink-tertiary">
-              <span>Arrastra el logo sobre la vista previa</span>
+              <span>Vista construida con el mismo reproductor del cliente · arrastra el logo</span>
               <span>X {activePreset.logoX.toFixed(1)} · Y {activePreset.logoY.toFixed(1)}</span>
             </div>
           </div>
