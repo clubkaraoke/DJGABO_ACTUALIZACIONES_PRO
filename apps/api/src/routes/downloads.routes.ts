@@ -122,10 +122,12 @@ async function resolveCollectionZipKey(
         : parseMonthFolder(entry.name) === month;
     });
 
-    // Dropbox folder IDs son estables ante moves/renames y además no dependen
-    // del namespace visible de la cuenta. download_zip acepta directamente
-    // "id:...", así que se prioriza el providerFileId para evitar path/not_found.
-    return folder?.providerFileId ?? folder?.path ?? collectionPath;
+    // Para download_zip usamos la ruta del folder, no el providerFileId.
+    // Este catálogo vive dentro de un namespace compartido de Dropbox y el
+    // providerFileId puede pertenecer al montaje personal mientras la descarga
+    // se ejecuta desde otro root. DropboxStorageProvider hará fallback con
+    // Dropbox-API-Path-Root al namespace configurado.
+    return folder?.path ?? collectionPath;
   } catch {
     return collectionPath;
   }
