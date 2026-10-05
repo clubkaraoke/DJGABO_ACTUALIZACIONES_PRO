@@ -999,8 +999,7 @@
     updateVectorV2ColorMap(rgba);
 
     vectorV2Ctx.setTransform(1, 0, 0, 1, 0, 0);
-    vectorV2Ctx.fillStyle = '#6e737b';
-    vectorV2Ctx.fillRect(0, 0, vectorCanvasV2.width, vectorCanvasV2.height);
+    vectorV2Ctx.clearRect(0, 0, vectorCanvasV2.width, vectorCanvasV2.height);
     vectorV2Ctx.imageSmoothingEnabled = true;
     vectorV2Ctx.imageSmoothingQuality = 'high';
 
