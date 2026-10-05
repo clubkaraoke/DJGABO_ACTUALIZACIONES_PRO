@@ -3,7 +3,7 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
-import { collections, karaokes, users } from "../db/schema.js";
+import { users } from "../db/schema.js";
 
 export type KaraokeRequestStatus = "REQUESTED" | "IN_PROGRESS" | "READY" | "REJECTED";
 
