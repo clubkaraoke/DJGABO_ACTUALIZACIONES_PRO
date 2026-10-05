@@ -29,6 +29,9 @@ const envSchema = z.object({
   BOOTSTRAP_SYNC_ROOT_PATH: z.string().optional(),
   SHEET_SYNC_WEBHOOK_URL: z.string().url().optional(),
   SHEET_SYNC_WEBHOOK_SECRET: z.string().optional(),
+  RESEND_API_KEY: z.string().min(1).optional(),
+  KARAOKE_REQUEST_EMAIL_FROM: z.string().default("DJGABO Actualizaciones PRO <actualizaciones@kitkaraoke.com>"),
+  KARAOKE_REQUEST_PUBLIC_URL: z.string().url().default("https://djgabo-cp70-preview-production.up.railway.app"),
 });
 
 export type Env = z.infer<typeof envSchema>;
