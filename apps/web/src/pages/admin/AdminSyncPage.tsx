@@ -13,6 +13,20 @@ interface SyncResult {
   items: { storageKey: string; action: string; title: string; artist: string; error?: string }[];
 }
 
+interface CoverStatus {
+  running: boolean;
+  total: number;
+  withCover: number;
+  matchedFromCache: number;
+  noMatch: number;
+  errors: number;
+  pending: number;
+  complete: boolean;
+  startedAt: string | null;
+  completedAt: string | null;
+  lastError: string | null;
+}
+
 export default function AdminSyncPage() {
   const qc = useQueryClient();
   const [result, setResult] = useState<SyncResult | null>(null);
@@ -22,10 +36,17 @@ export default function AdminSyncPage() {
     queryFn: () => api.get<SyncStatusDTO>("/admin/sync/status"),
   });
 
+  const { data: coverStatus, isLoading: coversLoading } = useQuery({
+    queryKey: ["admin", "covers", "status"],
+    queryFn: () => api.get<CoverStatus>("/admin/covers/status"),
+    refetchInterval: 5000,
+  });
+
   const analyze = useMutation({
     mutationFn: () => api.post<SyncResult>("/admin/sync/analyze"),
     onSuccess: setResult,
   });
+
   const runSync = useMutation({
     mutationFn: () => api.post<SyncResult>("/admin/sync/run"),
     onSuccess: (r) => {
@@ -33,10 +54,24 @@ export default function AdminSyncPage() {
       qc.invalidateQueries({ queryKey: ["admin", "sync", "status"] });
       qc.invalidateQueries({ queryKey: ["admin", "collections"] });
       qc.invalidateQueries({ queryKey: ["admin", "karaokes"] });
+      qc.invalidateQueries({ queryKey: ["admin", "covers", "status"] });
     },
   });
 
+  const runCovers = useMutation({
+    mutationFn: () => api.post<CoverStatus>("/admin/covers/run"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "covers", "status"] }),
+  });
+
+  const retryCovers = useMutation({
+    mutationFn: () => api.post<CoverStatus>("/admin/covers/retry-misses"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "covers", "status"] }),
+  });
+
   const busy = analyze.isPending || runSync.isPending;
+  const coverBusy = runCovers.isPending || retryCovers.isPending || coverStatus?.running === true;
+  const processed = coverStatus ? Math.max(0, coverStatus.total - coverStatus.pending) : 0;
+  const progress = coverStatus?.total ? Math.min(100, Math.round((processed / coverStatus.total) * 100)) : 0;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -82,6 +117,69 @@ export default function AdminSyncPage() {
           {runSync.isPending ? "Sincronizando..." : "Sincronizar"}
         </Button>
       </div>
+
+      {coversLoading || !coverStatus ? (
+        <Skeleton className="h-44 w-full" />
+      ) : (
+        <div className="rounded-lg border border-graphite-border bg-graphite p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="font-display text-lg font-bold text-ink">Portadas automáticas</h2>
+                <Badge tone={coverStatus.running ? "warning" : coverStatus.complete ? "accent" : "neutral"}>
+                  {coverStatus.running ? "PROCESANDO" : coverStatus.complete ? "COMPLETADO" : "PENDIENTES"}
+                </Badge>
+              </div>
+              <p className="mt-1 text-xs text-ink-tertiary">
+                Caché persistente · Deezer + iTunes · los NO MATCH no se vuelven a consultar en cada carga
+              </p>
+            </div>
+            <span className="font-mono text-sm text-ink-secondary">{processed} / {coverStatus.total}</span>
+          </div>
+
+          <div className="mt-4 h-2 overflow-hidden rounded-full bg-graphite-elevated">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <p className="mt-1 text-right text-[11px] text-ink-tertiary">{progress}% procesado</p>
+
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <p className="text-xs uppercase text-ink-tertiary">Con portada</p>
+              <p className="font-display text-xl font-bold text-accent">{coverStatus.withCover}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-ink-tertiary">Sin coincidencia</p>
+              <p className="font-display text-xl font-bold text-ink">{coverStatus.noMatch}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-ink-tertiary">Pendientes</p>
+              <p className="font-display text-xl font-bold text-ink">{coverStatus.pending}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-ink-tertiary">Errores</p>
+              <p className="font-display text-xl font-bold text-danger">{coverStatus.errors}</p>
+            </div>
+          </div>
+
+          {coverStatus.lastError && (
+            <p className="mt-3 rounded-md border border-danger/20 bg-danger/5 px-3 py-2 text-xs text-danger">
+              Último error: {coverStatus.lastError}
+            </p>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button variant="primary" disabled={coverBusy} onClick={() => runCovers.mutate()}>
+              {coverStatus.running ? "Procesando..." : "Procesar pendientes"}
+            </Button>
+            <Button variant="secondary" disabled={coverBusy} onClick={() => retryCovers.mutate()}>
+              Reintentar sin coincidencia
+            </Button>
+          </div>
+        </div>
+      )}
 
       {result && (
         <div className="rounded-lg border border-graphite-border bg-graphite p-5">
