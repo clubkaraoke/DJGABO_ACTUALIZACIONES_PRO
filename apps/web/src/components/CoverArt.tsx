@@ -1,4 +1,4 @@
-import { type CSSProperties } from "react";
+import { useMemo, useState } from "react";
 
 interface CoverArtProps {
   year: number;
@@ -8,21 +8,26 @@ interface CoverArtProps {
   className?: string;
 }
 
-function spriteStyle(year: number, month: number): CSSProperties | null {
+const MONTH_NAMES = [
+  "ENERO",
+  "FEBRERO",
+  "MARZO",
+  "ABRIL",
+  "MAYO",
+  "JUNIO",
+  "JULIO",
+  "AGOSTO",
+  "SEPTIEMBRE",
+  "OCTUBRE",
+  "NOVIEMBRE",
+  "DICIEMBRE",
+];
+
+function buildCoverUrl(year: number, month: number): string | null {
   if (![2024, 2025, 2026].includes(year) || month < 1 || month > 12) return null;
-
-  const half = month <= 6 ? 1 : 2;
-  const index = (month - 1) % 6;
-  const col = index % 3;
-  const row = Math.floor(index / 3);
-
-  return {
-    backgroundImage: `url("/covers/sprites-hd/${year}_${half}.webp")`,
-    backgroundRepeat: "no-repeat",
-    backgroundSize: "300% 200%",
-    backgroundPosition: `${col * 50}% ${row * 100}%`,
-    imageRendering: "auto",
-  };
+  const mm = String(month).padStart(2, "0");
+  const monthName = MONTH_NAMES[month - 1];
+  return `/covers/actualizaciones/${year}/${mm}_${monthName}_${year}.webp`;
 }
 
 export function CoverArt({
@@ -32,15 +37,18 @@ export function CoverArt({
   alt = "",
   className = "",
 }: CoverArtProps) {
-  const style = spriteStyle(year, month);
+  const coverUrl = useMemo(() => buildCoverUrl(year, month), [year, month]);
+  const [failed, setFailed] = useState(false);
 
-  if (style) {
+  if (coverUrl && !failed) {
     return (
-      <div
-        role="img"
-        aria-label={alt}
-        className={`bg-secondary bg-no-repeat ${className}`}
-        style={style}
+      <img
+        src={coverUrl}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+        className={`object-cover ${className}`}
       />
     );
   }
