@@ -3,9 +3,11 @@ import type { Db } from "../db/client.js";
 import { collections, karaokes } from "../db/schema.js";
 
 const DEEZER_SEARCH_URL = "https://api.deezer.com/search";
-const DEFAULT_BATCH_LIMIT = 60;
+const DEFAULT_BATCH_LIMIT = 300;
 const DEFAULT_CONCURRENCY = 6;
-const REQUEST_TIMEOUT_MS = 3000;
+const REQUEST_TIMEOUT_MS = 4500;
+const MIN_MATCH_SCORE = 0.40;
+const MIN_TITLE_COVERAGE = 0.45;
 const ARTIST_JOINERS = new Set(["y", "and", "feat", "ft", "featuring", "x", "con"]);
 
 interface DeezerTrack {
@@ -37,10 +39,11 @@ export interface DeezerCoverEnrichmentResult {
  */
 export function cleanForDeezerSearch(value: string): string {
   return value
-    .replace(/\[[^\]]*(?:karaoke|dj\s*sauly)[^\]]*\]/gi, " ")
+    .replace(/\[[^\]]*(?:karaoke|dj\s*sauly|official|oficial|video|lyrics?|letra|audio)[^\]]*\]/gi, " ")
     .replace(/\s+-\s+lf\s+karaokes?.*$/gi, " ")
     .replace(/\s+karaoke\b.*$/gi, " ")
-    .replace(/\((?:coro|coros|con\s+\d+(?:da|ra)?\s+voz|instrumental|inst)\)/gi, " ")
+    .replace(/\((?:coro|coros|con\s+\d+(?:da|ra)?\s+voz|segunda\s+voz|instrumental|inst|en\s+vivo|live|d[uú]o|official|oficial|video|lyrics?|letra|audio|hd|4k)\)/gi, " ")
+    .replace(/\b(?:official\s+video|video\s+oficial|official\s+audio|audio\s+oficial|lyrics?|letra|hd|4k)\b/gi, " ")
     .replace(/\s{2,}/g, " ")
     .trim();
 }
@@ -129,7 +132,7 @@ export async function findDeezerCover(
 
   try {
     const query = [cleanArtist, cleanTitle].filter(Boolean).join(" ");
-    const url = `${DEEZER_SEARCH_URL}?q=${encodeURIComponent(query)}&limit=5`;
+    const url = `${DEEZER_SEARCH_URL}?q=${encodeURIComponent(query)}&limit=10`;
     const response = await fetchImpl(url, {
       method: "GET",
       headers: { Accept: "application/json" },
@@ -139,15 +142,28 @@ export async function findDeezerCover(
 
     const payload = (await response.json()) as DeezerSearchResponse;
     const candidates = (payload.data ?? [])
-      .map((track) => ({ track, score: trackScore(track, cleanArtist, cleanTitle) }))
+      .map((track) => {
+        const candidateTitle = track.title_short ?? track.title ?? "";
+        const candidateArtist = track.artist?.name ?? "";
+        return {
+          track,
+          score: trackScore(track, cleanArtist, cleanTitle),
+          titleScore: tokenCoverage(cleanTitle, candidateTitle),
+          artistScore: artistCoverage(cleanArtist, candidateArtist),
+        };
+      })
       .sort((a, b) => b.score - a.score);
 
     const best = candidates[0];
-    // Umbral deliberadamente conservador: preferimos una tarjeta sin portada
-    // antes que asignar el disco de otra canción con un nombre parecido.
-    if (!best || best.score < 0.46) return null;
+    if (!best || best.score < MIN_MATCH_SCORE || best.titleScore < MIN_TITLE_COVERAGE) return null;
 
-    return best.track.album?.cover_medium ?? best.track.album?.cover_big ?? best.track.album?.cover ?? null;
+    // Títulos muy cortos/genéricos necesitan además una mínima coincidencia de artista.
+    const normalizedTitle = normalize(cleanTitle);
+    if (normalizedTitle.split(" ").length === 1 && normalizedTitle.length <= 5 && best.artistScore < 0.45) {
+      return null;
+    }
+
+    return best.track.album?.cover_big ?? best.track.album?.cover_medium ?? best.track.album?.cover ?? null;
   } catch {
     return null;
   } finally {
