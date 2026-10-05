@@ -4,7 +4,6 @@ import { StorageIndexerService } from "@djgabo/storage";
 import type { SyncStatusDTO } from "@djgabo/shared";
 import { DrizzleIndexerRepository } from "../../db/drizzleIndexerRepository.js";
 import { syncRuns } from "../../db/schema.js";
-import { enrichMissingDeezerCovers } from "../../services/deezerCoverService.js";
 
 export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
@@ -39,16 +38,11 @@ export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
     const result = await runIndexer(false);
     await fastify.catalogJsonService.publishAll();
 
-    // El sync de storage responde sin esperar a Deezer. La portada se resuelve
-    // en segundo plano, con concurrencia limitada y persistencia local, para
-    // que ni el panel admin ni las páginas del cliente sufran N requests
-    // remotos o lag al renderizar tarjetas.
-    void enrichMissingDeezerCovers(db, { limit: null, concurrency: 6 })
-      .then(async (covers) => {
-        fastify.log.info({ covers }, "Deezer cover enrichment completed");
-        if (covers.matched > 0) await fastify.catalogJsonService.publishAll();
-      })
-      .catch((error) => fastify.log.warn({ err: error }, "Deezer cover enrichment failed"));
+    // La resolución de portadas usa un worker persistente con caché de hits,
+    // misses y errores; no vuelve a barrer ciegamente Deezer en cada sync.
+    fastify.coverEnrichmentService.startDrain(async () => {
+      await fastify.catalogJsonService.publishAll();
+    });
 
     return reply.send(result);
   });
@@ -59,12 +53,9 @@ export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
     }
     const result = await fastify.dropboxIncrementalSyncService.runNow();
 
-    void enrichMissingDeezerCovers(db, { limit: null, concurrency: 6 })
-      .then(async (covers) => {
-        fastify.log.info({ covers }, "Deezer cover enrichment completed after incremental sync");
-        if (covers.matched > 0) await fastify.catalogJsonService.publishAll();
-      })
-      .catch((error) => fastify.log.warn({ err: error }, "Deezer cover enrichment failed"));
+    fastify.coverEnrichmentService.startDrain(async () => {
+      await fastify.catalogJsonService.publishAll();
+    });
 
     return reply.send(result);
   });

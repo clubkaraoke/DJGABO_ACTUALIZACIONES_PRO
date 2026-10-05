@@ -17,7 +17,7 @@ import { SheetMirrorService } from "./services/SheetMirrorService.js";
 import { DropboxIncrementalSyncService } from "./services/DropboxIncrementalSyncService.js";
 import { DemoPlayerSettingsService } from "./services/DemoPlayerSettingsService.js";
 import { KaraokeRequestService } from "./services/KaraokeRequestService.js";
-import { enrichMissingDeezerCovers } from "./services/deezerCoverService.js";
+import { CoverEnrichmentService } from "./services/CoverEnrichmentService.js";
 
 import { registerAuthRoutes } from "./routes/auth.routes.js";
 import { registerBase44BridgeRoutes } from "./routes/base44Bridge.routes.js";
@@ -36,6 +36,7 @@ import { registerCatalogRoutes } from "./routes/catalog.routes.js";
 import { registerDropboxWebhookRoutes } from "./routes/dropboxWebhook.routes.js";
 import { registerDemoPlayerRoutes } from "./routes/demoPlayer.routes.js";
 import { registerKaraokeRequestRoutes } from "./routes/karaokeRequests.routes.js";
+import { registerAdminCoverRoutes } from "./routes/admin/covers.routes.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -53,6 +54,7 @@ declare module "fastify" {
     dropboxIncrementalSyncService: DropboxIncrementalSyncService | null;
     demoPlayerSettingsService: DemoPlayerSettingsService;
     karaokeRequestService: KaraokeRequestService;
+    coverEnrichmentService: CoverEnrichmentService;
   }
 }
 
@@ -122,6 +124,10 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     new DemoPlayerSettingsService(`${opts.env.CATALOG_JSON_DIR ?? "./data/catalog"}/demo-player-settings.json`),
   );
   fastify.decorate(
+    "coverEnrichmentService",
+    new CoverEnrichmentService(opts.db, opts.env.CATALOG_JSON_DIR ?? "./data/catalog"),
+  );
+  fastify.decorate(
     "karaokeRequestService",
     new KaraokeRequestService(
       opts.db,
@@ -141,17 +147,6 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     sheetMirror: sheetMirrorService.enabled ? "ready" : "disabled",
   }));
 
-  // Completa portadas existentes sin bloquear el arranque del servidor.
-  // Solo corre en producción para no hacer llamadas externas durante tests.
-  if (opts.env.NODE_ENV === "production") {
-    void enrichMissingDeezerCovers(opts.db, { limit: null, concurrency: 6 })
-      .then(async (covers) => {
-        fastify.log.info({ covers }, "Deezer startup cover enrichment completed");
-        if (covers.matched > 0) await catalogJsonService.publishAll();
-      })
-      .catch((error) => fastify.log.warn({ err: error }, "Deezer startup cover enrichment failed"));
-  }
-
   await registerCatalogRoutes(fastify);
   await registerDropboxWebhookRoutes(fastify);
   await registerAuthRoutes(fastify, opts.env);
@@ -169,6 +164,13 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await registerAdminKaraokesRoutes(fastify);
   await registerAdminDownloadsRoutes(fastify);
   await registerAdminSyncRoutes(fastify);
+  await registerAdminCoverRoutes(fastify);
+
+  if (opts.env.NODE_ENV === "production") {
+    fastify.coverEnrichmentService.startDrain(async () => {
+      await fastify.catalogJsonService.publishAll();
+    });
+  }
 
   fastify.setErrorHandler((error: FastifyError, request, reply) => {
     request.log.error(error);
