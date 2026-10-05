@@ -43,7 +43,7 @@ export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
     // en segundo plano, con concurrencia limitada y persistencia local, para
     // que ni el panel admin ni las páginas del cliente sufran N requests
     // remotos o lag al renderizar tarjetas.
-    void enrichMissingDeezerCovers(db, { limit: 300, concurrency: 6 })
+    void enrichMissingDeezerCovers(db, { limit: null, concurrency: 6 })
       .then(async (covers) => {
         fastify.log.info({ covers }, "Deezer cover enrichment completed");
         if (covers.matched > 0) await fastify.catalogJsonService.publishAll();
@@ -59,7 +59,7 @@ export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
     }
     const result = await fastify.dropboxIncrementalSyncService.runNow();
 
-    void enrichMissingDeezerCovers(db, { limit: 300, concurrency: 6 })
+    void enrichMissingDeezerCovers(db, { limit: null, concurrency: 6 })
       .then(async (covers) => {
         fastify.log.info({ covers }, "Deezer cover enrichment completed after incremental sync");
         if (covers.matched > 0) await fastify.catalogJsonService.publishAll();

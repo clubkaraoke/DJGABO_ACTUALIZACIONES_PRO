@@ -144,7 +144,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   // Completa portadas existentes sin bloquear el arranque del servidor.
   // Solo corre en producción para no hacer llamadas externas durante tests.
   if (opts.env.NODE_ENV === "production") {
-    void enrichMissingDeezerCovers(opts.db, { limit: 300, concurrency: 6 })
+    void enrichMissingDeezerCovers(opts.db, { limit: null, concurrency: 6 })
       .then(async (covers) => {
         fastify.log.info({ covers }, "Deezer startup cover enrichment completed");
         if (covers.matched > 0) await catalogJsonService.publishAll();

@@ -8,6 +8,7 @@ const DEFAULT_CONCURRENCY = 6;
 const REQUEST_TIMEOUT_MS = 4500;
 const MIN_MATCH_SCORE = 0.40;
 const MIN_TITLE_COVERAGE = 0.45;
+const CHUNK_PAUSE_MS = 90;
 const ARTIST_JOINERS = new Set(["y", "and", "feat", "ft", "featuring", "x", "con"]);
 
 interface DeezerTrack {
@@ -184,16 +185,15 @@ export async function findDeezerCover(
 export async function enrichMissingDeezerCovers(
   db: Db,
   options: {
-    limit?: number;
+    limit?: number | null;
     concurrency?: number;
     fetchImpl?: typeof fetch;
   } = {},
 ): Promise<DeezerCoverEnrichmentResult> {
-  const limit = Math.max(1, options.limit ?? DEFAULT_BATCH_LIMIT);
   const concurrency = Math.max(1, Math.min(10, options.concurrency ?? DEFAULT_CONCURRENCY));
   const fetchImpl = options.fetchImpl ?? fetch;
 
-  const rows = await db
+  const baseQuery = db
     .select({
       id: karaokes.id,
       artist: karaokes.artist,
@@ -201,8 +201,13 @@ export async function enrichMissingDeezerCovers(
       collectionId: karaokes.collectionId,
     })
     .from(karaokes)
-    .where(isNull(karaokes.coverUrl))
-    .limit(limit);
+    .where(isNull(karaokes.coverUrl));
+
+  // limit:null toma una foto completa de TODOS los karaokes aún sin portada.
+  // Así los misses del primer lote no bloquean canciones posteriores.
+  const rows = options.limit === null
+    ? await baseQuery
+    : await baseQuery.limit(Math.max(1, options.limit ?? DEFAULT_BATCH_LIMIT));
 
   const cache = new Map<string, Promise<string | null>>();
   const matches: Array<{ id: string; collectionId: string; coverUrl: string }> = [];
@@ -229,6 +234,11 @@ export async function enrichMissingDeezerCovers(
     );
     for (const result of chunkResults) {
       if (result) matches.push(result);
+    }
+
+    // Pausa mínima para no disparar cientos de requests contra Deezer de golpe.
+    if (offset + concurrency < rows.length) {
+      await new Promise((resolve) => setTimeout(resolve, CHUNK_PAUSE_MS));
     }
   }
 
