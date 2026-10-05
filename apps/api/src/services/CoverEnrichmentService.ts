@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { DeezerPublicApi } from "deezer-public-api";
 import type { Db } from "../db/client.js";
 import { collections, karaokes } from "../db/schema.js";
@@ -359,7 +359,8 @@ export class CoverEnrichmentService {
           collectionId: karaokes.collectionId,
         })
         .from(karaokes)
-        .where(isNull(karaokes.coverUrl));
+        .where(isNull(karaokes.coverUrl))
+        .orderBy(desc(karaokes.createdAt));
 
       const queue = rows.filter((row) => {
         const entry = cache.entries[keyFor(row.artist, row.title)];
