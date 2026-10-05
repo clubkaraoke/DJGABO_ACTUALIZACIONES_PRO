@@ -20,7 +20,7 @@ interface CacheEntry {
 }
 
 interface CacheDocument {
-  version: 1;
+  version: 2;
   updatedAt: string;
   entries: Record<string, CacheEntry>;
 }
@@ -95,28 +95,90 @@ function tokenScore(a: string, b: string): number {
   return (2 * hits) / (A.size + B.size);
 }
 
+function directionalCoverage(source: string, candidate: string): number {
+  const A = new Set(clean(source).split(" ").filter(Boolean));
+  const B = new Set(clean(candidate).split(" ").filter(Boolean));
+  if (!A.size || !B.size) return 0;
+
+  let sourceHits = 0;
+  for (const token of A) if (B.has(token)) sourceHits += 1;
+
+  let candidateHits = 0;
+  for (const token of B) if (A.has(token)) candidateHits += 1;
+
+  return Math.max(sourceHits / A.size, candidateHits / B.size);
+}
+
+function bigramScore(a: string, b: string): number {
+  const left = clean(a);
+  const right = clean(b);
+  if (!left || !right) return 0;
+  if (left === right) return 1;
+  if (left.includes(right) || right.includes(left)) return 0.94;
+
+  const pairs = (value: string) => {
+    const compact = value.replace(/\s+/g, " ");
+    const out: string[] = [];
+    for (let i = 0; i < compact.length - 1; i += 1) out.push(compact.slice(i, i + 2));
+    return out;
+  };
+
+  const A = pairs(left);
+  const B = pairs(right);
+  if (!A.length || !B.length) return 0;
+
+  const counts = new Map<string, number>();
+  for (const pair of A) counts.set(pair, (counts.get(pair) ?? 0) + 1);
+
+  let overlap = 0;
+  for (const pair of B) {
+    const count = counts.get(pair) ?? 0;
+    if (count > 0) {
+      overlap += 1;
+      counts.set(pair, count - 1);
+    }
+  }
+
+  return (2 * overlap) / (A.length + B.length);
+}
+
+function titleSimilarity(a: string, b: string): number {
+  return Math.max(tokenScore(a, b), directionalCoverage(a, b), bigramScore(a, b));
+}
+
 function scoreCandidate(sourceArtist: string, sourceTitle: string, artist: string, title: string): {
   score: number;
   titleScore: number;
   artistScore: number;
 } {
-  const titleScore = tokenScore(sourceTitle, title);
-  const artistScore = tokenScore(sourceArtist, artist);
-  const exactTitle = clean(sourceTitle) === clean(title) ? 0.14 : 0;
+  const titleScore = titleSimilarity(sourceTitle, title);
+  const artistScore = directionalCoverage(sourceArtist, artist);
+  const exactTitle = clean(sourceTitle) === clean(title) ? 0.18 : 0;
+
   return {
     titleScore,
     artistScore,
-    score: Math.min(1, titleScore * 0.76 + artistScore * 0.24 + exactTitle),
+    score: Math.min(1, titleScore * 0.82 + artistScore * 0.18 + exactTitle),
   };
 }
 
 function acceptable(candidate: Candidate, sourceTitle: string): boolean {
-  if (candidate.score < 0.40 || candidate.titleScore < 0.45) return false;
   const normalizedTitle = clean(sourceTitle);
-  if (normalizedTitle.split(" ").length === 1 && normalizedTitle.length <= 5) {
-    return candidate.artistScore >= 0.45;
+  const shortGeneric = normalizedTitle.split(" ").length === 1 && normalizedTitle.length <= 5;
+
+  // Nivel A: título prácticamente idéntico. El artista confirma pero ya no bloquea
+  // por nombres extendidos como "De Julio Aramburo La Bandononona".
+  if (candidate.titleScore >= 0.90) {
+    return shortGeneric ? candidate.artistScore >= 0.35 : candidate.artistScore >= 0.10;
   }
-  return true;
+
+  // Nivel B: título cercano + alguna señal del artista.
+  if (candidate.titleScore >= 0.75 && candidate.artistScore >= 0.20) return true;
+
+  // Nivel C: matching agresivo solicitado para maximizar cobertura.
+  if (candidate.titleScore >= 0.62 && candidate.artistScore >= 0.40) return true;
+
+  return false;
 }
 
 function nowIso(): string {
@@ -154,14 +216,14 @@ export class CoverEnrichmentService {
     if (this.cache) return this.cache;
     try {
       const parsed = JSON.parse(await readFile(this.cachePath, "utf8")) as CacheDocument;
-      if (parsed?.version === 1 && parsed.entries) {
+      if (parsed?.version === 2 && parsed.entries) {
         this.cache = parsed;
         return parsed;
       }
     } catch {
       // First run: create an empty persistent cache.
     }
-    this.cache = { version: 1, updatedAt: nowIso(), entries: {} };
+    this.cache = { version: 2, updatedAt: nowIso(), entries: {} };
     return this.cache;
   }
 
@@ -175,72 +237,93 @@ export class CoverEnrichmentService {
   }
 
   private async searchDeezer(artist: string, title: string): Promise<Candidate | null> {
-    const query = [artist, title].filter(Boolean).join(" ").trim();
-    const response = await this.deezer.search.track({ q: query, limit: 10 });
-    const data = ((response as unknown as { data?: Array<any> }).data ?? []);
-    const candidates: Candidate[] = data
-      .map((track) => {
+    const cleanArtist = clean(artist);
+    const cleanTitle = clean(title);
+    const queries = [
+      [cleanArtist, cleanTitle].filter(Boolean).join(" ").trim(),
+      [cleanTitle, cleanArtist.split(" ").slice(0, 4).join(" ")].filter(Boolean).join(" ").trim(),
+      cleanTitle,
+    ].filter((query, index, all) => query && all.indexOf(query) === index);
+
+    const candidates: Candidate[] = [];
+    for (const query of queries) {
+      const response = await this.deezer.search.track({ q: query, limit: 20 });
+      const data = ((response as unknown as { data?: Array<any> }).data ?? []);
+      for (const track of data) {
         const remoteTitle = String(track?.title_short ?? track?.title ?? "");
         const remoteArtist = String(track?.artist?.name ?? "");
-        const coverUrl = String(track?.album?.cover_big ?? track?.album?.cover_medium ?? track?.album?.cover ?? "");
-        if (!coverUrl) return null;
+        const coverUrl = String(track?.album?.cover_xl ?? track?.album?.cover_big ?? track?.album?.cover_medium ?? track?.album?.cover ?? "");
+        if (!coverUrl) continue;
         const scores = scoreCandidate(artist, title, remoteArtist, remoteTitle);
-        return {
-          provider: "deezer" as const,
+        candidates.push({
+          provider: "deezer",
           coverUrl,
           title: remoteTitle,
           artist: remoteArtist,
           ...scores,
-        };
-      })
-      .filter(Boolean) as Candidate[];
+        });
+      }
+
+      const bestNow = [...candidates].sort((a, b) => b.score - a.score)[0];
+      if (bestNow && acceptable(bestNow, title) && bestNow.titleScore >= 0.90) return bestNow;
+    }
 
     candidates.sort((a, b) => b.score - a.score);
-    const best = candidates[0] ?? null;
-    return best && acceptable(best, title) ? best : null;
+    return candidates.find((candidate) => acceptable(candidate, title)) ?? null;
   }
 
   private async searchItunes(artist: string, title: string): Promise<Candidate | null> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-      const term = [artist, title].filter(Boolean).join(" ").trim();
-      const url = `https://itunes.apple.com/search?entity=song&limit=10&term=${encodeURIComponent(term)}`;
-      const response = await fetch(url, {
-        headers: { Accept: "application/json", "User-Agent": "DJGABO-Actualizaciones-PRO/1.0" },
-        signal: controller.signal,
-      });
-      if (!response.ok) return null;
-      const payload = await response.json() as {
-        results?: Array<{
-          trackName?: string;
-          artistName?: string;
-          artworkUrl100?: string;
-        }>;
-      };
-      const candidates: Candidate[] = (payload.results ?? [])
-        .map((track) => {
+    const cleanArtist = clean(artist);
+    const cleanTitle = clean(title);
+    const terms = [
+      [cleanArtist, cleanTitle].filter(Boolean).join(" ").trim(),
+      [cleanTitle, cleanArtist.split(" ").slice(0, 4).join(" ")].filter(Boolean).join(" ").trim(),
+      cleanTitle,
+    ].filter((term, index, all) => term && all.indexOf(term) === index);
+
+    const candidates: Candidate[] = [];
+    for (const term of terms) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      try {
+        const url = `https://itunes.apple.com/search?entity=song&limit=20&term=${encodeURIComponent(term)}`;
+        const response = await fetch(url, {
+          headers: { Accept: "application/json", "User-Agent": "DJGABO-Actualizaciones-PRO/1.0" },
+          signal: controller.signal,
+        });
+        if (!response.ok) continue;
+        const payload = await response.json() as {
+          results?: Array<{
+            trackName?: string;
+            artistName?: string;
+            artworkUrl100?: string;
+          }>;
+        };
+
+        for (const track of payload.results ?? []) {
           const remoteTitle = track.trackName ?? "";
           const remoteArtist = track.artistName ?? "";
           const coverUrl = (track.artworkUrl100 ?? "").replace(/100x100bb/, "600x600bb");
-          if (!coverUrl) return null;
+          if (!coverUrl) continue;
           const scores = scoreCandidate(artist, title, remoteArtist, remoteTitle);
-          return {
-            provider: "itunes" as const,
+          candidates.push({
+            provider: "itunes",
             coverUrl,
             title: remoteTitle,
             artist: remoteArtist,
             ...scores,
-          };
-        })
-        .filter(Boolean) as Candidate[];
+          });
+        }
 
-      candidates.sort((a, b) => b.score - a.score);
-      const best = candidates[0] ?? null;
-      return best && acceptable(best, title) ? best : null;
-    } finally {
-      clearTimeout(timeout);
+        const bestNow = [...candidates].sort((a, b) => b.score - a.score)[0];
+        if (bestNow && acceptable(bestNow, title) && bestNow.titleScore >= 0.90) return bestNow;
+      } finally {
+        clearTimeout(timeout);
+      }
     }
+
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates.find((candidate) => acceptable(candidate, title)) ?? null;
   }
 
   private async resolveCover(artist: string, title: string): Promise<Candidate | null> {
