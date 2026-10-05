@@ -23,12 +23,28 @@ export interface KaraokeRequestRecord {
   createdAt: string;
   updatedAt: string;
   readyAt: string | null;
+  readyEmailSentAt?: string | null;
 }
 
 interface YoutubeMetadata {
   videoId: string | null;
   title: string | null;
   author: string | null;
+}
+
+interface KaraokeRequestEmailOptions {
+  apiKey?: string;
+  from: string;
+  publicUrl: string;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
 function normalize(value: string): string {
@@ -84,7 +100,46 @@ async function readYoutubeMetadata(rawUrl: string): Promise<YoutubeMetadata> {
 }
 
 export class KaraokeRequestService {
-  constructor(private readonly db: Db, private readonly filePath: string) {}
+  constructor(
+    private readonly db: Db,
+    private readonly filePath: string,
+    private readonly emailOptions?: KaraokeRequestEmailOptions,
+  ) {}
+
+  private async sendReadyEmail(item: KaraokeRequestRecord): Promise<boolean> {
+    const apiKey = this.emailOptions?.apiKey;
+    if (!apiKey || !item.matchedCollectionId) return false;
+
+    const baseUrl = this.emailOptions!.publicUrl.replace(/\/$/, "");
+    const karaokeQuery = item.matchedKaraokeId
+      ? `?karaoke=${encodeURIComponent(item.matchedKaraokeId)}`
+      : "";
+    const targetUrl = `${baseUrl}/panel/actualizaciones/${encodeURIComponent(item.matchedCollectionId)}${karaokeQuery}`;
+    const song = [item.sourceAuthor, item.sourceTitle].filter(Boolean).join(" - ") || "Tu karaoke solicitado";
+    const collection = item.matchedCollectionTitle || "Actualizaciones PRO";
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": `karaoke-request-ready-${item.id}`,
+      },
+      body: JSON.stringify({
+        from: this.emailOptions!.from,
+        to: [item.userEmail],
+        subject: "Tu karaoke solicitado ya está listo",
+        text: `Hola ${item.userName || "cliente"},\n\nTu karaoke solicitado ya está disponible: ${song}.\nActualización: ${collection}.\n\nVer karaoke: ${targetUrl}\n\nDJGABO Actualizaciones PRO`,
+        html: `<div style="font-family:Arial,sans-serif;background:#0A0A0B;color:#F5F5F7;padding:32px"><div style="max-width:620px;margin:auto;background:#101012;border:1px solid #242428;border-radius:12px;padding:28px"><div style="font-size:12px;letter-spacing:.12em;color:#FFD60A;font-weight:700">DJGABO ACTUALIZACIONES PRO</div><h1 style="font-size:24px;margin:12px 0 10px">Tu karaoke ya está listo</h1><p style="color:#A1A1A6;line-height:1.6">Hola ${escapeHtml(item.userName || "cliente")}, el karaoke que solicitaste ya fue publicado.</p><div style="background:#17171B;border-radius:9px;padding:16px;margin:18px 0"><strong>${escapeHtml(song)}</strong><div style="color:#A1A1A6;margin-top:6px">${escapeHtml(collection)}</div></div><a href="${targetUrl}" style="display:inline-block;background:#FFD60A;color:#090909;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:7px">Ver karaoke</a><p style="color:#6B6B72;font-size:12px;margin-top:24px">Este aviso se envió porque solicitaste este karaoke desde tu cuenta.</p></div></div>`,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[karaoke-requests] Resend respondió ${response.status} para ${item.id}`);
+      return false;
+    }
+    return true;
+  }
 
   private async readAll(): Promise<KaraokeRequestRecord[]> {
     try {
@@ -188,6 +243,7 @@ export class KaraokeRequestService {
       createdAt: now,
       updatedAt: now,
       readyAt: null,
+      readyEmailSentAt: null,
     };
     items.unshift(record);
     await this.writeAll(items);
@@ -197,18 +253,36 @@ export class KaraokeRequestService {
   async reconcile(): Promise<KaraokeRequestRecord[]> {
     const items = await this.readAll();
     let changed = false;
+
     for (const item of items) {
-      if (item.status === "READY" || item.status === "REJECTED") continue;
-      const match = await this.findCatalogMatch(item.sourceTitle, item.sourceAuthor);
-      if (!match) continue;
-      item.status = "READY";
-      item.matchedKaraokeId = match.karaokeId;
-      item.matchedCollectionId = match.collectionId;
-      item.matchedCollectionTitle = match.collectionTitle;
-      item.updatedAt = new Date().toISOString();
-      item.readyAt = item.updatedAt;
-      changed = true;
+      if (item.status === "REJECTED") continue;
+
+      if (item.status !== "READY") {
+        const match = await this.findCatalogMatch(item.sourceTitle, item.sourceAuthor);
+        if (!match) continue;
+
+        item.status = "READY";
+        item.matchedKaraokeId = match.karaokeId;
+        item.matchedCollectionId = match.collectionId;
+        item.matchedCollectionTitle = match.collectionTitle;
+        item.updatedAt = new Date().toISOString();
+        item.readyAt = item.updatedAt;
+        changed = true;
+      }
+
+      if (item.status === "READY" && item.matchedCollectionId && !item.readyEmailSentAt) {
+        try {
+          if (await this.sendReadyEmail(item)) {
+            item.readyEmailSentAt = new Date().toISOString();
+            item.updatedAt = item.readyEmailSentAt;
+            changed = true;
+          }
+        } catch (error) {
+          console.error("[karaoke-requests] No se pudo enviar el aviso READY", error);
+        }
+      }
     }
+
     if (changed) await this.writeAll(items);
     return items;
   }
@@ -230,10 +304,20 @@ export class KaraokeRequestService {
     item.updatedAt = new Date().toISOString();
     if (status !== "READY") {
       item.readyAt = null;
+      item.readyEmailSentAt = null;
       if (status === "REJECTED") {
         item.matchedKaraokeId = null;
         item.matchedCollectionId = null;
         item.matchedCollectionTitle = null;
+      }
+    } else if (item.matchedCollectionId && !item.readyEmailSentAt) {
+      try {
+        if (await this.sendReadyEmail(item)) {
+          item.readyEmailSentAt = new Date().toISOString();
+          item.updatedAt = item.readyEmailSentAt;
+        }
+      } catch (error) {
+        console.error("[karaoke-requests] No se pudo enviar el aviso READY", error);
       }
     }
     await this.writeAll(items);
