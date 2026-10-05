@@ -16,6 +16,7 @@ import AdminPlansPage from "./pages/admin/AdminPlansPage";
 import AdminCollectionsPage from "./pages/admin/AdminCollectionsPage";
 import AdminKaraokesPage from "./pages/admin/AdminKaraokesPage";
 import AdminDownloadsPage from "./pages/admin/AdminDownloadsPage";
+import AdminRequestsPage from "./pages/admin/AdminRequestsPage";
 import AdminSyncPage from "./pages/admin/AdminSyncPage";
 import AdminDemoPlayerPage from "./pages/admin/AdminDemoPlayerPage";
 
@@ -30,7 +31,7 @@ export default function App(){return <Routes>
     <Route path="/panel/a-pedido" element={<OrderPage/>}/>
     <Route path="/panel/buscar" element={<SearchPage/>}/>
     <Route path="/planes" element={<PlansPage/>}/>
-    <Route element={<RequireAdmin/>}><Route path="/admin" element={<AdminShell/>}><Route index element={<AdminDashboardPage/>}/><Route path="clientes" element={<AdminClientsPage/>}/><Route path="clientes/:id" element={<AdminClientDetailPage/>}/><Route path="planes" element={<AdminPlansPage/>}/><Route path="colecciones" element={<AdminCollectionsPage/>}/><Route path="karaokes" element={<AdminKaraokesPage/>}/><Route path="descargas" element={<AdminDownloadsPage/>}/><Route path="reproductor" element={<AdminDemoPlayerPage/>}/><Route path="sincronizacion" element={<AdminSyncPage/>}/></Route></Route>
+    <Route element={<RequireAdmin/>}><Route path="/admin" element={<AdminShell/>}><Route index element={<AdminDashboardPage/>}/><Route path="clientes" element={<AdminClientsPage/>}/><Route path="clientes/:id" element={<AdminClientDetailPage/>}/><Route path="pedidos" element={<AdminRequestsPage/>}/><Route path="planes" element={<AdminPlansPage/>}/><Route path="colecciones" element={<AdminCollectionsPage/>}/><Route path="karaokes" element={<AdminKaraokesPage/>}/><Route path="descargas" element={<AdminDownloadsPage/>}/><Route path="reproductor" element={<AdminDemoPlayerPage/>}/><Route path="sincronizacion" element={<AdminSyncPage/>}/></Route></Route>
   </Route>
   <Route path="*" element={<Navigate to="/panel" replace/>}/>
 </Routes>}
