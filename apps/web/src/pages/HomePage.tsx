@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { CollectionSummaryDTO } from "@djgabo/shared";
-import { CheckCircle2, Crown, FolderOpen, Loader2 } from "lucide-react";
+import { BellRing, CheckCircle2, Crown, FolderOpen, Loader2 } from "lucide-react";
 import { api } from "../lib/apiClient";
 import { CoverArt } from "../components/CoverArt";
 import { VipShell } from "../components/VipShell";
@@ -13,16 +13,50 @@ function sortCollections(a: CollectionSummaryDTO, b: CollectionSummaryDTO) {
 }
 function shortDate(iso: string) { return new Date(iso).toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" }); }
 
+interface KaraokeRequestNotice {
+  id: string;
+  sourceTitle: string | null;
+  sourceAuthor: string | null;
+  status: "REQUESTED" | "IN_PROGRESS" | "READY" | "REJECTED";
+  matchedKaraokeId: string | null;
+  matchedCollectionId: string | null;
+  matchedCollectionTitle: string | null;
+  readyAt: string | null;
+}
+
 export default function HomePage() {
   const [download, setDownload] = useState<CollectionSummaryDTO | null>(null);
   const { data = [], isLoading, isError } = useQuery({ queryKey: ["collections"], queryFn: () => api.get<CollectionSummaryDTO[]>("/collections") });
+  const { data: karaokeRequests = [] } = useQuery({
+    queryKey: ["karaoke-requests"],
+    queryFn: () => api.get<KaraokeRequestNotice[]>("/karaoke-requests"),
+  });
   const collections = useMemo(() => [...data].sort(sortCollections), [data]);
   const latest = collections.find((c) => !c.locked) ?? collections[0];
   const recent = collections.filter((c) => c.id !== latest?.id).slice(0, 4);
+  const readyRequest = karaokeRequests.find((request) => request.status === "READY" && request.matchedCollectionId);
 
   return (
     <VipShell>
       <div className="space-y-6">
+        {readyRequest && (
+          <Link
+            to={`/panel/actualizaciones/${readyRequest.matchedCollectionId}?karaoke=${readyRequest.matchedKaraokeId ?? ""}`}
+            className="flex items-center gap-3 rounded-[10px] border border-emerald-400/20 bg-emerald-400/[0.07] px-4 py-3 transition hover:bg-emerald-400/[0.10]"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-300">
+              <BellRing className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-bold text-emerald-300">Tu karaoke solicitado ya está listo</span>
+              <span className="mt-0.5 block truncate text-[11px] text-ink-secondary">
+                {readyRequest.sourceAuthor ? `${readyRequest.sourceAuthor} - ` : ""}{readyRequest.sourceTitle ?? "Karaoke solicitado"}
+                {readyRequest.matchedCollectionTitle ? ` · ${readyRequest.matchedCollectionTitle}` : ""}
+              </span>
+            </span>
+            <span className="shrink-0 text-[11px] font-bold text-primary">Ver →</span>
+          </Link>
+        )}
         {isLoading && <div className="flex justify-center py-24"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
         {isError && <div className="rounded-[10px] border border-white/[0.06] bg-card p-12 text-center text-[13px] text-muted-foreground">No se pudo cargar el catâlogo.</div>}
         {latest && (
