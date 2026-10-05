@@ -109,30 +109,41 @@ export class DropboxStorageProvider implements StorageProvider {
     return `${root}${key}`;
   }
 
-  private toDownloadNamespacePath(key: string): string {
+  private toDownloadNamespacePaths(key: string): string[] {
     const segments = key.split("/").filter(Boolean);
+    const candidates: string[] = [];
+    const push = (parts: string[]) => {
+      const value = parts.length ? `/${parts.join("/")}` : "";
+      if (!candidates.includes(value)) candidates.push(value);
+    };
+
     const rootSegments = this.config.rootPath.split("/").filter(Boolean);
     const rootName = rootSegments.at(-1)?.toLocaleLowerCase();
-
     if (rootName) {
       const rootIndex = segments.findIndex(
         (segment) => segment.toLocaleLowerCase() === rootName,
       );
-      if (rootIndex >= 0) {
-        const relative = segments.slice(rootIndex + 1);
-        return relative.length ? `/${relative.join("/")}` : "";
-      }
+      if (rootIndex >= 0) push(segments.slice(rootIndex + 1));
     }
 
-    // El namespace configurado apunta directamente a la raíz del catálogo.
-    // Si el path proviene de path_display (con carpetas personales previas),
-    // recortamos todo lo anterior a la carpeta del año.
+    // Team namespace: el root compartido contiene la colección, por lo que
+    // la ruta válida empieza en "3.- Colección Karaoke Top Hits Mundiales..."
+    const collectionIndex = segments.findIndex((segment) =>
+      segment
+        .normalize("NFD")
+        .replace(/[\\u0300-\\u036f]/g, "")
+        .toLocaleLowerCase()
+        .includes("coleccion karaoke top hits mundiales"),
+    );
+    if (collectionIndex >= 0) push(segments.slice(collectionIndex));
+
+    // Shared-folder namespace: el root puede ser directamente la colección y
+    // entonces la ruta válida empieza en la carpeta anual.
     const yearIndex = segments.findIndex((segment) => parseYearFolder(segment) !== null);
-    if (yearIndex >= 0) {
-      return `/${segments.slice(yearIndex).join("/")}`;
-    }
+    if (yearIndex >= 0) push(segments.slice(yearIndex));
 
-    return key.startsWith("/") ? key : `/${key}`;
+    push(segments);
+    return candidates;
   }
 
   private async getAccessToken(): Promise<string> {
@@ -382,27 +393,43 @@ export class DropboxStorageProvider implements StorageProvider {
 
   async downloadFolderZipStream(key: string): Promise<StorageDownloadStream> {
     const path = key.startsWith("id:") ? key : this.resolvePath(key);
-    let res: Response;
+    let res: Response | null = null;
+    let lastError: unknown = null;
+
     try {
       res = await this.content("/files/download_zip", { path });
     } catch (error) {
-      if (
-        error instanceof StorageError &&
-        error.reason === "NOT_FOUND" &&
-        !key.startsWith("id:") &&
-        this.config.downloadNamespaceId
-      ) {
-        const namespacePath = this.toDownloadNamespacePath(key);
-        res = await this.content(
-          "/files/download_zip",
-          { path: namespacePath },
-          0,
-          this.config.downloadNamespaceId,
-        );
-      } else {
-        throw error;
+      lastError = error;
+    }
+
+    if (
+      !res &&
+      lastError instanceof StorageError &&
+      lastError.reason === "NOT_FOUND" &&
+      !key.startsWith("id:") &&
+      this.config.downloadNamespaceId
+    ) {
+      const candidates = this.toDownloadNamespacePaths(key);
+      for (const namespacePath of candidates) {
+        try {
+          res = await this.content(
+            "/files/download_zip",
+            { path: namespacePath },
+            0,
+            this.config.downloadNamespaceId,
+          );
+          break;
+        } catch (error) {
+          lastError = error;
+          if (!(error instanceof StorageError) || error.reason !== "NOT_FOUND") {
+            throw error;
+          }
+        }
       }
     }
+
+    if (!res) throw lastError;
+
     const folderName = key.startsWith("id:")
       ? "coleccion"
       : path.split("/").filter(Boolean).pop() ?? "coleccion";
