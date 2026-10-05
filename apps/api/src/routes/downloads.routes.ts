@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
-import { Readable } from "node:stream";
+import { PassThrough, Readable } from "node:stream";
+import archiver from "archiver";
 import crypto from "node:crypto";
 import { and, eq, gte, isNull } from "drizzle-orm";
 import { parseMonthFolder, parseYearFolder } from "@djgabo/storage";
@@ -131,6 +132,107 @@ async function resolveCollectionZipKey(
   } catch {
     return collectionPath;
   }
+}
+
+interface ZipSourceFile {
+  path: string;
+  name: string;
+  providerFileId?: string;
+}
+
+function relativeZipEntryName(rootPath: string, filePath: string, fallbackName: string): string {
+  const root = rootPath.replace(/\/+$/, "");
+  let relative = filePath.startsWith(`${root}/`)
+    ? filePath.slice(root.length + 1)
+    : fallbackName;
+
+  relative = relative
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((segment) => segment && segment !== "." && segment !== "..")
+    .join("/");
+
+  return relative || fallbackName.replace(/[\\/]/g, "_") || "archivo";
+}
+
+async function listCollectionFilesRecursive(
+  fastify: FastifyInstance,
+  rootPath: string,
+): Promise<ZipSourceFile[]> {
+  const files: ZipSourceFile[] = [];
+  const pending = [rootPath];
+  const visited = new Set<string>();
+
+  while (pending.length) {
+    const folder = pending.shift()!;
+    if (visited.has(folder)) continue;
+    visited.add(folder);
+
+    const entries = await fastify.storageService.listFolderEntries(folder);
+    for (const entry of entries) {
+      if (entry.isFolder) {
+        pending.push(entry.path);
+        continue;
+      }
+
+      files.push({
+        path: entry.path,
+        name: entry.name,
+        providerFileId: entry.providerFileId,
+      });
+
+      if (files.length > 10_000) {
+        throw new Error("COLLECTION_TOO_MANY_FILES");
+      }
+    }
+  }
+
+  return files;
+}
+
+function createCollectionZipStream(
+  fastify: FastifyInstance,
+  rootPath: string,
+  files: ZipSourceFile[],
+): PassThrough {
+  const output = new PassThrough();
+  const archive = archiver("zip", { store: true });
+
+  archive.on("warning", (error) => {
+    fastify.log.warn({ err: error }, "ZIP stream warning");
+  });
+  archive.on("error", (error) => {
+    output.destroy(error);
+  });
+  archive.pipe(output);
+
+  void (async () => {
+    try {
+      for (const file of files) {
+        const download = file.providerFileId
+          ? await fastify.storageService.getSecureFileByProviderFileIdStream(file.providerFileId)
+          : await fastify.storageService.getSecureFileStream(file.path);
+
+        const source = Readable.fromWeb(download.body as never);
+        const entryName = relativeZipEntryName(rootPath, file.path, file.name);
+
+        const consumed = new Promise<void>((resolve, reject) => {
+          source.once("end", resolve);
+          source.once("error", reject);
+        });
+
+        archive.append(source, { name: entryName });
+        await consumed;
+      }
+
+      await archive.finalize();
+    } catch (error) {
+      archive.abort();
+      output.destroy(error instanceof Error ? error : new Error(String(error)));
+    }
+  })();
+
+  return output;
 }
 
 async function activeDevice(db: FastifyInstance["db"], userId: string, deviceId: string): Promise<boolean> {
@@ -565,22 +667,31 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
         return reply.code(409).send({ error: "COLLECTION_PATH_UNRESOLVED", message: "No se pudo resolver la carpeta real de esta colección.", statusCode: 409 });
       }
 
-      let download;
+      let zipFiles: ZipSourceFile[];
       try {
-        download = await fastify.storageService.getSecureFolderZipStream(folderKey);
+        zipFiles = await listCollectionFilesRecursive(fastify, folderKey);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (/too_large|too many|too_many_files/i.test(message)) {
+        if (/too_many_files/i.test(message)) {
           return reply.code(413).send({
             error: "COLLECTION_TOO_LARGE",
-            message: "Esta carpeta supera el límite de descarga ZIP directa. Descárgala por partes.",
+            message: "Esta carpeta contiene demasiados archivos para una sola descarga.",
             statusCode: 413,
           });
         }
         throw error;
       }
 
-      // El ticket se consume únicamente cuando Dropbox ya aceptó preparar el flujo.
+      if (zipFiles.length === 0) {
+        return reply.code(404).send({
+          error: "COLLECTION_EMPTY",
+          message: "La carpeta no contiene archivos descargables.",
+          statusCode: 404,
+        });
+      }
+
+      // El ticket se consume únicamente después de resolver correctamente
+      // todos los archivos reales de la carpeta mensual.
       const consumeResult = await db
         .update(downloadTickets)
         .set({ consumedAt: new Date() })
@@ -610,10 +721,10 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
 
       reply.header("Content-Type", "application/zip");
       reply.header("Content-Disposition", `attachment; filename="${safeFileName(collection.title)}.zip"`);
-      if (download.contentLength !== null && Number.isFinite(download.contentLength)) {
-        reply.header("Content-Length", String(download.contentLength));
-      }
-      return reply.send(Readable.fromWeb(download.body as never));
+      reply.header("Transfer-Encoding", "chunked");
+
+      const zipStream = createCollectionZipStream(fastify, folderKey, zipFiles);
+      return reply.send(zipStream);
     },
   );
 }
