@@ -125,6 +125,11 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
     new KaraokeRequestService(
       opts.db,
       `${opts.env.CATALOG_JSON_DIR ?? "./data/catalog"}/karaoke-requests.json`,
+      {
+        apiKey: opts.env.RESEND_API_KEY,
+        from: opts.env.KARAOKE_REQUEST_EMAIL_FROM,
+        publicUrl: opts.env.KARAOKE_REQUEST_PUBLIC_URL,
+      },
     ),
   );
 
