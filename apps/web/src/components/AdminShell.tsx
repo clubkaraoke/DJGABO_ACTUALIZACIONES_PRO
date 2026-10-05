@@ -35,7 +35,7 @@ export function AdminShell() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="admin-ui min-h-screen bg-background text-foreground">
       {open && (
         <button
           aria-label="Cerrar menú"
