@@ -9,7 +9,7 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / 1_000_000).toFixed(0)} MB`;
 }
 
-export function KaraokeRow({ karaoke, demoAllowed = false, fallbackCoverUrl = null }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean; fallbackCoverUrl?: string | null }) {
+export function KaraokeRow({ karaoke, demoAllowed = false }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean }) {
   const display = publicKaraokeDisplay(karaoke);
   const [showPreview, setShowPreview] = useState(false);
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
@@ -30,9 +30,9 @@ export function KaraokeRow({ karaoke, demoAllowed = false, fallbackCoverUrl = nu
     <tr className="border-b border-white/[0.05] last:border-0 hover:bg-white/[0.025]">
       <td className="px-4 py-2.5">
         <div className="h-9 w-9 overflow-hidden rounded-[4px] bg-secondary">
-          {karaoke.coverUrl || fallbackCoverUrl ? (
+          {karaoke.coverUrl ? (
             <img
-              src={karaoke.coverUrl || fallbackCoverUrl || ""}
+              src={karaoke.coverUrl}
               alt=""
               loading="lazy"
               className="h-full w-full object-cover"
