@@ -20,7 +20,7 @@ interface CacheEntry {
 }
 
 interface CacheDocument {
-  version: 2;
+  version: 3;
   updatedAt: string;
   entries: Record<string, CacheEntry>;
 }
@@ -58,19 +58,21 @@ interface Candidate {
 
 const NO_MATCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const ERROR_TTL_MS = 6 * 60 * 60 * 1000;
-const DEFAULT_BATCH_SIZE = 40;
-const DEFAULT_CONCURRENCY = 4;
-const BETWEEN_BATCHES_MS = 800;
+const DEFAULT_BATCH_SIZE = 60;
+const DEFAULT_CONCURRENCY = 5;
+const BETWEEN_BATCHES_MS = 500;
 const REQUEST_TIMEOUT_MS = 5000;
 
 const NOISE = new Set([
-  "karaoke", "official", "oficial", "video", "audio", "lyrics", "lyric", "letra",
+  "karaoke", "karaokes", "karoke", "karokes",
+  "official", "oficial", "video", "audio", "lyrics", "lyric", "letra",
   "hd", "4k", "coros", "coro", "instrumental", "inst", "segunda", "voz",
   "version", "versión", "live", "vivo",
 ]);
 
-function clean(value: string): string {
+function baseClean(value: string): string {
   return (value || "")
+    .replace(/\uFFFD/g, " ")
     .replace(/\([^)]*\)|\[[^\]]*\]/g, " ")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -82,13 +84,34 @@ function clean(value: string): string {
     .trim();
 }
 
+function cleanArtist(value: string): string {
+  return baseClean(value)
+    .replace(/\b(?:feat|featuring|ft)\b/g, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function cleanTitle(value: string): string {
+  const stripped = (value || "")
+    .replace(
+      /\s*[-–—]\s*(?:lf\s+kar(?:a)?okes?|dj\s*sauly|dj\s*sa|rfk|club\s+karaoke|kk\s+live|banda|coros?|instrumental|segunda\s+voz|mujer|hombre|dueto|d[uú]o|en\s+vivo|ver\s+cuarteto)\b.*$/gi,
+      " ",
+    )
+    .replace(/\b(?:lf\s+kar(?:a)?okes?|dj\s*sauly)\b/gi, " ");
+  return baseClean(stripped);
+}
+
+function clean(value: string): string {
+  return baseClean(value);
+}
+
 function keyFor(artist: string, title: string): string {
-  return `${clean(artist)}::${clean(title)}`;
+  return `${cleanArtist(artist)}::${cleanTitle(title)}`;
 }
 
 function tokenScore(a: string, b: string): number {
-  const A = new Set(clean(a).split(" ").filter(Boolean));
-  const B = new Set(clean(b).split(" ").filter(Boolean));
+  const A = new Set(cleanTitle(a).split(" ").filter(Boolean));
+  const B = new Set(cleanTitle(b).split(" ").filter(Boolean));
   if (!A.size || !B.size) return 0;
   let hits = 0;
   for (const token of A) if (B.has(token)) hits += 1;
@@ -96,8 +119,8 @@ function tokenScore(a: string, b: string): number {
 }
 
 function directionalCoverage(source: string, candidate: string): number {
-  const A = new Set(clean(source).split(" ").filter(Boolean));
-  const B = new Set(clean(candidate).split(" ").filter(Boolean));
+  const A = new Set(cleanArtist(source).split(" ").filter(Boolean));
+  const B = new Set(cleanArtist(candidate).split(" ").filter(Boolean));
   if (!A.size || !B.size) return 0;
 
   let sourceHits = 0;
@@ -110,8 +133,8 @@ function directionalCoverage(source: string, candidate: string): number {
 }
 
 function bigramScore(a: string, b: string): number {
-  const left = clean(a);
-  const right = clean(b);
+  const left = cleanTitle(a);
+  const right = cleanTitle(b);
   if (!left || !right) return 0;
   if (left === right) return 1;
   if (left.includes(right) || right.includes(left)) return 0.94;
@@ -153,7 +176,7 @@ function scoreCandidate(sourceArtist: string, sourceTitle: string, artist: strin
 } {
   const titleScore = titleSimilarity(sourceTitle, title);
   const artistScore = directionalCoverage(sourceArtist, artist);
-  const exactTitle = clean(sourceTitle) === clean(title) ? 0.18 : 0;
+  const exactTitle = cleanTitle(sourceTitle) === cleanTitle(title) ? 0.22 : 0;
 
   return {
     titleScore,
@@ -163,20 +186,25 @@ function scoreCandidate(sourceArtist: string, sourceTitle: string, artist: strin
 }
 
 function acceptable(candidate: Candidate, sourceTitle: string): boolean {
-  const normalizedTitle = clean(sourceTitle);
+  const normalizedTitle = cleanTitle(sourceTitle);
   const shortGeneric = normalizedTitle.split(" ").length === 1 && normalizedTitle.length <= 5;
 
   // Nivel A: título prácticamente idéntico. El artista confirma pero ya no bloquea
   // por nombres extendidos como "De Julio Aramburo La Bandononona".
-  if (candidate.titleScore >= 0.90) {
-    return shortGeneric ? candidate.artistScore >= 0.35 : candidate.artistScore >= 0.10;
+  if (candidate.titleScore >= 0.92) {
+    return shortGeneric ? candidate.artistScore >= 0.30 : true;
   }
 
-  // Nivel B: título cercano + alguna señal del artista.
-  if (candidate.titleScore >= 0.75 && candidate.artistScore >= 0.20) return true;
+  // Nivel B: título muy cercano. El artista ayuda, pero no bloquea nombres dañados
+  // o extendidos cuando el título es suficientemente distintivo.
+  if (candidate.titleScore >= 0.82) {
+    return shortGeneric ? candidate.artistScore >= 0.30 : candidate.artistScore >= 0.05;
+  }
 
-  // Nivel C: matching agresivo solicitado para maximizar cobertura.
-  if (candidate.titleScore >= 0.62 && candidate.artistScore >= 0.40) return true;
+  // Nivel C: matching agresivo para maximizar cobertura sin aceptar resultados aleatorios.
+  if (candidate.titleScore >= 0.68 && candidate.artistScore >= 0.20) return true;
+
+  if (candidate.titleScore >= 0.60 && candidate.artistScore >= 0.50) return true;
 
   return false;
 }
@@ -216,14 +244,14 @@ export class CoverEnrichmentService {
     if (this.cache) return this.cache;
     try {
       const parsed = JSON.parse(await readFile(this.cachePath, "utf8")) as CacheDocument;
-      if (parsed?.version === 2 && parsed.entries) {
+      if (parsed?.version === 3 && parsed.entries) {
         this.cache = parsed;
         return parsed;
       }
     } catch {
       // First run: create an empty persistent cache.
     }
-    this.cache = { version: 2, updatedAt: nowIso(), entries: {} };
+    this.cache = { version: 3, updatedAt: nowIso(), entries: {} };
     return this.cache;
   }
 
@@ -237,12 +265,12 @@ export class CoverEnrichmentService {
   }
 
   private async searchDeezer(artist: string, title: string): Promise<Candidate | null> {
-    const cleanArtist = clean(artist);
-    const cleanTitle = clean(title);
+    const cleanArtistValue = cleanArtist(artist);
+    const cleanTitleValue = cleanTitle(title);
     const queries = [
-      [cleanArtist, cleanTitle].filter(Boolean).join(" ").trim(),
-      [cleanTitle, cleanArtist.split(" ").slice(0, 4).join(" ")].filter(Boolean).join(" ").trim(),
-      cleanTitle,
+      [cleanArtistValue, cleanTitleValue].filter(Boolean).join(" ").trim(),
+      [cleanTitleValue, cleanArtistValue.split(" ").slice(0, 4).join(" ")].filter(Boolean).join(" ").trim(),
+      cleanTitleValue,
     ].filter((query, index, all) => query && all.indexOf(query) === index);
 
     const candidates: Candidate[] = [];
@@ -273,12 +301,12 @@ export class CoverEnrichmentService {
   }
 
   private async searchItunes(artist: string, title: string): Promise<Candidate | null> {
-    const cleanArtist = clean(artist);
-    const cleanTitle = clean(title);
+    const cleanArtistValue = cleanArtist(artist);
+    const cleanTitleValue = cleanTitle(title);
     const terms = [
-      [cleanArtist, cleanTitle].filter(Boolean).join(" ").trim(),
-      [cleanTitle, cleanArtist.split(" ").slice(0, 4).join(" ")].filter(Boolean).join(" ").trim(),
-      cleanTitle,
+      [cleanArtistValue, cleanTitleValue].filter(Boolean).join(" ").trim(),
+      [cleanTitleValue, cleanArtistValue.split(" ").slice(0, 4).join(" ")].filter(Boolean).join(" ").trim(),
+      cleanTitleValue,
     ].filter((term, index, all) => term && all.indexOf(term) === index);
 
     const candidates: Candidate[] = [];
