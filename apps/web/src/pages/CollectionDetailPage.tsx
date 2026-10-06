@@ -109,6 +109,19 @@ export default function CollectionDetailPage() {
       (catalog?.karaokes ?? []).map((karaoke) => [karaoke.id, karaoke.brand]),
     );
 
+    // Colecciones históricas anuales (month=0) no usan las cinco marcas
+    // mensuales. Todo el catálogo publicado se muestra como un único grupo.
+    if (data.collection.month === 0) {
+      const label = `Hits Karaoke ${data.collection.year}`;
+      const items = data.karaokes
+        .filter((karaoke) => !catalogIds || catalogIds.has(karaoke.id))
+        .filter((karaoke) => !search || publicSearchMatches(karaoke, search));
+
+      return items.length > 0 || !search
+        ? [[label, items] as [string, KaraokeSummaryDTO[]]]
+        : [];
+    }
+
     const realGroups = [
       ...(catalog?.brands ?? []).map((brand) => brand.name),
       ...data.karaokes
@@ -312,7 +325,7 @@ export default function CollectionDetailPage() {
                                     <KaraokeRow
                                       key={karaoke.id}
                                       karaoke={karaoke}
-                                      demoAllowed={name === "Club Karaoke" && demoSettings?.enabled === true}
+                                      demoAllowed={demoSettings?.enabled === true}
                                     />
                                   ))}
                                 </tbody>
