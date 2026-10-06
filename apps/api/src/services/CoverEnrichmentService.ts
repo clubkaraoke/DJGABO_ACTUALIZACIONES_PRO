@@ -58,9 +58,9 @@ interface Candidate {
 
 const NO_MATCH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const ERROR_TTL_MS = 6 * 60 * 60 * 1000;
-const DEFAULT_BATCH_SIZE = 60;
+const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_CONCURRENCY = 5;
-const BETWEEN_BATCHES_MS = 500;
+const BETWEEN_BATCHES_MS = 250;
 const REQUEST_TIMEOUT_MS = 5000;
 
 const NOISE = new Set([
@@ -387,8 +387,9 @@ export class CoverEnrichmentService {
           collectionId: karaokes.collectionId,
         })
         .from(karaokes)
+        .innerJoin(collections, eq(karaokes.collectionId, collections.id))
         .where(isNull(karaokes.coverUrl))
-        .orderBy(desc(karaokes.createdAt));
+        .orderBy(desc(collections.year), desc(collections.month), desc(karaokes.createdAt));
 
       const queue = rows.filter((row) => {
         const entry = cache.entries[keyFor(row.artist, row.title)];
