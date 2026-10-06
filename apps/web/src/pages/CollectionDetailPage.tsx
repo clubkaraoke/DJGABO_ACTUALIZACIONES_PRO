@@ -311,8 +311,8 @@ export default function CollectionDetailPage() {
                             </div>
                           ) : (
                             <div className="overflow-x-auto">
-                              <table className="w-full min-w-[760px]">
-                                <thead>
+                              <table className="w-full md:min-w-[760px]">
+                                <thead className="hidden md:table-header-group">
                                   <tr className="border-b border-white/[0.06] text-left font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
                                     <th className="w-[56px] px-4 py-2.5">Cover</th>
                                     <th className="px-4 py-2.5">Karaoke</th>

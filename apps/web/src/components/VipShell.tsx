@@ -95,11 +95,7 @@ export function VipShell({ children, searchValue = "", onSearchChange, searchPla
               <div className="hidden max-w-[150px] truncate text-[12px] text-muted-foreground lg:block">{user.name || user.email}</div>
               <button onClick={() => logout()} className="text-[13px] text-muted-foreground hover:text-foreground">Salir</button>
             </>
-          ) : (
-            <button onClick={() => navigate("/login")} className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.10] px-3 py-2 text-[12px] font-semibold text-foreground hover:bg-white/[0.04]">
-              <LogIn className="h-3.5 w-3.5" /> Acceso VIP
-            </button>
-          )}
+          ) : null}
         </header>
         <main className="mx-auto max-w-[1600px] px-4 py-5 md:px-6">{children}</main>
       </div>
