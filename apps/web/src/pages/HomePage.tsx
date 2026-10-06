@@ -7,6 +7,8 @@ import { api } from "../lib/apiClient";
 import { CoverArt } from "../components/CoverArt";
 import { VipShell } from "../components/VipShell";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
+import { VipAccessModal } from "../components/VipAccessModal";
+import { useAuth } from "../lib/authContext";
 
 function sortCollections(a: CollectionSummaryDTO, b: CollectionSummaryDTO) {
   return b.year - a.year || b.month - a.month || new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
@@ -25,11 +27,17 @@ interface KaraokeRequestNotice {
 }
 
 export default function HomePage() {
+  const { user } = useAuth();
   const [download, setDownload] = useState<CollectionSummaryDTO | null>(null);
-  const { data = [], isLoading, isError } = useQuery({ queryKey: ["collections"], queryFn: () => api.get<CollectionSummaryDTO[]>("/collections") });
+  const [showVip, setShowVip] = useState(false);
+  const { data = [], isLoading, isError } = useQuery({
+    queryKey: ["collections", user ? "private" : "public"],
+    queryFn: () => api.get<CollectionSummaryDTO[]>(user ? "/collections" : "/public/collections"),
+  });
   const { data: karaokeRequests = [] } = useQuery({
-    queryKey: ["karaoke-requests"],
+    queryKey: ["karaoke-requests", user?.id ?? "guest"],
     queryFn: () => api.get<KaraokeRequestNotice[]>("/karaoke-requests"),
+    enabled: Boolean(user),
   });
   const collections = useMemo(() => [...data].sort(sortCollections), [data]);
   const latest = collections.find((c) => !c.locked) ?? collections[0];
@@ -74,7 +82,7 @@ export default function HomePage() {
                   <p className="mb-4 font-mono text-[11px] text-muted-foreground">{latest.karaokeCount} karaokes • Última subida: {shortDate(latest.updatedAt)}</p>
                   <div className="flex flex-wrap gap-2.5">
                     <Link to={`/panel/actualizaciones/${latest.id}`} className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-[13px] font-semibold text-black hover:brightness-95"><FolderOpen className="h-4 w-4" /> Ver paquete</Link>
-                    {!latest.locked && <button onClick={() => setDownload(latest)} className="rounded-full border border-white/[0.12] px-4 py-2 text-[13px] font-medium hover:bg-white/[0.04]">Descargar todo</button>}
+                    <button onClick={() => user ? setDownload(latest) : setShowVip(true)} className="rounded-full border border-white/[0.12] px-4 py-2 text-[13px] font-medium hover:bg-white/[0.04]">Descargar todo</button>
                   </div>
                 </div>
               </div>
@@ -96,6 +104,7 @@ export default function HomePage() {
         )}
       </div>
       {download && <BatchDownloadModal collectionId={download.id} title={download.title} onClose={() => setDownload(null)} />}
+      {showVip && <VipAccessModal onClose={() => setShowVip(false)} />}
     </VipShell>
   );
 }

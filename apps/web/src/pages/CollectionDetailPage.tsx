@@ -8,6 +8,8 @@ import { CoverArt } from "../components/CoverArt";
 import { VipShell } from "../components/VipShell";
 import { KaraokeRow } from "../components/KaraokeRow";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
+import { VipAccessModal } from "../components/VipAccessModal";
+import { useAuth } from "../lib/authContext";
 import { EmptyState } from "../components/primitives";
 import { buildPublicFolderAliases, publicSearchMatches } from "../lib/publicCatalogPresentation";
 
@@ -58,12 +60,14 @@ function formatUpdatedAt(iso: string): string {
 }
 
 export default function CollectionDetailPage() {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const requestedFolder = searchParams.get("folder");
   const [query] = useState("");
   const [open, setOpen] = useState<string | null>(requestedFolder);
   const [showBatch, setShowBatch] = useState(false);
+  const [showVip, setShowVip] = useState(false);
 
   const {
     data,
@@ -71,7 +75,7 @@ export default function CollectionDetailPage() {
     error,
   } = useQuery({
     queryKey: ["collection", id],
-    queryFn: () => api.get<CollectionDetailDTO>(`/collections/${id}`),
+    queryFn: () => api.get<CollectionDetailDTO>(`/public/collections/${id}`),
     enabled: Boolean(id),
     retry: false,
   });
@@ -264,14 +268,12 @@ export default function CollectionDetailPage() {
                     <Share2 className="h-3.5 w-3.5" />
                     Compartir
                   </button>
-                  {!data.collection.locked && (
-                    <button
-                      onClick={() => setShowBatch(true)}
-                      className="rounded-md bg-primary px-3.5 py-2 text-[13px] font-semibold text-black hover:brightness-95"
-                    >
-                      Descargar todo
-                    </button>
-                  )}
+                  <button
+                    onClick={() => user ? setShowBatch(true) : setShowVip(true)}
+                    className="rounded-md bg-primary px-3.5 py-2 text-[13px] font-semibold text-black hover:brightness-95"
+                  >
+                    Descargar todo
+                  </button>
                 </div>
               </div>
             </div>
@@ -347,6 +349,7 @@ export default function CollectionDetailPage() {
                 onClose={() => setShowBatch(false)}
               />
             )}
+            {showVip && <VipAccessModal onClose={() => setShowVip(false)} />}
           </>
         )}
       </div>

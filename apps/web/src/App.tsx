@@ -20,18 +20,40 @@ import AdminRequestsPage from "./pages/admin/AdminRequestsPage";
 import AdminSyncPage from "./pages/admin/AdminSyncPage";
 import AdminDemoPlayerPage from "./pages/admin/AdminDemoPlayerPage";
 
-export default function App(){return <Routes>
-  <Route path="/login" element={<LoginPage/>}/>
-  <Route element={<RequireAuth/>}>
-    <Route path="/" element={<Navigate to="/panel" replace/>}/>
-    <Route path="/panel" element={<HomePage/>}/>
-    <Route path="/panel/actualizaciones" element={<UpdatesPage/>}/>
-    <Route path="/panel/actualizaciones/:id" element={<CollectionDetailPage/>}/>
-    <Route path="/panel/paquetes" element={<PackagesPage/>}/>
-    <Route path="/panel/a-pedido" element={<OrderPage/>}/>
-    <Route path="/panel/buscar" element={<SearchPage/>}/>
-    <Route path="/planes" element={<PlansPage/>}/>
-    <Route element={<RequireAdmin/>}><Route path="/admin" element={<AdminShell/>}><Route index element={<AdminDashboardPage/>}/><Route path="clientes" element={<AdminClientsPage/>}/><Route path="clientes/:id" element={<AdminClientDetailPage/>}/><Route path="pedidos" element={<AdminRequestsPage/>}/><Route path="planes" element={<AdminPlansPage/>}/><Route path="colecciones" element={<AdminCollectionsPage/>}/><Route path="karaokes" element={<AdminKaraokesPage/>}/><Route path="descargas" element={<AdminDownloadsPage/>}/><Route path="reproductor" element={<AdminDemoPlayerPage/>}/><Route path="sincronizacion" element={<AdminSyncPage/>}/></Route></Route>
-  </Route>
-  <Route path="*" element={<Navigate to="/panel" replace/>}/>
-</Routes>}
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+
+      {/* Web pública: catálogo completo visible sin login. */}
+      <Route path="/" element={<Navigate to="/panel" replace />} />
+      <Route path="/panel" element={<HomePage />} />
+      <Route path="/panel/actualizaciones" element={<UpdatesPage />} />
+      <Route path="/panel/actualizaciones/:id" element={<CollectionDetailPage />} />
+      <Route path="/panel/paquetes" element={<PackagesPage />} />
+      <Route path="/panel/a-pedido" element={<OrderPage />} />
+      <Route path="/panel/buscar" element={<SearchPage />} />
+      <Route path="/planes" element={<PlansPage />} />
+
+      {/* Admin sigue protegido por sesión + rol. */}
+      <Route element={<RequireAuth />}>
+        <Route element={<RequireAdmin />}>
+          <Route path="/admin" element={<AdminShell />}>
+            <Route index element={<AdminDashboardPage />} />
+            <Route path="clientes" element={<AdminClientsPage />} />
+            <Route path="clientes/:id" element={<AdminClientDetailPage />} />
+            <Route path="pedidos" element={<AdminRequestsPage />} />
+            <Route path="planes" element={<AdminPlansPage />} />
+            <Route path="colecciones" element={<AdminCollectionsPage />} />
+            <Route path="karaokes" element={<AdminKaraokesPage />} />
+            <Route path="descargas" element={<AdminDownloadsPage />} />
+            <Route path="reproductor" element={<AdminDemoPlayerPage />} />
+            <Route path="sincronizacion" element={<AdminSyncPage />} />
+          </Route>
+        </Route>
+      </Route>
+
+      <Route path="*" element={<Navigate to="/panel" replace />} />
+    </Routes>
+  );
+}

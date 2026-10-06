@@ -1,7 +1,10 @@
 import { useState } from "react";
 import type { KaraokeSummaryDTO } from "@djgabo/shared";
 import { createKaraokeDownloadTicket, openSecureDownload } from "../lib/secureDownloads";
+import { ApiError } from "../lib/apiClient";
+import { useAuth } from "../lib/authContext";
 import { CdgDemoModal } from "./CdgDemoModal";
+import { VipAccessModal } from "./VipAccessModal";
 import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
 
 function formatSize(bytes: number | null): string {
@@ -10,17 +13,32 @@ function formatSize(bytes: number | null): string {
 }
 
 export function KaraokeRow({ karaoke, demoAllowed = false }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean }) {
+  const { user } = useAuth();
   const display = publicKaraokeDisplay(karaoke);
   const [showPreview, setShowPreview] = useState(false);
+  const [showVip, setShowVip] = useState(false);
+  const [vipMessage, setVipMessage] = useState<string | undefined>();
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
 
   async function handleDownload() {
+    if (!user) {
+      setVipMessage(undefined);
+      setShowVip(true);
+      return;
+    }
+
     setDownloadState("loading");
     try {
       const ticket = await createKaraokeDownloadTicket(karaoke.id);
       openSecureDownload(ticket.downloadPath);
       setDownloadState("idle");
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError && (error.statusCode === 401 || error.statusCode === 403)) {
+        setVipMessage(error.message);
+        setShowVip(true);
+        setDownloadState("idle");
+        return;
+      }
       setDownloadState("error");
       setTimeout(() => setDownloadState("idle"), 2500);
     }
@@ -88,6 +106,13 @@ export function KaraokeRow({ karaoke, demoAllowed = false }: { karaoke: KaraokeS
           karaokeId={karaoke.id}
           title={display.label}
           onClose={() => setShowPreview(false)}
+        />
+      )}
+      {showVip && (
+        <VipAccessModal
+          loggedIn={Boolean(user)}
+          message={vipMessage}
+          onClose={() => setShowVip(false)}
         />
       )}
     </tr>

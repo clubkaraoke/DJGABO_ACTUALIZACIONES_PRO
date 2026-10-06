@@ -6,20 +6,22 @@ import { FolderOpen, Loader2 } from "lucide-react";
 import { api } from "../lib/apiClient";
 import { VipShell } from "../components/VipShell";
 import { publicFolderAlias, publicKaraokeDisplay, publicSearchMatches } from "../lib/publicCatalogPresentation";
+import { useAuth } from "../lib/authContext";
 
 export default function SearchPage() {
+  const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ["karaoke-search", q],
-    queryFn: () => api.get<KaraokeSummaryDTO[]>(`/karaokes/search?q=${encodeURIComponent(q)}`),
+    queryKey: ["karaoke-search", user ? "private" : "public", q],
+    queryFn: () => api.get<KaraokeSummaryDTO[]>(`${user ? "" : "/public"}/karaokes/search?q=${encodeURIComponent(q)}`),
     enabled: q.trim().length > 0,
   });
 
   const { data: collections = [] } = useQuery({
-    queryKey: ["collections"],
-    queryFn: () => api.get<CollectionSummaryDTO[]>("/collections"),
+    queryKey: ["collections", user ? "private" : "public"],
+    queryFn: () => api.get<CollectionSummaryDTO[]>(user ? "/collections" : "/public/collections"),
   });
 
   const collectionById = useMemo(
@@ -33,10 +35,12 @@ export default function SearchPage() {
   const visibleData = useMemo(
     () =>
       data.filter((karaoke) => {
+        const collection = collectionById.get(karaoke.collectionId);
+        if (collection?.month === 0) return publicSearchMatches(karaoke, q);
         const folder = publicFolderAlias(karaoke.sourceGroup);
         return Boolean(folder) && publicSearchMatches(karaoke, q);
       }),
-    [data, q],
+    [data, q, collectionById],
   );
 
   return (
@@ -70,7 +74,9 @@ export default function SearchPage() {
             {visibleData.map((karaoke) => {
               const display = publicKaraokeDisplay(karaoke);
               const collection = collectionById.get(karaoke.collectionId);
-              const folder = publicFolderAlias(karaoke.sourceGroup)!;
+              const folder = collection?.month === 0
+                ? `Hits Karaoke ${collection.year}`
+                : publicFolderAlias(karaoke.sourceGroup) ?? "DJGABO";
               const href = `/panel/actualizaciones/${karaoke.collectionId}?folder=${encodeURIComponent(folder)}&karaoke=${encodeURIComponent(karaoke.id)}`;
 
               return (

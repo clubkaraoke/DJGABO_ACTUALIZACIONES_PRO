@@ -4,6 +4,8 @@ import { CheckCircle2, Clock3, ExternalLink, Loader2, Music2, SearchCheck, Spark
 import { Link } from "react-router-dom";
 import { VipShell } from "../components/VipShell";
 import { api, ApiError } from "../lib/apiClient";
+import { useAuth } from "../lib/authContext";
+import { VipAccessModal } from "../components/VipAccessModal";
 
 type RequestStatus = "REQUESTED" | "IN_PROGRESS" | "READY" | "REJECTED";
 
@@ -51,19 +53,26 @@ function formatDate(value: string) {
 }
 
 export default function OrderPage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [available, setAvailable] = useState<CreateResponse["match"] | null>(null);
+  const [showVip, setShowVip] = useState(false);
 
   const { data: requests = [], isLoading } = useQuery({
-    queryKey: ["karaoke-requests"],
+    queryKey: ["karaoke-requests", user?.id ?? "guest"],
     queryFn: () => api.get<KaraokeRequest[]>("/karaoke-requests"),
+    enabled: Boolean(user),
   });
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (!user) {
+      setShowVip(true);
+      return;
+    }
     const value = youtubeUrl.trim();
     if (!value || submitting) return;
 
@@ -214,6 +223,12 @@ export default function OrderPage() {
           </div>
         </section>
       </div>
+      {showVip && (
+        <VipAccessModal
+          onClose={() => setShowVip(false)}
+          message="La sección A pedido es exclusiva para usuarios VIP. Inicia sesión o revisa los planes para solicitar canciones."
+        />
+      )}
     </VipShell>
   );
 }

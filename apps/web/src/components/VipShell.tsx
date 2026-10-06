@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Crown, FolderOpen, Home, Menu, Package, Search, Shield, Sparkles, X } from "lucide-react";
+import { Crown, FolderOpen, Home, LogIn, Menu, Package, Search, Shield, Sparkles, X } from "lucide-react";
 import { useAuth } from "../lib/authContext";
 
 const nav = [
@@ -20,7 +20,6 @@ export function VipShell({ children, searchValue = "", onSearchChange, searchPla
   const [localSearch, setLocalSearch] = useState("");
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  if (!user) return null;
 
   const displayedSearch = onSearchChange ? searchValue : localSearch;
   const submitSearch = (e: FormEvent) => {
@@ -50,18 +49,32 @@ export function VipShell({ children, searchValue = "", onSearchChange, searchPla
               <item.icon className="h-4 w-4 shrink-0" />{item.label}
             </NavLink>
           ))}
-          {user.role === "ADMIN" && (
+
+          {user?.role === "ADMIN" ? (
             <NavLink to="/admin" onClick={() => setOpen(false)} className={({ isActive }) => `mt-1.5 flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium ${isActive ? "bg-primary/[0.12] text-primary" : "text-primary/80 hover:bg-primary/[0.06] hover:text-primary"}`}>
               <Shield className="h-4 w-4" />Panel Admin
             </NavLink>
-          )}
+          ) : !user ? (
+            <NavLink to="/login" onClick={() => setOpen(false)} className="mt-1.5 flex items-center gap-3 rounded-md px-3 py-2 text-[13px] font-medium text-primary/90 hover:bg-primary/[0.06] hover:text-primary">
+              <LogIn className="h-4 w-4" />Acceso VIP
+            </NavLink>
+          ) : null}
         </nav>
 
         <div className="p-3">
           <div className="rounded-lg border border-white/[0.06] bg-secondary p-3.5">
             <div className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-primary"><Crown className="h-3 w-3" /> MEMBRESÍA VIP</div>
-            <div className="mb-1 text-[13px] font-semibold">{user.plan?.name ?? "Acceso VIP"}</div>
-            <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">Accede a tus colecciones, paquetes y nuevos lanzamientos DJGABO.</p>
+            <div className="mb-1 text-[13px] font-semibold">{user?.plan?.name ?? (user ? "Acceso VIP" : "Explora gratis")}</div>
+            <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
+              {user
+                ? "Accede a tus colecciones, paquetes y nuevos lanzamientos DJGABO."
+                : "Mira todo el catálogo y escucha demos. Inicia sesión o elige un plan para descargar."}
+            </p>
+            {!user && (
+              <button onClick={() => navigate("/login")} className="mb-2 w-full rounded-md border border-primary/30 py-1.5 text-[12px] font-semibold text-primary hover:bg-primary/[0.06]">
+                Acceso VIP
+              </button>
+            )}
             <button onClick={() => navigate("/planes")} className="w-full rounded-md bg-primary py-1.5 text-[12px] font-semibold text-black hover:brightness-95">Planes y Precios</button>
           </div>
         </div>
@@ -74,9 +87,19 @@ export function VipShell({ children, searchValue = "", onSearchChange, searchPla
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input value={displayedSearch} onChange={(e) => onSearchChange ? onSearchChange(e.target.value) : setLocalSearch(e.target.value)} placeholder={searchPlaceholder} className="h-[38px] w-full rounded-full border border-white/[0.06] bg-secondary pl-10 pr-4 text-[13px] placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none" />
           </form>
+
           <button onClick={() => navigate("/planes")} className="ml-auto hidden items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-[13px] font-semibold text-black hover:brightness-95 sm:inline-flex"><Crown className="h-4 w-4" /> Planes y Precios</button>
-          <div className="hidden max-w-[150px] truncate text-[12px] text-muted-foreground lg:block">{user.name || user.email}</div>
-          <button onClick={() => logout()} className="text-[13px] text-muted-foreground hover:text-foreground">Salir</button>
+
+          {user ? (
+            <>
+              <div className="hidden max-w-[150px] truncate text-[12px] text-muted-foreground lg:block">{user.name || user.email}</div>
+              <button onClick={() => logout()} className="text-[13px] text-muted-foreground hover:text-foreground">Salir</button>
+            </>
+          ) : (
+            <button onClick={() => navigate("/login")} className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.10] px-3 py-2 text-[12px] font-semibold text-foreground hover:bg-white/[0.04]">
+              <LogIn className="h-3.5 w-3.5" /> Acceso VIP
+            </button>
+          )}
         </header>
         <main className="mx-auto max-w-[1600px] px-4 py-5 md:px-6">{children}</main>
       </div>
