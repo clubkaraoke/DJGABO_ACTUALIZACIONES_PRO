@@ -69,3 +69,21 @@ export function prettifySourceGroup(group: string): string {
     .replace(/\brfk\b/gi, "RFK")
     .trim();
 }
+
+function normalizeSourceName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[_./-]+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+/** Fuente real habilitada para demo CDG, basada en el path físico del asset. */
+export function isClubKaraokeSource(group: string | null): boolean {
+  if (!group) return false;
+  const value = normalizeSourceName(group);
+  return value.includes("club karaoke") || value.includes("el club karaoke") || value.includes("prod club");
+}

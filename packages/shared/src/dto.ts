@@ -47,6 +47,8 @@ export interface KaraokeSummaryDTO {
   coverUrl: string | null;
   collectionId: string;
   hasPreview: boolean;
+  /** true solo cuando el origen físico del master está habilitado para demo CDG. */
+  demoAvailable: boolean;
   hasMaster: boolean;
   publishedAt: string | null;
   /** Subcarpeta/marca de origen dentro del mes, por ejemplo 02_KK-Live. */

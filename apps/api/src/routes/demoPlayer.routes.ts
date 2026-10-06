@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { assets, collections, karaokes } from "../db/schema.js";
-import { deriveSourceGroup } from "../services/sourceGroup.js";
+import { deriveSourceGroup, isClubKaraokeSource } from "../services/sourceGroup.js";
 import { signDemoTicket, verifyDemoTicket } from "../auth/demoTicket.js";
 import {
   DEMO_BACKGROUND_TYPES,
@@ -36,23 +36,6 @@ const uploadSchema = z.object({
   kind: z.enum(["background", "logo"]),
   dataUrl: z.string().min(20),
 });
-
-function normalize(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[_./-]+/g, " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-function isClubKaraokeSource(group: string | null): boolean {
-  if (!group) return false;
-  const value = normalize(group);
-  return value.includes("club karaoke") || value.includes("el club karaoke") || value.includes("prod club");
-}
 
 function replaceExtension(path: string, extension: string): string {
   const slash = path.lastIndexOf("/");

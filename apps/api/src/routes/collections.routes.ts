@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { eq, desc, asc, count } from "drizzle-orm";
 import type { CollectionSummaryDTO, CollectionDetailDTO, KaraokeSummaryDTO, ArchiveStatusDTO } from "@djgabo/shared";
 import { getAccessibleCollectionIds } from "../services/accessibleCollections.js";
-import { deriveSourceGroup } from "../services/sourceGroup.js";
+import { deriveSourceGroup, isClubKaraokeSource } from "../services/sourceGroup.js";
 import { collections, karaokes } from "../db/schema.js";
 
 function toSummaryDTO(
@@ -66,6 +66,11 @@ export function toKaraokeDTO(
   masterAsset?: MasterAssetForDTO | null,
   collectionStoragePath?: string,
 ): KaraokeSummaryDTO {
+  const sourceGroup =
+    masterAsset && collectionStoragePath
+      ? deriveSourceGroup(masterAsset.storageKey, collectionStoragePath)
+      : null;
+
   return {
     id: k.id,
     title: k.title,
@@ -78,12 +83,10 @@ export function toKaraokeDTO(
     coverUrl: k.coverUrl,
     collectionId: k.collectionId,
     hasPreview: Boolean(k.previewAssetId),
+    demoAvailable: Boolean(k.masterAssetId) && isClubKaraokeSource(sourceGroup),
     hasMaster: Boolean(k.masterAssetId),
     publishedAt: k.publishedAt?.toISOString() ?? null,
-    sourceGroup:
-      masterAsset && collectionStoragePath
-        ? deriveSourceGroup(masterAsset.storageKey, collectionStoragePath)
-        : null,
+    sourceGroup,
   };
 }
 
