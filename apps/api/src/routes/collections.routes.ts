@@ -93,6 +93,43 @@ export function toKaraokeDTO(
 export async function registerCollectionsRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
 
+  // Catálogo público: visible para visitantes, sin conceder ninguna descarga.
+  fastify.get("/api/public/collections", async (_request, reply) => {
+    const activeCollections = await db.query.collections.findMany({
+      where: eq(collections.active, true),
+      orderBy: [desc(collections.year), desc(collections.month), asc(collections.sortOrder)],
+    });
+
+    const dto: CollectionSummaryDTO[] = [];
+    for (const c of activeCollections) {
+      const [row] = await db.select({ value: count() }).from(karaokes).where(eq(karaokes.collectionId, c.id));
+      dto.push(toSummaryDTO(c, row?.value ?? 0, false));
+    }
+    return reply.send(dto);
+  });
+
+  fastify.get<{ Params: { id: string } }>("/api/public/collections/:id", async (request, reply) => {
+    const { id } = request.params;
+    const collection = await db.query.collections.findFirst({ where: eq(collections.id, id) });
+    if (!collection || !collection.active) {
+      return reply.code(404).send({ error: "COLLECTION_NOT_FOUND", message: "Colección no encontrada", statusCode: 404 });
+    }
+
+    const collectionKaraokes = await db.query.karaokes.findMany({
+      where: eq(karaokes.collectionId, id),
+      orderBy: asc(karaokes.title),
+      with: { masterAsset: true },
+    });
+
+    const dto: CollectionDetailDTO = {
+      collection: toSummaryDTO(collection, collectionKaraokes.length, false),
+      karaokes: collectionKaraokes.map((karaoke) =>
+        toKaraokeDTO(karaoke, karaoke.masterAsset, collection.storagePath),
+      ),
+    };
+    return reply.send(dto);
+  });
+
   fastify.get("/api/collections", { preHandler: fastify.authenticate }, async (request, reply) => {
     const { sub: userId, role } = request.authUser!;
     const accessibleIds = new Set(await getAccessibleCollectionIds(db, userId, role));

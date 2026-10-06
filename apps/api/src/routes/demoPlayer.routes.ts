@@ -60,7 +60,7 @@ type DemoMedia =
 
 async function resolveDemoMedia(
   fastify: FastifyInstance,
-  userId: string,
+  userId: string | null,
   karaokeId: string,
   options: { requireCdg?: boolean } = {},
 ): Promise<DemoMedia> {
@@ -74,13 +74,15 @@ async function resolveDemoMedia(
     return { ok: false, status: 404, error: "KARAOKE_NOT_FOUND", message: "Karaoke no encontrado." };
   }
 
-  const access = await fastify.authorizationService.canAccessCollection(userId, karaoke.collectionId);
-  if (!access.allowed) {
-    return { ok: false, status: 403, error: access.reason ?? "FORBIDDEN", message: "No tienes acceso a esta colección." };
+  if (userId) {
+    const access = await fastify.authorizationService.canAccessCollection(userId, karaoke.collectionId);
+    if (!access.allowed) {
+      return { ok: false, status: 403, error: access.reason ?? "FORBIDDEN", message: "No tienes acceso a esta colección." };
+    }
   }
 
   const collection = await fastify.db.query.collections.findFirst({ where: (c, { eq }) => eq(c.id, karaoke.collectionId) });
-  if (!collection || !karaoke.masterAssetId) {
+  if (!collection || !collection.active || !karaoke.masterAssetId) {
     return { ok: false, status: 404, error: "ASSET_NOT_AVAILABLE", message: "El karaoke no tiene audio disponible." };
   }
 
@@ -161,7 +163,6 @@ async function resolveDemoMedia(
 export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
   fastify.get(
     "/api/demo-player/settings",
-    { preHandler: fastify.authenticate },
     async (_request, reply) => reply.send(await fastify.demoPlayerSettingsService.get()),
   );
 
@@ -182,9 +183,8 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
 
   fastify.get<{ Params: { id: string } }>(
     "/api/preview/cdg/:id/config",
-    { preHandler: fastify.authenticate },
     async (request, reply) => {
-      const resolved = await resolveDemoMedia(fastify, request.authUser!.sub, request.params.id);
+      const resolved = await resolveDemoMedia(fastify, null, request.params.id);
       if (!resolved.ok) return reply.code(resolved.status).send(resolved);
 
       const activePreset =
@@ -192,7 +192,7 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
         resolved.settings.presets[0]!;
 
       const ticket = signDemoTicket(fastify.env, {
-        sub: request.authUser!.sub,
+        sub: "PUBLIC_DEMO",
         resourceId: resolved.karaoke.id,
       });
       const encoded = encodeURIComponent(ticket);
@@ -226,7 +226,11 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
         return reply.code(401).send({ error: "DEMO_TICKET_INVALID", message: "El demo no corresponde a este karaoke.", statusCode: 401 });
       }
 
-      const resolved = await resolveDemoMedia(fastify, ticket.sub, request.params.id);
+      const resolved = await resolveDemoMedia(
+        fastify,
+        ticket.sub === "PUBLIC_DEMO" ? null : ticket.sub,
+        request.params.id,
+      );
       if (!resolved.ok) return reply.code(resolved.status).send(resolved);
 
       const stream = resolved.cdgProviderFileId
@@ -256,7 +260,7 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
 
       const resolved = await resolveDemoMedia(
         fastify,
-        ticket.sub,
+        ticket.sub === "PUBLIC_DEMO" ? null : ticket.sub,
         request.params.id,
         { requireCdg: false },
       );

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { and, or, like, eq, inArray, desc, asc } from "drizzle-orm";
 import { getAccessibleCollectionIds } from "../services/accessibleCollections.js";
 import { toKaraokeDTO } from "./collections.routes.js";
-import { karaokes } from "../db/schema.js";
+import { collections, karaokes } from "../db/schema.js";
 
 const querySchema = z.object({
   q: z.string().trim().optional(),
@@ -20,6 +20,50 @@ const querySchema = z.object({
  */
 export async function registerKaraokesRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
+
+  fastify.get("/api/public/karaokes/search", async (request, reply) => {
+    const parsed = querySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_INPUT", message: "Parámetros de búsqueda inválidos", statusCode: 400 });
+    }
+
+    const { q, collectionId, genre, year, sort } = parsed.data;
+    const activeCollections = await db.query.collections.findMany({
+      where: eq(collections.active, true),
+    });
+    const storagePathById = new Map(activeCollections.map((collection) => [collection.id, collection.storagePath]));
+    const activeIds = activeCollections.map((collection) => collection.id);
+    if (activeIds.length === 0) return reply.send([]);
+
+    const collectionFilter = collectionId
+      ? activeIds.includes(collectionId) ? [collectionId] : []
+      : activeIds;
+    if (collectionFilter.length === 0) return reply.send([]);
+
+    const conditions = [inArray(karaokes.collectionId, collectionFilter)];
+    if (genre) conditions.push(eq(karaokes.genre, genre));
+    if (year) conditions.push(eq(karaokes.year, year));
+    if (q) {
+      const term = `%${q}%`;
+      conditions.push(
+        or(like(karaokes.title, term), like(karaokes.artist, term), like(karaokes.code, term))!,
+      );
+    }
+
+    const orderBy =
+      sort === "artist" ? asc(karaokes.artist) : sort === "recent" ? desc(karaokes.createdAt) : asc(karaokes.title);
+
+    const results = await db.query.karaokes.findMany({
+      where: and(...conditions),
+      orderBy,
+      limit: 200,
+      with: { masterAsset: true },
+    });
+
+    return reply.send(results.map((karaoke) =>
+      toKaraokeDTO(karaoke, karaoke.masterAsset, storagePathById.get(karaoke.collectionId)),
+    ));
+  });
 
   fastify.get("/api/karaokes/search", { preHandler: fastify.authenticate }, async (request, reply) => {
     const parsed = querySchema.safeParse(request.query);
