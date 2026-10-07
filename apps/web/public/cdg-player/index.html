@@ -110,6 +110,24 @@ html.branding-preview .screen-wrap { border-radius:9px !important; }
 const pageParams = new URLSearchParams(location.search);
 if (pageParams.get('embed') === '1') {
   document.documentElement.classList.add('embed-mode');
+
+  const reportEmbedHeight = () => {
+    const card = document.querySelector('.player-card');
+    if (!card || window.parent === window) return;
+    const height = Math.ceil(card.getBoundingClientRect().height);
+    window.parent.postMessage({ type: 'DJGABO_CDG_PLAYER_HEIGHT', height }, location.origin);
+  };
+
+  window.addEventListener('resize', reportEmbedHeight);
+  window.addEventListener('load', reportEmbedHeight);
+  document.addEventListener('DOMContentLoaded', () => {
+    const card = document.querySelector('.player-card');
+    if (card && 'ResizeObserver' in window) {
+      const observer = new ResizeObserver(reportEmbedHeight);
+      observer.observe(card);
+    }
+    requestAnimationFrame(reportEmbedHeight);
+  });
 }
 if (pageParams.get('brandingPreview') === '1') {
   document.documentElement.classList.add('branding-preview');
