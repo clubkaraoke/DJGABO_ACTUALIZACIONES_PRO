@@ -12,9 +12,8 @@ function Benefit({ children }: { children: React.ReactNode }) {
 
 function Detail({ children }: { children: React.ReactNode }) {
   return (
-    <div className="ml-5 mt-0.5 flex items-start gap-1.5 text-[11px] leading-5 text-muted-foreground">
-      <span className="font-bold text-primary">➥</span>
-      <span>{children}</span>
+    <div className="ml-5 mt-0.5 text-[11px] leading-5 text-muted-foreground">
+      {children}
     </div>
   );
 }
@@ -85,17 +84,17 @@ export default function PackagesPage() {
             </ul>
 
             <SectionTitle>Herramientas Pro</SectionTitle>
-            <div className="mt-2 text-[12px] font-semibold">Reproductor Karaoke</div>
+            <div className="mt-2 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Reproductor Karaoke</div>
             <Detail>Cambia el tono de las canciones para adaptarlas a cada voz.</Detail>
 
-            <div className="mt-2.5 text-[12px] font-semibold">Buscador Karaoke</div>
+            <div className="mt-2.5 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Buscador Karaoke</div>
             <Detail>Encuentra tus karaokes en segundos desde tu PC o desde un disco duro externo conectado.</Detail>
 
             <SectionTitle>Acceso VIP</SectionTitle>
-            <div className="mt-2 text-[12px] font-semibold">6 meses de actualizaciones</div>
+            <div className="mt-2 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />6 meses de actualizaciones</div>
             <Detail>Incluidos gratis.</Detail>
 
-            <div className="mt-2.5 text-[12px] font-semibold">5 karaokes a pedido por mes</div>
+            <div className="mt-2.5 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />5 karaokes a pedido por mes</div>
             <Detail>Incluidos gratis.</Detail>
 
             <button className="mt-5 rounded-md bg-primary py-2.5 text-[13px] font-semibold text-black">
@@ -120,27 +119,27 @@ export default function PackagesPage() {
             </ul>
 
             <SectionTitle>Extras Premium</SectionTitle>
-            <div className="mt-2 text-[12px] font-semibold">1.500 Karaokes Internacionales</div>
+            <div className="mt-2 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />1.500 Karaokes Internacionales</div>
             <Detail>Francés, italiano, portugués y japonés.</Detail>
 
-            <div className="mt-2.5 text-[12px] font-semibold">2.000 Karaokes Extras Gold</div>
+            <div className="mt-2.5 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />2.000 Karaokes Extras Gold</div>
             <Detail>Salsas y cumbias exclusivas para ampliar tu repertorio.</Detail>
 
             <SectionTitle>Herramientas Pro</SectionTitle>
-            <div className="mt-2 text-[12px] font-semibold">Reproductor Karaoke</div>
+            <div className="mt-2 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Reproductor Karaoke</div>
             <Detail>Cambia el tono de las canciones para adaptarlas a cada voz.</Detail>
 
-            <div className="mt-2.5 text-[12px] font-semibold">Buscador Karaoke</div>
+            <div className="mt-2.5 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Buscador Karaoke</div>
             <Detail>Encuentra tus karaokes en segundos desde tu PC o desde un disco duro externo conectado.</Detail>
 
-            <div className="mt-2.5 text-[12px] font-semibold">Sistema de Pedidos de Canciones</div>
+            <div className="mt-2.5 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />Sistema de Pedidos de Canciones</div>
             <Detail>Recibe solicitudes de tus clientes directamente en WhatsApp.</Detail>
 
             <SectionTitle>Acceso VIP</SectionTitle>
-            <div className="mt-2 text-[12px] font-semibold">12 meses de actualizaciones</div>
+            <div className="mt-2 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />12 meses de actualizaciones</div>
             <Detail>Incluidos gratis.</Detail>
 
-            <div className="mt-2.5 text-[12px] font-semibold">15 karaokes a pedido por mes</div>
+            <div className="mt-2.5 flex items-start gap-2 text-[12px] font-semibold"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />15 karaokes a pedido por mes</div>
             <Detail>Incluidos gratis.</Detail>
 
             <button className="mt-5 rounded-md border border-white/[0.08] bg-secondary py-2.5 text-[13px] font-semibold">

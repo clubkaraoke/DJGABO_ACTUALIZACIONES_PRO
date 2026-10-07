@@ -41,7 +41,7 @@ export default function HomePage() {
   });
   const collections = useMemo(() => [...data].sort(sortCollections), [data]);
   const latest = collections.find((c) => !c.locked) ?? collections[0];
-  const recent = collections.filter((c) => c.id !== latest?.id).slice(0, 4);
+  const recent = collections.filter((c) => c.id !== latest?.id).slice(0, 10);
   const readyRequest = karaokeRequests.find((request) => request.status === "READY" && request.matchedCollectionId);
 
   return (
@@ -93,10 +93,10 @@ export default function HomePage() {
                 <h2 className="flex items-center gap-2 text-lg font-bold">Última entrega <span className="rounded bg-primary px-1.5 py-0.5 font-mono text-[10px] font-bold text-black">NUEVO</span></h2>
                 <Link to="/panel/actualizaciones" className="text-[13px] text-primary hover:underline">Ver todos →</Link>
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-10">
                 {recent.map((c) => <Link key={c.id} to={`/panel/actualizaciones/${c.id}`} className="group overflow-hidden rounded-[10px] border border-white/[0.06] bg-card hover:border-white/[0.12]">
                   <div className="aspect-square bg-secondary"><CoverArt year={c.year} month={c.month} fallbackUrl={c.coverUrl} alt={c.title} className={`h-full w-full ${c.locked ? "grayscale opacity-60" : ""}`} /></div>
-                  <div className="p-3"><div className="truncate text-[13px] font-semibold group-hover:text-primary">{c.title}</div><div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{c.karaokeCount} temas{c.locked ? " • BLOQUEADO" : ""}</div></div>
+                  <div className="p-2.5"><div className="truncate text-[12px] font-semibold group-hover:text-primary">{c.title}</div><div className="mt-0.5 font-mono text-[9px] text-muted-foreground">{c.karaokeCount} temas{c.locked ? " • BLOQUEADO" : ""}</div></div>
                 </Link>)}
               </div>
             </section>
