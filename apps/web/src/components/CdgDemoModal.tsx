@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { api, ApiError } from "../lib/apiClient";
 
@@ -47,6 +47,8 @@ export function CdgDemoModal({
 }) {
   const [config, setConfig] = useState<CdgDemoConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [playerHeight, setPlayerHeight] = useState<number | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -66,6 +68,19 @@ export function CdgDemoModal({
       alive = false;
     };
   }, [karaokeId]);
+
+
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      if (!event.data || event.data.type !== "DJGABO_CDG_PLAYER_HEIGHT") return;
+      const next = Number(event.data.height);
+      if (!Number.isFinite(next)) return;
+      setPlayerHeight(Math.max(280, Math.min(680, Math.ceil(next))));
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -130,10 +145,12 @@ export function CdgDemoModal({
             </div>
           ) : (
             <iframe
+              ref={iframeRef}
               title={`Demo de ${title}`}
               src={playerUrl}
               allow="autoplay; fullscreen"
-              className="block h-[calc((100vw-42px)*0.6667+60px)] max-h-[72dvh] w-full rounded-[9px] border-0 bg-black sm:h-[560px] sm:max-h-[72dvh]"
+              style={playerHeight ? { height: `${playerHeight}px` } : undefined}
+              className="block h-[calc((100vw-66px)*0.6667+56px)] w-full rounded-[9px] border-0 bg-black sm:h-[584px]"
             />
           )}
         </div>
