@@ -100,8 +100,8 @@ export function CdgDemoModal({
   }, [config, title]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-black/80 p-3 backdrop-blur-sm sm:items-center">
-      <div className="my-2 w-full max-w-[790px] overflow-hidden rounded-[12px] border border-white/[0.10] bg-[#101012] shadow-2xl sm:my-0">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-black/80 p-3 backdrop-blur-sm">
+      <div className="w-full max-w-[790px] overflow-hidden rounded-[12px] border border-white/[0.10] bg-[#101012] shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/[0.08] px-4 py-3">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-foreground">{title}</p>
@@ -119,7 +119,7 @@ export function CdgDemoModal({
           </button>
         </div>
 
-        <div className="p-2.5">
+        <div className="p-2">
           {error ? (
             <div className="flex min-h-[330px] items-center justify-center rounded-[9px] border border-white/[0.06] bg-black px-6 text-center text-sm text-muted-foreground">
               {error}
@@ -133,7 +133,7 @@ export function CdgDemoModal({
               title={`Demo de ${title}`}
               src={playerUrl}
               allow="autoplay; fullscreen"
-              className="block h-[calc((100vw-44px)*0.6667+88px)] max-h-[78dvh] w-full rounded-[9px] border-0 bg-black sm:h-[570px] sm:max-h-[72dvh]"
+              className="block h-[calc((100vw-42px)*0.6667+60px)] max-h-[72dvh] w-full rounded-[9px] border-0 bg-black sm:h-[560px] sm:max-h-[72dvh]"
             />
           )}
         </div>

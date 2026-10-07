@@ -1,5 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Crown, FolderOpen, Home, LogIn, Menu, Package, Search, Shield, Sparkles, X } from "lucide-react";
 import { useAuth } from "../lib/authContext";
 
@@ -20,6 +20,8 @@ export function VipShell({ children, searchValue = "", onSearchChange, searchPla
   const [localSearch, setLocalSearch] = useState("");
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const packagesContext = location.pathname === "/panel/paquetes";
 
   const displayedSearch = onSearchChange ? searchValue : localSearch;
   const submitSearch = (e: FormEvent) => {
@@ -62,21 +64,51 @@ export function VipShell({ children, searchValue = "", onSearchChange, searchPla
         </nav>
 
         <div className="p-3">
-          <div className="rounded-lg border border-white/[0.06] bg-secondary p-3.5">
-            <div className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-primary"><Crown className="h-3 w-3" /> MEMBRESÍA VIP</div>
-            <div className="mb-1 text-[13px] font-semibold">{user?.plan?.name ?? (user ? "Acceso VIP" : "Explora gratis")}</div>
-            <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
-              {user
-                ? "Accede a tus colecciones, paquetes y nuevos lanzamientos DJGABO."
-                : "Mira todo el catálogo y escucha demos. Inicia sesión o elige un plan para descargar."}
-            </p>
-            {!user && (
-              <button onClick={() => navigate("/login")} className="mb-2 w-full rounded-md border border-primary/30 py-1.5 text-[12px] font-semibold text-primary hover:bg-primary/[0.06]">
-                Acceso VIP
+          {packagesContext ? (
+            <div className="rounded-lg border border-white/[0.06] bg-secondary p-3.5">
+              <div className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-primary">
+                <Package className="h-3 w-3" /> PACKS KARAOKE
+              </div>
+              <div className="mb-1 text-[13px] font-semibold">Colecciones completas listas para usar</div>
+              <p className="mb-3 text-[11px] leading-relaxed text-muted-foreground">
+                Elige una base de karaoke según el tamaño de tu negocio, evento o local.
+              </p>
+              <button
+                onClick={() => navigate("/panel/paquetes")}
+                className="mb-2 w-full rounded-md bg-primary py-1.5 text-[12px] font-semibold text-black hover:brightness-95"
+              >
+                Ver Paquetes
               </button>
-            )}
-            <button onClick={() => navigate("/planes")} className="w-full rounded-md bg-primary py-1.5 text-[12px] font-semibold text-black hover:brightness-95">Planes y Precios</button>
-          </div>
+              <div className="mt-3 border-t border-white/[0.06] pt-3">
+                <div className="mb-1 text-[11px] font-semibold text-foreground">¿Ya tienes una colección?</div>
+                <p className="mb-2.5 text-[10px] leading-relaxed text-muted-foreground">
+                  Mantén tu repertorio actualizado con nuevos karaokes.
+                </p>
+                <button
+                  onClick={() => navigate("/planes")}
+                  className="w-full rounded-md border border-primary/30 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/[0.06]"
+                >
+                  Ver Actualizaciones VIP
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-white/[0.06] bg-secondary p-3.5">
+              <div className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-primary"><Crown className="h-3 w-3" /> MEMBRESÍA VIP</div>
+              <div className="mb-1 text-[13px] font-semibold">{user?.plan?.name ?? (user ? "Acceso VIP" : "Explora gratis")}</div>
+              <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                {user
+                  ? "Accede a tus colecciones, paquetes y nuevos lanzamientos DJGABO."
+                  : "Mira todo el catálogo y escucha demos. Inicia sesión o elige un plan para descargar."}
+              </p>
+              {!user && (
+                <button onClick={() => navigate("/login")} className="mb-2 w-full rounded-md border border-primary/30 py-1.5 text-[12px] font-semibold text-primary hover:bg-primary/[0.06]">
+                  Acceso VIP
+                </button>
+              )}
+              <button onClick={() => navigate("/planes")} className="w-full rounded-md bg-primary py-1.5 text-[12px] font-semibold text-black hover:brightness-95">Planes y Precios</button>
+            </div>
+          )}
         </div>
       </aside>
 
