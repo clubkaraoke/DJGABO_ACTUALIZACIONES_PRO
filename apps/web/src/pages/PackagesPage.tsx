@@ -54,7 +54,7 @@ export default function PackagesPage() {
         <div className="border-t border-white/[0.06]" />
 
         <section className="px-0 py-8 md:py-10">
-          <div className="mx-auto flex max-w-[940px] flex-wrap items-stretch justify-center gap-5">
+          <div className="mx-auto flex max-w-[1000px] flex-wrap items-stretch justify-center gap-5">
             <article className="flex w-full max-w-[285px] flex-col rounded-[10px] border border-white/[0.07] bg-card px-5 pb-5 pt-6">
               <div className="text-center font-mono text-[10px] font-bold tracking-[0.14em] text-muted-foreground">BASIC</div>
               <div className="mt-4 flex items-baseline justify-center gap-1.5">
