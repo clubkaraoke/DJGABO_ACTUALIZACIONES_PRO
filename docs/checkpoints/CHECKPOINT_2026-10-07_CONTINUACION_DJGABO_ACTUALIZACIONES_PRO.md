@@ -246,13 +246,17 @@ dbd6f73 — player: tighten embedded mobile spacing
 Railway:
 38c3c09 desplegado SUCCESS.
 
+VALIDACIÓN VISUAL FINAL DEL USUARIO:
+2026-10-08 — “sí, ahora se ve bien”.
+
+ESTADO FINAL:
+SELLADO ✅
+
 IMPORTANTE:
 la arquitectura de altura dinámica queda SELLADA.
 No volver a “arreglar” el problema solo aumentando/disminuyendo un número fijo del iframe.
 
-Pendiente únicamente:
-confirmación visual final del usuario en escritorio y móvil después de 38c3c09.
-No confundir “deployment SUCCESS” con “validación visual final”.
+La validación visual final ya fue confirmada por el usuario en escritorio y móvil.
 
 ---
 
@@ -664,14 +668,14 @@ SELLADO:
 
 ## 18. PENDIENTES REALES / NO CONFUNDIR CON BUG CERRADO
 
-### A. Confirmación visual final del player
-El fix dinámico de altura está desplegado SUCCESS.
-Falta únicamente que el usuario confirme visualmente:
-- escritorio sin transport aplastado;
-- móvil sin franja negra inferior.
+### A. Reproductor CDG
+Validación visual final completada por el usuario el 2026-10-08:
+“sí, ahora se ve bien”.
 
-Hasta esa confirmación:
-estado = DEPLOYED / PENDIENTE VALIDACIÓN VISUAL FINAL.
+Estado:
+SELLADO ✅
+
+No modificar la solución de altura dinámica sin autorización expresa.
 
 ### B. Covers
 Seguir maximizando cobertura real cuando proveedor tenga cover.
