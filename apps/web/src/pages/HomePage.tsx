@@ -8,6 +8,7 @@ import { CoverArt } from "../components/CoverArt";
 import { VipShell } from "../components/VipShell";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
 import { CdgDemoModal } from "../components/CdgDemoModal";
+import { KaraokeTypeBadges } from "../components/KaraokeTypeBadges";
 import { VipAccessModal } from "../components/VipAccessModal";
 import { useAuth } from "../lib/authContext";
 import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
@@ -148,7 +149,7 @@ export default function HomePage() {
                         <span className="w-6 shrink-0 text-right font-mono text-[11px] font-bold text-muted-foreground">
                           {String(index + 1).padStart(2, "0")}
                         </span>
-                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-secondary sm:h-16 sm:w-16">
+                        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[5px] bg-secondary sm:h-[72px] sm:w-[72px]">
                           {karaoke.coverUrl ? (
                             <img src={karaoke.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
                           ) : (
@@ -158,6 +159,7 @@ export default function HomePage() {
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-[13px] font-semibold group-hover:text-primary">{display.title}</div>
                           <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{display.artist}</div>
+                          <div className="mt-1.5"><KaraokeTypeBadges karaoke={karaoke} /></div>
                         </div>
                         <Play className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
                       </button>

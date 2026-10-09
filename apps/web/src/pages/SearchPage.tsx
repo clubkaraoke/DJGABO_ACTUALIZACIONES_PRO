@@ -5,6 +5,7 @@ import type { CollectionSummaryDTO, KaraokeSummaryDTO } from "@djgabo/shared";
 import { FolderOpen, Loader2 } from "lucide-react";
 import { api } from "../lib/apiClient";
 import { VipShell } from "../components/VipShell";
+import { KaraokeTypeBadges } from "../components/KaraokeTypeBadges";
 import { publicFolderAlias, publicKaraokeDisplay, publicSearchMatches } from "../lib/publicCatalogPresentation";
 import { useAuth } from "../lib/authContext";
 
@@ -91,6 +92,7 @@ export default function SearchPage() {
                     <div className="truncate text-[13px] font-semibold group-hover:text-primary" title={display.label}>
                       {display.label}
                     </div>
+                    <div className="mt-1"><KaraokeTypeBadges karaoke={karaoke} /></div>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
                       {collection && <span>{collection.title}</span>}
                       {collection && <span>·</span>}

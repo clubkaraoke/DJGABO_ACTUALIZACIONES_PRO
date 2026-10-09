@@ -4,6 +4,7 @@ import { ApiError } from "../lib/apiClient";
 import { createKaraokeDownloadTicket, openSecureDownload } from "../lib/secureDownloads";
 import { PreviewModal } from "./PreviewModal";
 import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
+import { KaraokeTypeBadges } from "./KaraokeTypeBadges";
 
 export function KaraokeCard({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
   const display = publicKaraokeDisplay(karaoke);
@@ -37,6 +38,7 @@ export function KaraokeCard({ karaoke }: { karaoke: KaraokeSummaryDTO }) {
           {display.label}
         </p>
         <p className="text-[11px] uppercase tracking-wide text-ink-tertiary">{karaoke.code}</p>
+        <KaraokeTypeBadges karaoke={karaoke} />
 
         <div className="mt-auto flex gap-2 pt-2">
           <button

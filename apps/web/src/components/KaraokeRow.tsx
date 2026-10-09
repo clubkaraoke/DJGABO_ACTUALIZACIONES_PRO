@@ -6,6 +6,7 @@ import { useAuth } from "../lib/authContext";
 import { CdgDemoModal } from "./CdgDemoModal";
 import { VipAccessModal } from "./VipAccessModal";
 import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
+import { KaraokeTypeBadges } from "./KaraokeTypeBadges";
 
 function formatSize(bytes: number | null): string {
   if (!bytes) return "—";
@@ -102,6 +103,7 @@ export function KaraokeRow({
           <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={display.artist}>
             {display.artist}
           </p>
+          <div className="mt-1"><KaraokeTypeBadges karaoke={karaoke} /></div>
         </td>
         <td className="px-4 py-2.5 font-mono text-[11px] uppercase text-muted-foreground">{karaoke.code}</td>
         <td className="px-4 py-2.5 text-[12px] text-muted-foreground">{karaoke.format || "—"}</td>
@@ -120,6 +122,7 @@ export function KaraokeRow({
               <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={display.artist}>
                 {display.artist}
               </p>
+              <div className="mt-1.5"><KaraokeTypeBadges karaoke={karaoke} /></div>
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] text-muted-foreground">
                 <span>{karaoke.code}</span>
                 <span>·</span>

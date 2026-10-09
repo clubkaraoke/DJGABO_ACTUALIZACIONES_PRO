@@ -124,6 +124,33 @@ function cleanVisibleText(value: string): string {
   return out;
 }
 
+/** Visual-only type labels, never used as the source for file downloads. */
+export type PublicKaraokeType = "Karaoke" | "Coro" | "En vivo" | "Live Session";
+
+export function publicKaraokeTypes(karaoke: Pick<KaraokeSummaryDTO, "title">): PublicKaraokeType[] {
+  const rawTitle = karaoke.title ?? "";
+  const types: PublicKaraokeType[] = ["Karaoke"];
+  if (/\bcoros?\b/i.test(rawTitle)) types.push("Coro");
+  if (/\blive[\s_-]+session\b/i.test(rawTitle)) {
+    types.push("Live Session");
+  } else if (/\ben[\s_-]+vivo\b/i.test(rawTitle)) {
+    types.push("En vivo");
+  }
+  return types;
+}
+
+/** Remove technical version labels from the visible title only. */
+function removeKaraokeTypeWords(title: string): string {
+  let output = title
+    .replace(/[([]\s*(?:karaokes?|coros?|en[\s_-]+vivo|live[\s_-]+session)\s*[)\]]/gi, " ")
+    .replace(/\bkaraokes?\b/gi, " ")
+    .replace(/\s*(?:[-–—|:]\s*)?(?:coros?|en[\s_-]+vivo|live[\s_-]+session)\s*$/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s*[-–—|:,;]+\s*$/g, "")
+    .trim();
+  return output || title;
+}
+
 export interface PublicKaraokeDisplay {
   artist: string;
   title: string;
@@ -132,7 +159,7 @@ export interface PublicKaraokeDisplay {
 
 export function publicKaraokeDisplay(karaoke: Pick<KaraokeSummaryDTO, "artist" | "title">): PublicKaraokeDisplay {
   const artist = cleanVisibleText(karaoke.artist) || "Desconocido";
-  const title = cleanVisibleText(karaoke.title) || "Sin título";
+  const title = removeKaraokeTypeWords(cleanVisibleText(karaoke.title)) || "Sin título";
   return {
     artist,
     title,
@@ -147,6 +174,6 @@ export function publicSearchMatches(
   const q = normalizeKey(query);
   if (!q) return true;
   const display = publicKaraokeDisplay(karaoke);
-  return [display.artist, display.title, display.label, karaoke.code]
+  return [display.artist, display.title, display.label, karaoke.title, ...publicKaraokeTypes(karaoke), karaoke.code]
     .some((value) => normalizeKey(value).includes(q));
 }
