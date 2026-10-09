@@ -17,6 +17,7 @@ import { SheetMirrorService } from "./services/SheetMirrorService.js";
 import { DropboxIncrementalSyncService } from "./services/DropboxIncrementalSyncService.js";
 import { DemoPlayerSettingsService } from "./services/DemoPlayerSettingsService.js";
 import { DownloadSettingsService } from "./services/DownloadSettingsService.js";
+import { ensureCommercialPlans } from "./services/commercialPlans.js";
 import { KaraokeRequestService } from "./services/KaraokeRequestService.js";
 import { CoverEnrichmentService } from "./services/CoverEnrichmentService.js";
 import { VipMigrationService } from "./services/VipMigrationService.js";
@@ -81,6 +82,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await fastify.register(rateLimit, { global: false });
   await fastify.register(authPlugin, { env: opts.env });
 
+  await ensureCommercialPlans(opts.db);
   fastify.decorate("db", opts.db);
   fastify.decorate("env", opts.env);
   fastify.decorate("storageProvider", opts.storageProvider);

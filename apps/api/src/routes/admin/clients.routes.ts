@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { eq, and, count, desc } from "drizzle-orm";
 import type { AdminClientRowDTO } from "@djgabo/shared";
-import { users, plans, deviceSessions, userCollectionAccess } from "../../db/schema.js";
+import { users, plans, collections, deviceSessions, userCollectionAccess } from "../../db/schema.js";
+import { addMonths, commercialTier, commercialCollectionAllowed, membershipDeadline } from "../../services/commercialPlans.js";
 import { createId } from "../../db/id.js";
 
 const updateClientSchema = z.object({
@@ -29,6 +30,7 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
       orderBy: desc(users.createdAt),
     });
 
+    const allActiveCollections = await db.query.collections.findMany({ where: eq(collections.active, true) });
     const rows: AdminClientRowDTO[] = [];
     for (const u of memberUsers) {
       const plan = u.planId ? await db.query.plans.findFirst({ where: eq(plans.id, u.planId) }) : null;
@@ -42,6 +44,19 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
         .from(userCollectionAccess)
         .where(and(eq(userCollectionAccess.userId, u.id), eq(userCollectionAccess.enabled, true)));
 
+      const tier = commercialTier(plan?.slug);
+      const blocked = tier
+        ? await db.query.userCollectionAccess.findMany({ where: eq(userCollectionAccess.userId, u.id) })
+        : [];
+      const manualExceptions = new Map(blocked.map((x) => [x.collectionId, x]));
+      const effectiveCollections = tier
+        ? allActiveCollections.filter((c) => {
+            const override = manualExceptions.get(c.id);
+            return commercialCollectionAllowed(tier, u, c)
+              && override?.enabled !== false
+              && (!override?.expiresAt || override.expiresAt.getTime() >= Date.now());
+          }).length
+        : (accessRow?.value ?? 0);
       rows.push({
         id: u.id,
         name: u.name,
@@ -54,7 +69,7 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
         subscriptionEnd: u.subscriptionEnd?.toISOString() ?? null,
         devicesUsed: devicesRow?.value ?? 0,
         maxDevices: u.maxDevices,
-        accessibleCollections: accessRow?.value ?? 0,
+        accessibleCollections: effectiveCollections,
       });
     }
     return reply.send(rows);
@@ -72,6 +87,8 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
       where: eq(userCollectionAccess.userId, user.id),
     });
     const accessByCollection = new Map(accesses.map((a) => [a.collectionId, a]));
+    const assignedPlan = user.planId ? await db.query.plans.findFirst({ where: eq(plans.id, user.planId) }) : null;
+    const tier = commercialTier(assignedPlan?.slug);
 
     const devices = await db.query.deviceSessions.findMany({
       where: eq(deviceSessions.userId, user.id),
@@ -92,7 +109,17 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
       collections: allCollections.map((c) => ({
         id: c.id,
         title: c.title,
-        enabled: accessByCollection.get(c.id)?.enabled ?? false,
+        enabled: tier
+          ? (accessByCollection.get(c.id)?.enabled !== false
+            && (!accessByCollection.get(c.id)?.expiresAt || accessByCollection.get(c.id)!.expiresAt!.getTime() >= Date.now())
+            && commercialCollectionAllowed(tier, user, c))
+          : (accessByCollection.get(c.id)?.enabled ?? false),
+        accessMode: tier
+          ? ((accessByCollection.get(c.id)?.enabled === false
+            || (accessByCollection.get(c.id)?.expiresAt && accessByCollection.get(c.id)!.expiresAt!.getTime() < Date.now()))
+              ? "BLOCKED"
+              : commercialCollectionAllowed(tier, user, c) ? "AUTOMATIC" : "OUT_OF_PLAN")
+          : (accessByCollection.get(c.id)?.enabled ? "MANUAL" : "NONE"),
         expiresAt: accessByCollection.get(c.id)?.expiresAt?.toISOString() ?? null,
       })),
       devices: devices.map((d) => ({
@@ -110,12 +137,27 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: "INVALID_INPUT", message: "Datos inválidos", statusCode: 400 });
     }
     const { subscriptionStart, subscriptionEnd, ...rest } = parsed.data;
+    const existing = await db.query.users.findFirst({ where: eq(users.id, request.params.id) });
+    if (!existing) return reply.code(404).send({ error: "NOT_FOUND", message: "Cliente no encontrado", statusCode: 404 });
+    const planId = rest.planId === undefined ? existing.planId : rest.planId;
+    const selectedPlan = planId ? await db.query.plans.findFirst({ where: eq(plans.id, planId) }) : null;
+    if (planId && !selectedPlan) return reply.code(400).send({ error: "INVALID_PLAN", message: "El plan no existe", statusCode: 400 });
+    const tier = commercialTier(selectedPlan?.slug);
+    const changedPlan = planId !== existing.planId;
+    const start = subscriptionStart !== undefined
+      ? (subscriptionStart ? new Date(subscriptionStart) : null)
+      : (changedPlan && tier ? new Date() : existing.subscriptionStart);
+    const end = subscriptionEnd !== undefined
+      ? (subscriptionEnd ? new Date(subscriptionEnd) : null)
+      : (tier && start && (changedPlan || subscriptionStart !== undefined)
+        ? (tier === "MONTH" ? new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000) : addMonths(start, tier === "SIX_MONTHS" ? 6 : 12))
+        : existing.subscriptionEnd);
     await db
       .update(users)
       .set({
         ...rest,
-        ...(subscriptionStart !== undefined ? { subscriptionStart: subscriptionStart ? new Date(subscriptionStart) : null } : {}),
-        ...(subscriptionEnd !== undefined ? { subscriptionEnd: subscriptionEnd ? new Date(subscriptionEnd) : null } : {}),
+        subscriptionStart: start,
+        subscriptionEnd: end,
         updatedAt: new Date(),
       })
       .where(eq(users.id, request.params.id));
@@ -129,6 +171,16 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
       return reply.code(400).send({ error: "INVALID_INPUT", message: "Datos de acceso inválidos", statusCode: 400 });
     }
     const { collectionId, enabled, expiresAt } = parsed.data;
+    const targetUser = await db.query.users.findFirst({ where: eq(users.id, request.params.id) });
+    if (!targetUser) return reply.code(404).send({ error: "USER_NOT_FOUND", message: "Cliente no encontrado", statusCode: 404 });
+    const targetPlan = targetUser.planId ? await db.query.plans.findFirst({ where: eq(plans.id, targetUser.planId) }) : null;
+    const tier = commercialTier(targetPlan?.slug);
+    if (tier && enabled) {
+      const target = await db.query.collections.findFirst({ where: eq(collections.id, collectionId) });
+      if (!target || !commercialCollectionAllowed(tier, targetUser, target)) {
+        return reply.code(403).send({ error: "OUT_OF_PLAN", message: "El plan no permite habilitar la descarga de esta colección.", statusCode: 403 });
+      }
+    }
     const existing = await db.query.userCollectionAccess.findFirst({
       where: and(eq(userCollectionAccess.userId, request.params.id), eq(userCollectionAccess.collectionId, collectionId)),
     });
@@ -149,6 +201,18 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
     }
     return reply.code(204).send();
   });
+
+  fastify.delete<{ Params: { id: string; collectionId: string } }>(
+    "/api/admin/clients/:id/access/:collectionId",
+    guard,
+    async (request, reply) => {
+      await db.delete(userCollectionAccess).where(and(
+        eq(userCollectionAccess.userId, request.params.id),
+        eq(userCollectionAccess.collectionId, request.params.collectionId),
+      ));
+      return reply.code(204).send();
+    },
+  );
 
   fastify.post<{ Params: { userId: string; sessionId: string } }>(
     "/api/admin/clients/:userId/devices/:sessionId/deactivate",

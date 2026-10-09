@@ -23,6 +23,21 @@ export function loadTestDb() {
     const trimmed = statement.trim();
     if (trimmed) sqlite.exec(trimmed);
   }
+  // The baseline Drizzle SQL predates the production schema extensions.
+  // Keep the in-memory integration DB aligned with the current app schema.
+  sqlite.exec([
+    "ALTER TABLE plans ADD COLUMN max_collection_downloads_per_day INTEGER NOT NULL DEFAULT 2",
+    "ALTER TABLE plans ADD COLUMN max_distinct_collections_per_day INTEGER NOT NULL DEFAULT 5",
+    "ALTER TABLE plans ADD COLUMN max_selected_collections INTEGER",
+    "CREATE TABLE IF NOT EXISTS user_download_collections (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE, selected_at INTEGER NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS user_download_collections_unique ON user_download_collections(user_id, collection_id)",
+    "CREATE TABLE IF NOT EXISTS download_tickets (id TEXT PRIMARY KEY NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, device_id TEXT NOT NULL, kind TEXT NOT NULL, resource_id TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, consumed_at INTEGER)",
+    "CREATE TABLE IF NOT EXISTS external_auth_identities (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, provider_subject TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, email_at_link TEXT NOT NULL, created_at INTEGER NOT NULL, last_seen_at INTEGER NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS external_auth_provider_subject_unique ON external_auth_identities(provider, provider_subject)",
+    "CREATE TABLE IF NOT EXISTS auth_bridge_assertions (jti TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires_at INTEGER NOT NULL, consumed_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS sync_state (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, root_path TEXT NOT NULL, cursor TEXT NOT NULL, initialized_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS sync_state_provider_root_unique ON sync_state(provider,root_path)"
+  ].join(";") + ";");
   return drizzle(sqlite, { schema });
 }
 

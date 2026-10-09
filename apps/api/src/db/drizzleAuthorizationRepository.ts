@@ -8,7 +8,8 @@ import type {
 } from "@djgabo/domain";
 import type { Role, UserStatus } from "@djgabo/shared";
 import type { Db } from "./client.js";
-import { users, collections, karaokes, userCollectionAccess, deviceSessions } from "./schema.js";
+import { users, plans, collections, karaokes, userCollectionAccess, deviceSessions } from "./schema.js";
+import { commercialTier, commercialCollectionAllowed } from "../services/commercialPlans.js";
 
 /**
  * Adaptador Drizzle del puerto que necesita AuthorizationService. El dominio
@@ -50,8 +51,21 @@ export class DrizzleAuthorizationRepository implements AuthorizationRepositoryPo
     const access = await this.db.query.userCollectionAccess.findFirst({
       where: and(eq(userCollectionAccess.userId, userId), eq(userCollectionAccess.collectionId, collectionId)),
     });
-    if (!access) return null;
-    return { enabled: access.enabled, expiresAt: access.expiresAt };
+    const user = await this.db.query.users.findFirst({ where: eq(users.id, userId) });
+    const plan = user?.planId ? await this.db.query.plans.findFirst({ where: eq(plans.id, user.planId) }) : null;
+    const tier = commercialTier(plan?.slug);
+    if (!tier) {
+      return access ? { enabled: access.enabled, expiresAt: access.expiresAt } : null;
+    }
+    const collection = await this.db.query.collections.findFirst({ where: eq(collections.id, collectionId) });
+    if (!user || !collection || !commercialCollectionAllowed(tier, user, collection)) {
+      return { enabled: false, expiresAt: null };
+    }
+    if (access?.enabled === false) return { enabled: false, expiresAt: null };
+    if (access?.expiresAt && access.expiresAt.getTime() < Date.now()) {
+      return { enabled: false, expiresAt: null };
+    }
+    return { enabled: true, expiresAt: null };
   }
 
   async countOtherActiveDevices(userId: string, deviceId: string | null): Promise<number> {

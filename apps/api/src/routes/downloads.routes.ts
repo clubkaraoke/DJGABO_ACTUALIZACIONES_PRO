@@ -1,8 +1,9 @@
 import type { FastifyInstance } from "fastify";
+import { commercialTier } from "../services/commercialPlans.js";
 import { PassThrough, Readable } from "node:stream";
 import archiver from "archiver";
 import crypto from "node:crypto";
-import { and, eq, gte, isNull } from "drizzle-orm";
+import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import { parseMonthFolder, parseYearFolder } from "@djgabo/storage";
 import { resolveVerifiedDeviceId } from "./deviceTokenGuard.js";
 import { signDownloadTicket, verifyDownloadTicket } from "../auth/downloadTicket.js";
@@ -260,7 +261,8 @@ async function getPolicyState(
 
   const maxPerCollectionPerDay = plan?.maxCollectionDownloadsPerDay ?? 2;
   const maxDistinctCollectionsPerDay = plan?.maxDistinctCollectionsPerDay ?? 5;
-  const maxSelectedCollections = plan?.maxSelectedCollections ?? null;
+  const tier = commercialTier(plan?.slug);
+  const maxSelectedCollections = tier === "MONTH" ? 3 : tier ? null : (plan?.maxSelectedCollections ?? null);
   const dayStart = startOfPeruDay(now);
 
   const todayLogs = await db.query.downloadLogs.findMany({
@@ -274,6 +276,15 @@ async function getPolicyState(
   const downloadsForCollectionToday = todayLogs.filter((l) => l.collectionId === collectionId).length;
   const distinctCollectionsToday = new Set(todayLogs.map((l) => l.collectionId).filter(Boolean)).size;
 
+  // New paid membership: the 3 monthly selections start fresh.
+  // Remove rows selected BEFORE the new subscription start to avoid
+  // the (userId, collectionId) unique key blocking a repeat choice.
+  if (tier === "MONTH" && user?.subscriptionStart) {
+    await db.delete(userDownloadCollections).where(and(
+      eq(userDownloadCollections.userId, userId),
+      lt(userDownloadCollections.selectedAt, user.subscriptionStart),
+    ));
+  }
   const selected = await db.query.userDownloadCollections.findMany({
     where: eq(userDownloadCollections.userId, userId),
   });
