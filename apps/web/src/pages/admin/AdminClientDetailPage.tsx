@@ -22,7 +22,7 @@ interface ClientDetail {
   subscriptionStart: string | null;
   subscriptionEnd: string | null;
   maxDevices: number;
-  collections: { id: string; title: string; enabled: boolean; expiresAt: string | null }[];
+  collections: { id: string; title: string; enabled: boolean; accessMode: "AUTOMATIC" | "BLOCKED" | "OUT_OF_PLAN" | "MANUAL" | "NONE"; expiresAt: string | null }[];
   devices: ClientDeviceRow[];
 }
 interface Plan {
@@ -41,6 +41,7 @@ export default function AdminClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const [savedMsg, setSavedMsg] = useState("");
+  const [showCollectionOverrides, setShowCollectionOverrides] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "client", id],
@@ -62,6 +63,11 @@ export default function AdminClientDetailPage() {
   const toggleAccess = useMutation({
     mutationFn: (vars: { collectionId: string; enabled: boolean }) =>
       api.post(`/admin/clients/${id}/access`, { collectionId: vars.collectionId, enabled: vars.enabled }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "client", id] }),
+  });
+
+  const restoreAccess = useMutation({
+    mutationFn: (collectionId: string) => api.del("/admin/clients/" + id + "/access/" + collectionId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "client", id] }),
   });
 
@@ -91,6 +97,7 @@ export default function AdminClientDetailPage() {
 
       <section className="space-y-4 rounded-lg border border-graphite-border bg-graphite p-5">
         <h2 className="font-display text-base font-semibold text-ink">Membresía</h2>
+        <p className="text-xs text-ink-secondary">Selecciona un plan: se calculan automáticamente el inicio y el vencimiento. Puedes ajustar las fechas y luego activar al cliente. Para renovar, cambia la fecha de inicio; las 3 carpetas mensuales volverán a estar disponibles en el nuevo periodo.</p>
 
         <div className="flex flex-wrap gap-2">
           {(["ACTIVE", "SUSPENDED", "EXPIRED"] as const).map((s) => (
@@ -137,6 +144,7 @@ export default function AdminClientDetailPage() {
             Inicio de suscripción
             <input
               type="date"
+              key={"start-" + (data.planId ?? "none")}
               defaultValue={toInputDate(data.subscriptionStart)}
               onBlur={(e) => updateClient.mutate({ subscriptionStart: e.target.value ? new Date(e.target.value).toISOString() : null })}
               className="mt-1 w-full rounded-md border border-graphite-border bg-graphite-elevated px-3 py-2 text-sm text-ink"
@@ -146,6 +154,7 @@ export default function AdminClientDetailPage() {
             Vencimiento (renovar)
             <input
               type="date"
+              key={"end-" + (data.planId ?? "none")}
               defaultValue={toInputDate(data.subscriptionEnd)}
               onBlur={(e) => updateClient.mutate({ subscriptionEnd: e.target.value ? new Date(e.target.value).toISOString() : null })}
               className="mt-1 w-full rounded-md border border-graphite-border bg-graphite-elevated px-3 py-2 text-sm text-ink"
@@ -157,20 +166,50 @@ export default function AdminClientDetailPage() {
 
       <section className="space-y-3 rounded-lg border border-graphite-border bg-graphite p-5">
         <h2 className="font-display text-base font-semibold text-ink">Acceso a colecciones</h2>
-        <div className="divide-y divide-graphite-border">
-          {data.collections.map((c) => (
-            <div key={c.id} className="flex items-center justify-between py-2.5">
-              <span className="text-sm text-ink">{c.title}</span>
-              <Button
-                variant={c.enabled ? "primary" : "secondary"}
-                onClick={() => toggleAccess.mutate({ collectionId: c.id, enabled: !c.enabled })}
-                className="px-3 py-1.5 text-xs"
-              >
-                {c.enabled ? "Otorgado ✓" : "Otorgar acceso"}
-              </Button>
-            </div>
-          ))}
-        </div>
+        <p className="text-sm text-ink-secondary">
+          <strong className="text-ink">{data.collections.filter((c) => c.enabled).length}</strong> colecciones habilitadas según el plan y su vigencia.
+          No necesitas otorgar acceso a cada año ni mes.
+        </p>
+        <p className="text-xs text-ink-secondary">
+          Los permisos se calculan automáticamente, incluso para colecciones que se agreguen después.
+          Las excepciones se aplican solamente a este cliente.
+        </p>
+        <Button variant="secondary" className="px-3 py-1.5 text-xs" onClick={() => setShowCollectionOverrides((v) => !v)}>
+          {showCollectionOverrides ? "Ocultar excepciones" : "Gestionar excepciones"}
+        </Button>
+        {showCollectionOverrides && (
+          <div className="divide-y divide-graphite-border">
+            {data.collections.map((c) => (
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
+                <div className="min-w-0">
+                  <span className="block text-sm text-ink">{c.title}</span>
+                  <span className="text-[11px] text-ink-secondary">
+                    {c.accessMode === "AUTOMATIC" ? "Automático por plan" :
+                      c.accessMode === "BLOCKED" ? "Bloqueado manualmente" :
+                      c.accessMode === "OUT_OF_PLAN" ? "Fuera del plan o membresía vencida" :
+                      c.accessMode === "MANUAL" ? "Concedido manualmente" : "Sin acceso"}
+                  </span>
+                </div>
+                {c.accessMode === "AUTOMATIC" ? (
+                  <Button variant="secondary" disabled={toggleAccess.isPending} onClick={() => toggleAccess.mutate({ collectionId: c.id, enabled: false })} className="px-3 py-1.5 text-xs">
+                    Bloquear
+                  </Button>
+                ) : c.accessMode === "BLOCKED" ? (
+                  <Button variant="secondary" disabled={restoreAccess.isPending} onClick={() => restoreAccess.mutate(c.id)} className="px-3 py-1.5 text-xs">
+                    Restaurar automático
+                  </Button>
+                ) : c.accessMode === "MANUAL" || c.accessMode === "NONE" ? (
+                  <Button variant="secondary" disabled={toggleAccess.isPending} onClick={() => toggleAccess.mutate({ collectionId: c.id, enabled: !c.enabled })} className="px-3 py-1.5 text-xs">
+                    {c.enabled ? "Retirar acceso" : "Otorgar acceso"}
+                  </Button>
+                ) : (
+                  <span className="text-[11px] text-ink-tertiary">No incluido</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {(toggleAccess.isError || restoreAccess.isError) && <p role="alert" className="text-xs text-red-400">No se pudo guardar el permiso. Intenta nuevamente.</p>}
       </section>
 
       <section className="space-y-3 rounded-lg border border-graphite-border bg-graphite p-5">

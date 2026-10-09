@@ -7,37 +7,37 @@ const plans = [
     name: "1 MES",
     price: "59.99",
     period: "/ mes",
-    description: "Prueba el acceso VIP durante 30 días y descarga nuevas actualizaciones.",
+    description: "Ve todo el catálogo y descarga 3 carpetas de actualizaciones de 2026 durante 30 días.",
     items: [
-      "3 descargas VIP",
-      "3 colecciones de actualizaciones",
-      "3 karaokes a pedido",
-      "Guarda en tu Dropbox",
+      "Visualiza todo el catálogo y escucha demos",
+      "Elige 3 carpetas diferentes de 2026",
+      "2 descargas por carpeta al día",
+      "Enlaces protegidos y control de dispositivos",
     ],
   },
   {
     name: "6 MESES",
-    price: "109.99",
+    price: "139.99",
     period: "/ 6 meses",
-    description: "Mantén tu colección actualizada durante 6 meses con acceso continuo.",
+    description: "Descarga todo el año de compra y recibe seis meses de nuevas actualizaciones.",
     featured: true,
     items: [
-      "Actualizaciones 2026",
-      "Nuevos lanzamientos",
-      "5 karaokes a pedido por mes",
-      "Descargas ilimitadas",
+      "Todas las carpetas del año de compra",
+      "6 meses de nuevas actualizaciones",
+      "Visualiza el catálogo de todos los años",
+      "Límite antiabuso: 2 descargas por carpeta/día",
     ],
   },
   {
     name: "1 AÑO",
-    price: "169.99",
+    price: "179.99",
     period: "/ año",
-    description: "Acceso VIP extendido para mantener tu repertorio al día todo el año.",
+    description: "Todas las colecciones históricas y las nuevas publicaciones durante 12 meses.",
     items: [
-      "Actualizaciones 2026–2012",
-      "Nuevos lanzamientos",
-      "15 karaokes a pedido por mes",
-      "Descargas ilimitadas",
+      "Todas las colecciones disponibles desde 2012",
+      "12 meses de nuevas actualizaciones",
+      "Acceso completo al catálogo histórico",
+      "Límite antiabuso: 2 descargas por carpeta/día",
     ],
   },
 ];
@@ -114,6 +114,10 @@ export default function PlansPage() {
             ))}
           </div>
 
+          <p className="mx-auto mt-4 max-w-[760px] text-center text-[11px] leading-5 text-muted-foreground">
+            En todos los planes: máximo 2 descargas por carpeta al día y 5 carpetas diferentes al día, salvo límite particular del plan.
+            Cada enlace de descarga dura 90 segundos y es de un solo uso. Las descargas individuales están sujetas al control del administrador.
+          </p>
           <div className="mt-6 text-center">
             <Link to="/panel" className="text-[12px] font-medium text-primary hover:underline">
               ← Volver al panel

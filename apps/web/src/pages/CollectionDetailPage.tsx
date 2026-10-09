@@ -81,6 +81,14 @@ export default function CollectionDetailPage() {
     retry: false,
   });
 
+  const { data: collectionDownloadStatus, isError: collectionAccessError } = useQuery({
+    queryKey: ["collection-download-status", id, user?.id],
+    queryFn: () => api.get<{ canDownload: boolean; denialReason: string | null }>("/downloads/collection/" + id + "/status"),
+    enabled: Boolean(id && hasVipAccess),
+    staleTime: 15_000,
+    retry: false,
+  });
+
   const { data: downloadSettings } = useQuery({
     queryKey: ["download-settings"],
     queryFn: () => api.get<{ individualKaraokeDownloadsEnabled: boolean }>("/downloads/settings"),
@@ -277,11 +285,20 @@ export default function CollectionDetailPage() {
                   </button>
                   <button
                     onClick={() => hasVipAccess ? setShowBatch(true) : setShowVip(true)}
-                    className="rounded-md bg-primary px-3.5 py-2 text-[13px] font-semibold text-black hover:brightness-95"
+                    disabled={hasVipAccess && (collectionAccessError || collectionDownloadStatus?.canDownload === false)}
+                    className="rounded-md bg-primary px-3.5 py-2 text-[13px] font-semibold text-black hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Descargar todo
                   </button>
                 </div>
+                {hasVipAccess && collectionAccessError && (
+                  <p className="mt-2 text-xs text-amber-300">Esta colección es visible, pero no está incluida entre las descargas de tu plan.</p>
+                )}
+                {hasVipAccess && !collectionAccessError && collectionDownloadStatus?.canDownload === false && (
+                  <p className="mt-2 text-xs text-amber-300">
+                    Alcanzaste un límite de descargas para esta carpeta. Puedes volver a intentarlo cuando se restablezca.
+                  </p>
+                )}
                 {!downloadSettings?.individualKaraokeDownloadsEnabled && user?.role !== "ADMIN" && (
                   <p className="mt-2 text-[11px] text-muted-foreground">Los karaokes se descargan por carpeta completa. La descarga individual está desactivada.</p>
                 )}
