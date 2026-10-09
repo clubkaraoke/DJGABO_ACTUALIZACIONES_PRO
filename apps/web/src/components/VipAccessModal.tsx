@@ -5,10 +5,12 @@ export function VipAccessModal({
   onClose,
   loggedIn = false,
   message,
+  onDownloadCollection,
 }: {
   onClose: () => void;
   loggedIn?: boolean;
   message?: string;
+  onDownloadCollection?: () => void;
 }) {
   const navigate = useNavigate();
 
@@ -25,7 +27,7 @@ export function VipAccessModal({
         </div>
 
         <h2 className="mt-4 text-xl font-black text-foreground">
-          {loggedIn ? "Tu plan necesita acceso" : "Acceso VIP requerido"}
+          {onDownloadCollection ? "Descarga por carpeta completa" : loggedIn ? "Tu plan necesita acceso" : "Acceso VIP requerido"}
         </h2>
         <p className="mt-2 text-[13px] leading-6 text-muted-foreground">
           {message ??
@@ -43,13 +45,22 @@ export function VipAccessModal({
               Acceso VIP
             </button>
           )}
-          <button
-            onClick={() => navigate("/planes")}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-[13px] font-bold text-black hover:brightness-95"
-          >
-            <Crown className="h-4 w-4" />
-            Ver planes
-          </button>
+          {onDownloadCollection ? (
+            <button
+              onClick={() => { onClose(); onDownloadCollection(); }}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-[13px] font-bold text-black hover:brightness-95"
+            >
+              Descargar carpeta completa
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate("/planes")}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2.5 text-[13px] font-bold text-black hover:brightness-95"
+            >
+              <Crown className="h-4 w-4" />
+              Ver planes
+            </button>
+          )}
         </div>
       </div>
     </div>

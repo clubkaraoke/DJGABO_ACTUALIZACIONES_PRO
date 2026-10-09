@@ -12,21 +12,36 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / 1_000_000).toFixed(0)} MB`;
 }
 
-export function KaraokeRow({ karaoke, demoAllowed = false, allowIndividualDownloads = true }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean; allowIndividualDownloads?: boolean }) {
+export function KaraokeRow({
+  karaoke, demoAllowed = false, allowIndividualDownloads = false,
+  canDownloadCollection = false, onDownloadCollection,
+}: {
+  karaoke: KaraokeSummaryDTO;
+  demoAllowed?: boolean;
+  allowIndividualDownloads?: boolean;
+  canDownloadCollection?: boolean;
+  onDownloadCollection?: () => void;
+}) {
   const { user } = useAuth();
   const display = publicKaraokeDisplay(karaoke);
   const [showPreview, setShowPreview] = useState(false);
   const [showVip, setShowVip] = useState(false);
   const [vipMessage, setVipMessage] = useState<string | undefined>();
   const [downloadState, setDownloadState] = useState<"idle" | "loading" | "error">("idle");
+  const isAdminDownload = user?.role === "ADMIN" && allowIndividualDownloads;
+  const isVip = Boolean(user && (user.role === "ADMIN" || user.plan));
+  const folderMessage = canDownloadCollection
+    ? "Las descargas VIP se realizan por carpeta completa, no por karaoke individual. Puedes descargar esta actualización respetando los límites de tu plan."
+    : "Puedes escuchar los demos, pero esta carpeta no está habilitada para descarga con tu plan actual. Consulta los planes disponibles.";
 
   async function handleDownload() {
-    if (!user) {
-      setVipMessage(undefined);
+    // Visible commercial action only for visitors/VIPs. Never request an
+    // individual ticket unless the admin-specific download is enabled.
+    if (!isAdminDownload) {
+      setVipMessage(isVip ? folderMessage : undefined);
       setShowVip(true);
       return;
     }
-
     setDownloadState("loading");
     try {
       const ticket = await createKaraokeDownloadTicket(karaoke.id);
@@ -54,13 +69,13 @@ export function KaraokeRow({ karaoke, demoAllowed = false, allowIndividualDownlo
           ▶ Play
         </button>
       )}
-      {allowIndividualDownloads && <button
-        disabled={!karaoke.hasMaster || downloadState === "loading"}
+      <button
+        disabled={isAdminDownload && (!karaoke.hasMaster || downloadState === "loading")}
         onClick={handleDownload}
         className="rounded-md bg-primary/10 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-30"
       >
         {downloadState === "loading" ? "…" : downloadState === "error" ? "Error" : "↓ Descargar"}
-      </button>}
+      </button>
     </div>
   );
 
@@ -132,6 +147,7 @@ export function KaraokeRow({ karaoke, demoAllowed = false, allowIndividualDownlo
               <VipAccessModal
                 loggedIn={Boolean(user)}
                 message={vipMessage}
+                onDownloadCollection={isVip && canDownloadCollection ? onDownloadCollection : undefined}
                 onClose={() => setShowVip(false)}
               />
             )}

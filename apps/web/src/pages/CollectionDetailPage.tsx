@@ -355,7 +355,9 @@ export default function CollectionDetailPage() {
                                       key={karaoke.id}
                                       karaoke={karaoke}
                                       demoAllowed={demoSettings?.enabled === true}
-                                      allowIndividualDownloads={user?.role === "ADMIN" || downloadSettings?.individualKaraokeDownloadsEnabled === true}
+                                      allowIndividualDownloads={user?.role === "ADMIN" && downloadSettings?.individualKaraokeDownloadsEnabled === true}
+                                      canDownloadCollection={collectionDownloadStatus?.canDownload === true || user?.role === "ADMIN"}
+                                      onDownloadCollection={() => setShowBatch(true)}
                                     />
                                   ))}
                                 </tbody>
