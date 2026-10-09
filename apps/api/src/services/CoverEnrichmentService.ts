@@ -1,6 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { DeezerPublicApi } from "deezer-public-api";
 import type { Db } from "../db/client.js";
 import { collections, karaokes } from "../db/schema.js";
@@ -23,6 +23,7 @@ interface CacheDocument {
   version: 3;
   updatedAt: string;
   entries: Record<string, CacheEntry>;
+  artistMatchingAuditVersion?: number;
 }
 
 export interface CoverEnrichmentStatus {
@@ -185,28 +186,28 @@ function scoreCandidate(sourceArtist: string, sourceTitle: string, artist: strin
   };
 }
 
-function acceptable(candidate: Candidate, sourceTitle: string): boolean {
-  const normalizedTitle = cleanTitle(sourceTitle);
-  const shortGeneric = normalizedTitle.split(" ").length === 1 && normalizedTitle.length <= 5;
+/**
+ * Require the original singer (not just the song title).
+ * A shared surname ("Majo Aguilar" vs "Pepe Aguilar") is NOT sufficient;
+ * neither is an identical title by a completely different performer.
+ */
+export function trustedCoverMatch(
+  sourceArtist: string, sourceTitle: string,
+  providerArtist: string, providerTitle: string,
+): boolean {
+  const left = new Set(cleanArtist(sourceArtist).split(" ").filter(Boolean));
+  const right = new Set(cleanArtist(providerArtist).split(" ").filter(Boolean));
+  if (!left.size || !right.size) return false;
+  const common = [...left].filter((token) => right.has(token)).length;
+  if (common / left.size < 0.80 || common / right.size < 0.50) return false;
+  // Full title or sufficiently close variant with the SAME artist.
+  const titleScore = titleSimilarity(sourceTitle, providerTitle);
+  const isShort = cleanTitle(sourceTitle).length <= 5;
+  return titleScore >= (isShort ? 0.92 : 0.82);
+}
 
-  // Nivel A: título prácticamente idéntico. El artista confirma pero ya no bloquea
-  // por nombres extendidos como "De Julio Aramburo La Bandononona".
-  if (candidate.titleScore >= 0.92) {
-    return shortGeneric ? candidate.artistScore >= 0.30 : true;
-  }
-
-  // Nivel B: título muy cercano. El artista ayuda, pero no bloquea nombres dañados
-  // o extendidos cuando el título es suficientemente distintivo.
-  if (candidate.titleScore >= 0.82) {
-    return shortGeneric ? candidate.artistScore >= 0.30 : candidate.artistScore >= 0.05;
-  }
-
-  // Nivel C: matching agresivo para maximizar cobertura sin aceptar resultados aleatorios.
-  if (candidate.titleScore >= 0.68 && candidate.artistScore >= 0.20) return true;
-
-  if (candidate.titleScore >= 0.60 && candidate.artistScore >= 0.50) return true;
-
-  return false;
+function acceptable(candidate: Candidate, sourceArtist: string, sourceTitle: string): boolean {
+  return trustedCoverMatch(sourceArtist, sourceTitle, candidate.artist, candidate.title);
 }
 
 function nowIso(): string {
@@ -293,11 +294,11 @@ export class CoverEnrichmentService {
       }
 
       const bestNow = [...candidates].sort((a, b) => b.score - a.score)[0];
-      if (bestNow && acceptable(bestNow, title) && bestNow.titleScore >= 0.90) return bestNow;
+      if (bestNow && acceptable(bestNow, artist, title) && bestNow.titleScore >= 0.90) return bestNow;
     }
 
     candidates.sort((a, b) => b.score - a.score);
-    return candidates.find((candidate) => acceptable(candidate, title)) ?? null;
+    return candidates.find((candidate) => acceptable(candidate, artist, title)) ?? null;
   }
 
   private async searchItunes(artist: string, title: string): Promise<Candidate | null> {
@@ -344,14 +345,14 @@ export class CoverEnrichmentService {
         }
 
         const bestNow = [...candidates].sort((a, b) => b.score - a.score)[0];
-        if (bestNow && acceptable(bestNow, title) && bestNow.titleScore >= 0.90) return bestNow;
+        if (bestNow && acceptable(bestNow, artist, title) && bestNow.titleScore >= 0.90) return bestNow;
       } finally {
         clearTimeout(timeout);
       }
     }
 
     candidates.sort((a, b) => b.score - a.score);
-    return candidates.find((candidate) => acceptable(candidate, title)) ?? null;
+    return candidates.find((candidate) => acceptable(candidate, artist, title)) ?? null;
   }
 
   private async resolveCover(artist: string, title: string): Promise<Candidate | null> {
@@ -369,6 +370,73 @@ export class CoverEnrichmentService {
       .update(collections)
       .set({ coverUrl })
       .where(and(eq(collections.id, collectionId), isNull(collections.coverUrl)));
+  }
+
+  /**
+   * One-time audit of existing automatic matches. Only clear covers where
+   * provider cache proves an artist mismatch and the current URL still
+   * matches the auto-saved URL (never overwrite manual edits).
+   */
+  async auditExistingMatches(): Promise<{ invalidated: number; examined: number }> {
+    const cache = await this.loadCache();
+    if (cache.artistMatchingAuditVersion === 1) return { invalidated: 0, examined: 0 };
+    const rows = await this.db.select({
+      id: karaokes.id,
+      artist: karaokes.artist,
+      title: karaokes.title,
+      coverUrl: karaokes.coverUrl,
+    }).from(karaokes).where(isNotNull(karaokes.coverUrl));
+
+    // Publicly confirmed wrong José José art for Majo's version, if legacy
+    // provenance was lost from the cache.
+    const badKnownMajoUrl = "https://cdn-images.dzcdn.net/images/cover/29ce0d1b9aafaf5e4664fe2ff7b18abe/1000x1000-000000-80-0-0.jpg";
+    const historicalEntries = { ...cache.entries };
+    let invalidated = 0;
+    for (const row of rows) {
+      const key = keyFor(row.artist, row.title);
+      // Keep the original provider evidence for other karaokes that share
+      // this same artist + title, even after invalidating the first row.
+      const entry = historicalEntries[key];
+      const wrongProvider = Boolean(
+        entry?.status === "MATCHED"
+        && entry.providerArtist && entry.providerTitle
+        && entry.coverUrl === row.coverUrl
+        && !trustedCoverMatch(row.artist, row.title, entry.providerArtist, entry.providerTitle),
+      );
+      const knownMismatch = cleanArtist(row.artist) === "majo aguilar"
+        && cleanTitle(row.title) === "almohada"
+        && row.coverUrl === badKnownMajoUrl;
+      if (!wrongProvider && !knownMismatch) continue;
+
+      await this.db.update(karaokes).set({ coverUrl: null }).where(
+        and(eq(karaokes.id, row.id), eq(karaokes.coverUrl, row.coverUrl!)),
+      );
+      delete cache.entries[key];
+      // Fix the known reported item immediately rather than waiting for a
+      // potentially long background backlog. Unknown matches remain unassigned.
+      if (knownMismatch) {
+        const verified = await this.resolveCover(row.artist, row.title).catch(() => null);
+        if (verified) {
+          await this.db.update(karaokes).set({ coverUrl: verified.coverUrl }).where(
+            and(eq(karaokes.id, row.id), isNull(karaokes.coverUrl)),
+          );
+          cache.entries[key] = {
+            status: "MATCHED",
+            provider: verified.provider,
+            coverUrl: verified.coverUrl,
+            score: Number(verified.score.toFixed(3)),
+            checkedAt: nowIso(),
+            retryAfter: null,
+            providerTitle: verified.title,
+            providerArtist: verified.artist,
+          };
+        }
+      }
+      invalidated += 1;
+    }
+    cache.artistMatchingAuditVersion = 1;
+    await this.saveCache();
+    return { invalidated, examined: rows.length };
   }
 
   async runBatch(limit = DEFAULT_BATCH_SIZE, concurrency = DEFAULT_CONCURRENCY): Promise<CoverEnrichmentRunResult> {

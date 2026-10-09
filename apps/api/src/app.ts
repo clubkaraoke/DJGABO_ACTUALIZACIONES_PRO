@@ -179,9 +179,19 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await registerAdminCoverRoutes(fastify);
 
   if (opts.env.NODE_ENV === "production") {
-    fastify.coverEnrichmentService.startDrain(async () => {
-      await fastify.catalogJsonService.publishAll();
-    });
+    // Audit legacy automatic cover matches before new enrichments.
+    void (async () => {
+      try {
+        const audit = await fastify.coverEnrichmentService.auditExistingMatches();
+        fastify.log.info(audit, "Cover artist-matching audit completed");
+        if (audit.invalidated > 0) await fastify.catalogJsonService.publishAll();
+      } catch (error) {
+        fastify.log.error({ err: error }, "Cover matching audit failed");
+      }
+      fastify.coverEnrichmentService.startDrain(async () => {
+        await fastify.catalogJsonService.publishAll();
+      });
+    })();
   }
 
   fastify.setErrorHandler((error: FastifyError, request, reply) => {
