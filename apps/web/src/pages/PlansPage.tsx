@@ -5,7 +5,7 @@ import { VipShell } from "../components/VipShell";
 const plans = [
   {
     name: "1 MES",
-    price: "29.99",
+    price: "59.99",
     period: "/ mes",
     description: "Prueba el acceso VIP durante 30 días y descarga nuevas actualizaciones.",
     items: [

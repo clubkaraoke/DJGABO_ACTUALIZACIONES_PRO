@@ -2,11 +2,12 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import type { CollectionSummaryDTO, KaraokeSummaryDTO } from "@djgabo/shared";
-import { BellRing, CheckCircle2, Crown, FolderOpen, Loader2, MessageCircle } from "lucide-react";
+import { BellRing, CheckCircle2, Crown, FolderOpen, Loader2, MessageCircle, Play } from "lucide-react";
 import { api } from "../lib/apiClient";
 import { CoverArt } from "../components/CoverArt";
 import { VipShell } from "../components/VipShell";
 import { BatchDownloadModal } from "../components/BatchDownloadModal";
+import { CdgDemoModal } from "../components/CdgDemoModal";
 import { VipAccessModal } from "../components/VipAccessModal";
 import { useAuth } from "../lib/authContext";
 import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
@@ -36,6 +37,7 @@ export default function HomePage() {
     : "";
   const [download, setDownload] = useState<CollectionSummaryDTO | null>(null);
   const [showVip, setShowVip] = useState(false);
+  const [playingKaraoke, setPlayingKaraoke] = useState<KaraokeSummaryDTO | null>(null);
   const { data = [], isLoading, isError } = useQuery({
     queryKey: ["collections", hasVipAccess ? "private" : "public"],
     queryFn: () => api.get<CollectionSummaryDTO[]>(hasVipAccess ? "/collections" : "/public/collections"),
@@ -122,7 +124,7 @@ export default function HomePage() {
                 <Link to="/panel/actualizaciones" className="text-[13px] text-primary hover:underline">Ver todos →</Link>
               </div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-10">
-                {recent.map((c) => <Link key={c.id} to={`/panel/actualizaciones/${c.id}`} className="group overflow-hidden rounded-[10px] border border-white/[0.06] bg-card hover:border-white/[0.12]">
+                {recent.map((c, index) => <Link key={c.id} to={`/panel/actualizaciones/${c.id}`} className={index >= 4 ? "hidden sm:block group overflow-hidden rounded-[10px] border border-white/[0.06] bg-card hover:border-white/[0.12]" : "group overflow-hidden rounded-[10px] border border-white/[0.06] bg-card hover:border-white/[0.12]"}>
                   <div className="aspect-square bg-secondary"><CoverArt year={c.year} month={c.month} fallbackUrl={c.coverUrl} alt={c.title} className={`h-full w-full ${c.locked ? "grayscale opacity-60" : ""}`} /></div>
                   <div className="p-2.5"><div className="truncate text-[12px] font-semibold group-hover:text-primary">{c.title}</div><div className="mt-0.5 font-mono text-[9px] text-muted-foreground">{c.karaokeCount} temas{c.locked ? " • BLOQUEADO" : ""}</div></div>
                 </Link>)}
@@ -136,26 +138,29 @@ export default function HomePage() {
                   {newestKaraokes.slice(0, 12).map((karaoke, index) => {
                     const display = publicKaraokeDisplay(karaoke);
                     return (
-                      <Link
+                      <button
+                        type="button"
                         key={karaoke.id}
-                        to={`/panel/actualizaciones/${karaoke.collectionId}?karaoke=${encodeURIComponent(karaoke.id)}`}
-                        className="group flex min-w-0 items-center gap-3 border-b border-white/[0.06] py-2.5"
+                        onClick={() => setPlayingKaraoke(karaoke)}
+                        title={"Reproducir demo: " + display.title}
+                        className="group flex w-full min-w-0 items-center gap-3 border-b border-white/[0.06] py-2.5 text-left"
                       >
                         <span className="w-6 shrink-0 text-right font-mono text-[11px] font-bold text-muted-foreground">
                           {String(index + 1).padStart(2, "0")}
                         </span>
-                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-md bg-secondary">
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-md bg-secondary sm:h-16 sm:w-16">
                           {karaoke.coverUrl ? (
                             <img src={karaoke.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover" />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center bg-primary/10 text-[11px] font-black text-primary">DJ</div>
                           )}
                         </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-[12px] font-semibold group-hover:text-primary">{display.title}</div>
-                          <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{display.artist}</div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[13px] font-semibold group-hover:text-primary">{display.title}</div>
+                          <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{display.artist}</div>
                         </div>
-                      </Link>
+                        <Play className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary" aria-hidden="true" />
+                      </button>
                     );
                   })}
                 </div>
@@ -166,6 +171,13 @@ export default function HomePage() {
       </div>
       {download && <BatchDownloadModal collectionId={download.id} title={download.title} onClose={() => setDownload(null)} />}
       {showVip && <VipAccessModal onClose={() => setShowVip(false)} />}
+      {playingKaraoke && (
+        <CdgDemoModal
+          karaokeId={playingKaraoke.id}
+          title={publicKaraokeDisplay(playingKaraoke).label}
+          onClose={() => setPlayingKaraoke(null)}
+        />
+      )}
     </VipShell>
   );
 }

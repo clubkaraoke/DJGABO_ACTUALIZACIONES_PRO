@@ -81,6 +81,12 @@ export default function CollectionDetailPage() {
     retry: false,
   });
 
+  const { data: downloadSettings } = useQuery({
+    queryKey: ["download-settings"],
+    queryFn: () => api.get<{ individualKaraokeDownloadsEnabled: boolean }>("/downloads/settings"),
+    staleTime: 30_000,
+  });
+
   const { data: demoSettings } = useQuery({
     queryKey: ["demo-player-settings"],
     queryFn: () => api.get<DemoPlayerSettings>("/demo-player/settings"),
@@ -276,6 +282,9 @@ export default function CollectionDetailPage() {
                     Descargar todo
                   </button>
                 </div>
+                {!downloadSettings?.individualKaraokeDownloadsEnabled && user?.role !== "ADMIN" && (
+                  <p className="mt-2 text-[11px] text-muted-foreground">Los karaokes se descargan por carpeta completa. La descarga individual está desactivada.</p>
+                )}
               </div>
             </div>
 
@@ -329,6 +338,7 @@ export default function CollectionDetailPage() {
                                       key={karaoke.id}
                                       karaoke={karaoke}
                                       demoAllowed={demoSettings?.enabled === true}
+                                      allowIndividualDownloads={user?.role === "ADMIN" || downloadSettings?.individualKaraokeDownloadsEnabled === true}
                                     />
                                   ))}
                                 </tbody>

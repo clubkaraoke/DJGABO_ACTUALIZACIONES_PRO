@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../lib/apiClient";
 import { Skeleton } from "../../components/primitives";
 
@@ -20,6 +20,17 @@ interface DownloadsResponse {
 }
 
 export default function AdminDownloadsPage() {
+  const qc = useQueryClient();
+  const { data: settings, isLoading: settingsLoading } = useQuery({
+    queryKey: ["download-settings"],
+    queryFn: () => api.get<{ individualKaraokeDownloadsEnabled: boolean }>("/downloads/settings"),
+  });
+  const updateSettings = useMutation({
+    mutationFn: (enabled: boolean) => api.patch<{ individualKaraokeDownloadsEnabled: boolean }>(
+      "/admin/download-settings", { individualKaraokeDownloadsEnabled: enabled },
+    ),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["download-settings"] }),
+  });
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "downloads"],
     queryFn: () => api.get<DownloadsResponse>("/admin/downloads"),
@@ -28,6 +39,26 @@ export default function AdminDownloadsPage() {
   return (
     <div className="space-y-6">
       <h1 className="font-display text-2xl font-bold text-ink">Descargas</h1>
+      <section className="flex flex-col gap-3 rounded-lg border border-graphite-border bg-graphite p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-ink">Descargas individuales VIP</h2>
+          <p className="mt-1 text-xs text-ink-secondary">
+            {settings?.individualKaraokeDownloadsEnabled
+              ? "Permitidas. Los VIP también pueden descargar cada karaoke por separado."
+              : "Desactivadas. Los VIP descargan las carpetas completas del mes."}
+          </p>
+          <p className="mt-1 text-xs text-ink-tertiary">Las descargas mensuales completas no cambian. Los administradores conservan acceso individual.</p>
+          {updateSettings.isError && <p role="alert" className="mt-2 text-xs text-red-400">No se pudo guardar el cambio. Intenta nuevamente.</p>}
+        </div>
+        <button
+          type="button"
+          disabled={settingsLoading || !settings || updateSettings.isPending}
+          onClick={() => updateSettings.mutate(!settings!.individualKaraokeDownloadsEnabled)}
+          className="shrink-0 rounded-md border border-graphite-border bg-graphite-elevated px-4 py-2 text-xs font-semibold text-ink disabled:opacity-50"
+        >
+          {settingsLoading ? "Cargando…" : updateSettings.isPending ? "Guardando…" : settings?.individualKaraokeDownloadsEnabled ? "Desactivar individuales" : "Activar individuales"}
+        </button>
+      </section>
 
       {isLoading && <Skeleton className="h-64 w-full" />}
 

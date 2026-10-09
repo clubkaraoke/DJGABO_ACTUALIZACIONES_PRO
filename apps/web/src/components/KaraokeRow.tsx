@@ -12,7 +12,7 @@ function formatSize(bytes: number | null): string {
   return `${(bytes / 1_000_000).toFixed(0)} MB`;
 }
 
-export function KaraokeRow({ karaoke, demoAllowed = false }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean }) {
+export function KaraokeRow({ karaoke, demoAllowed = false, allowIndividualDownloads = true }: { karaoke: KaraokeSummaryDTO; demoAllowed?: boolean; allowIndividualDownloads?: boolean }) {
   const { user } = useAuth();
   const display = publicKaraokeDisplay(karaoke);
   const [showPreview, setShowPreview] = useState(false);
@@ -54,13 +54,13 @@ export function KaraokeRow({ karaoke, demoAllowed = false }: { karaoke: KaraokeS
           ▶ Play
         </button>
       )}
-      <button
+      {allowIndividualDownloads && <button
         disabled={!karaoke.hasMaster || downloadState === "loading"}
         onClick={handleDownload}
         className="rounded-md bg-primary/10 px-2.5 py-1.5 text-[11px] font-semibold text-primary hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-30"
       >
         {downloadState === "loading" ? "…" : downloadState === "error" ? "Error" : "↓ Descargar"}
-      </button>
+      </button>}
     </div>
   );
 
