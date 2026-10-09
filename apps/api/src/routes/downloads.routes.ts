@@ -37,6 +37,7 @@ const reasonToStatus: Record<string, number> = {
   DAILY_DISTINCT_COLLECTION_LIMIT_REACHED: 429,
   COLLECTION_SELECTION_LIMIT_REACHED: 403,
   DOWNLOAD_ALREADY_PREPARING: 409,
+  INDIVIDUAL_DOWNLOAD_DISABLED: 403,
   DOWNLOAD_TICKET_INVALID: 401,
   DOWNLOAD_TICKET_USED: 410,
 };
@@ -384,6 +385,26 @@ async function validatePersistedTicket(
 export async function registerDownloadsRoutes(fastify: FastifyInstance) {
   const { env, db } = fastify;
 
+  fastify.get("/api/downloads/settings", async (_request, reply) =>
+    reply.send(await fastify.downloadSettingsService.get()),
+  );
+
+  fastify.patch("/api/admin/download-settings", {
+    preHandler: [fastify.authenticate, fastify.requireRole("ADMIN")],
+  }, async (request, reply) => {
+    const body = request.body as { individualKaraokeDownloadsEnabled?: unknown } | null;
+    if (!body || typeof body.individualKaraokeDownloadsEnabled !== "boolean") {
+      return reply.code(400).send({ error: "INVALID_INPUT", message: "Indica si permites descargas individuales.", statusCode: 400 });
+    }
+    return reply.send(await fastify.downloadSettingsService.update(body.individualKaraokeDownloadsEnabled));
+  });
+
+  async function individualDownloadAllowed(userId: string): Promise<boolean> {
+    const actor = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (actor?.role === "ADMIN") return true;
+    return (await fastify.downloadSettingsService.get()).individualKaraokeDownloadsEnabled;
+  }
+
   /**
    * Endpoints antiguos que devolvían links temporales de Dropbox.
    * Se mantienen solo para dar un error claro a clientes desactualizados.
@@ -449,6 +470,9 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
         return reply.code(status).send({ error: deviceResolution.reason, message: describeReason(deviceResolution.reason), statusCode: status });
       }
 
+      if (!(await individualDownloadAllowed(request.authUser!.sub))) {
+        return reply.code(403).send({ error: "INDIVIDUAL_DOWNLOAD_DISABLED", message: describeReason("INDIVIDUAL_DOWNLOAD_DISABLED"), statusCode: 403 });
+      }
       const check = await fastify.authorizationService.canDownloadKaraoke(
         request.authUser!.sub,
         request.params.id,
@@ -574,6 +598,10 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
       reply.header("Referrer-Policy", "no-referrer");
 
       if (ticket.kind === "KARAOKE") {
+        // Recheck at redemption, including tickets issued before Admin disabled it.
+        if (!(await individualDownloadAllowed(ticket.sub))) {
+          return reply.code(403).send({ error: "INDIVIDUAL_DOWNLOAD_DISABLED", message: describeReason("INDIVIDUAL_DOWNLOAD_DISABLED"), statusCode: 403 });
+        }
         const check = await fastify.authorizationService.canDownloadKaraoke(ticket.sub, ticket.resourceId, ticket.deviceId);
         if (!check.allowed) {
           const status = reasonToStatus[check.reason ?? "FORBIDDEN"] ?? 403;
@@ -753,6 +781,7 @@ function describeReason(reason: string): string {
     DAILY_DISTINCT_COLLECTION_LIMIT_REACHED: "Ya alcanzaste el máximo de carpetas diferentes que puedes descargar hoy.",
     COLLECTION_SELECTION_LIMIT_REACHED: "Ya utilizaste todas las carpetas incluidas en tu plan.",
     DOWNLOAD_ALREADY_PREPARING: "Esta descarga ya se está preparando. Espera unos segundos antes de intentarlo otra vez.",
+    INDIVIDUAL_DOWNLOAD_DISABLED: "Las descargas individuales están desactivadas. Descarga la carpeta completa de tu mes.",
     DOWNLOAD_TICKET_INVALID: "El enlace de descarga venció o no es válido. Solicita uno nuevo.",
     DOWNLOAD_TICKET_USED: "Este enlace de descarga ya fue utilizado. Solicita uno nuevo.",
   };

@@ -21,7 +21,7 @@ export const plans = sqliteTable("plans", {
   // Límites de descarga configurables por plan.
   maxCollectionDownloadsPerDay: integer("max_collection_downloads_per_day").notNull().default(2),
   maxDistinctCollectionsPerDay: integer("max_distinct_collections_per_day").notNull().default(5),
-  // null = sin límite total de carpetas elegidas. El plan mensual de US$29.99 usa 3.
+  // null = sin límite total de carpetas elegidas. El plan mensual de US$59.99 usa 3.
   maxSelectedCollections: integer("max_selected_collections"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),

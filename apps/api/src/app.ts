@@ -16,6 +16,7 @@ import { CatalogJsonService } from "./services/CatalogJsonService.js";
 import { SheetMirrorService } from "./services/SheetMirrorService.js";
 import { DropboxIncrementalSyncService } from "./services/DropboxIncrementalSyncService.js";
 import { DemoPlayerSettingsService } from "./services/DemoPlayerSettingsService.js";
+import { DownloadSettingsService } from "./services/DownloadSettingsService.js";
 import { KaraokeRequestService } from "./services/KaraokeRequestService.js";
 import { CoverEnrichmentService } from "./services/CoverEnrichmentService.js";
 import { VipMigrationService } from "./services/VipMigrationService.js";
@@ -54,6 +55,7 @@ declare module "fastify" {
     sheetMirrorService: SheetMirrorService;
     dropboxIncrementalSyncService: DropboxIncrementalSyncService | null;
     demoPlayerSettingsService: DemoPlayerSettingsService;
+    downloadSettingsService: DownloadSettingsService;
     karaokeRequestService: KaraokeRequestService;
     coverEnrichmentService: CoverEnrichmentService;
     vipMigrationService: VipMigrationService;
@@ -120,6 +122,10 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   fastify.decorate(
     "demoPlayerSettingsService",
     new DemoPlayerSettingsService(`${opts.env.CATALOG_JSON_DIR ?? "./data/catalog"}/demo-player-settings.json`),
+  );
+  fastify.decorate(
+    "downloadSettingsService",
+    new DownloadSettingsService((opts.env.CATALOG_JSON_DIR ?? "./data/catalog") + "/download-settings.json"),
   );
   fastify.decorate(
     "coverEnrichmentService",
