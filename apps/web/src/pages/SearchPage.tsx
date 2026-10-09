@@ -10,18 +10,19 @@ import { useAuth } from "../lib/authContext";
 
 export default function SearchPage() {
   const { user } = useAuth();
+  const hasVipAccess = Boolean(user && (user.role === "ADMIN" || user.plan));
   const [params, setParams] = useSearchParams();
   const q = params.get("q") || "";
 
   const { data = [], isLoading } = useQuery({
-    queryKey: ["karaoke-search", user ? "private" : "public", q],
-    queryFn: () => api.get<KaraokeSummaryDTO[]>(`${user ? "" : "/public"}/karaokes/search?q=${encodeURIComponent(q)}`),
+    queryKey: ["karaoke-search", hasVipAccess ? "private" : "public", q],
+    queryFn: () => api.get<KaraokeSummaryDTO[]>(`${hasVipAccess ? "" : "/public"}/karaokes/search?q=${encodeURIComponent(q)}`),
     enabled: q.trim().length > 0,
   });
 
   const { data: collections = [] } = useQuery({
-    queryKey: ["collections", user ? "private" : "public"],
-    queryFn: () => api.get<CollectionSummaryDTO[]>(user ? "/collections" : "/public/collections"),
+    queryKey: ["collections", hasVipAccess ? "private" : "public"],
+    queryFn: () => api.get<CollectionSummaryDTO[]>(hasVipAccess ? "/collections" : "/public/collections"),
   });
 
   const collectionById = useMemo(

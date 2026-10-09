@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAdmin, RequireAuth } from "./components/RouteGuards";
 import { AdminShell } from "./components/AdminShell";
 import LoginPage from "./pages/LoginPage";
+import VipInvitePage from "./pages/VipInvitePage";
 import HomePage from "./pages/HomePage";
 import UpdatesPage from "./pages/UpdatesPage";
 import CollectionDetailPage from "./pages/CollectionDetailPage";
@@ -24,6 +25,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/acceso-vip/:inviteCode" element={<VipInvitePage />} />
 
       {/* Web pública: catálogo completo visible sin login. */}
       <Route path="/" element={<Navigate to="/panel" replace />} />

@@ -15,6 +15,8 @@ interface ClientDetail {
   id: string;
   name: string;
   email: string;
+  whatsapp: string | null;
+  activationPending: boolean;
   status: "ACTIVE" | "SUSPENDED" | "EXPIRED";
   planId: string | null;
   subscriptionStart: string | null;
@@ -78,7 +80,14 @@ export default function AdminClientDetailPage() {
         </Link>
         <h1 className="mt-2 font-display text-2xl font-bold text-ink">{data.name}</h1>
         <p className="text-sm text-ink-secondary">{data.email}</p>
+        {data.whatsapp && <p className="mt-1 text-sm text-ink-secondary">WhatsApp: +{data.whatsapp}</p>}
       </div>
+
+      {data.activationPending && (
+        <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+          Solicitud de activación VIP pendiente. Verifica este cliente en tu lista histórica y asigna su plan y vigencia.
+        </div>
+      )}
 
       <section className="space-y-4 rounded-lg border border-graphite-border bg-graphite p-5">
         <h2 className="font-display text-base font-semibold text-ink">Membresía</h2>

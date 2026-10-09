@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
-import { Crown, FolderOpen, Home, LogIn, Menu, Package, Search, Shield, Sparkles, X } from "lucide-react";
+import { Crown, FolderOpen, Home, LogIn, Menu, MessageCircle, Package, Search, Shield, Sparkles, X } from "lucide-react";
 import { useAuth } from "../lib/authContext";
 
 const nav = [
@@ -20,6 +20,10 @@ export function VipShell({ children, searchValue = "", onSearchChange, searchPla
   const [localSearch, setLocalSearch] = useState("");
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const activationPending = user?.role === "MEMBER" && !user.plan;
+  const activationWhatsappUrl = user
+    ? `https://wa.me/51921675846?text=${encodeURIComponent(`Hola DJGABO, ya me registré en la nueva web con el correo ${user.email} y solicito la activación de mi membresía VIP.`)}`
+    : "";
 
   const displayedSearch = onSearchChange ? searchValue : localSearch;
   const submitSearch = (e: FormEvent) => {
@@ -64,18 +68,34 @@ export function VipShell({ children, searchValue = "", onSearchChange, searchPla
         <div className="p-3">
           <div className="rounded-lg border border-white/[0.06] bg-secondary p-3.5">
             <div className="mb-1.5 inline-flex items-center gap-1.5 font-mono text-[10px] font-bold tracking-wider text-primary"><Crown className="h-3 w-3" /> MEMBRESÍA VIP</div>
-            <div className="mb-1 text-[13px] font-semibold">{user?.plan?.name ?? (user ? "Acceso VIP" : "Explora gratis")}</div>
+            <div className="mb-1 text-[13px] font-semibold">
+              {activationPending ? "Pendiente de activación" : user?.plan?.name ?? (user ? "Acceso VIP" : "Explora gratis")}
+            </div>
             <p className="mb-2.5 text-[11px] leading-relaxed text-muted-foreground">
-              {user
-                ? "Accede a tus colecciones, paquetes y nuevos lanzamientos DJGABO."
-                : "Mira todo el catálogo y escucha demos. Inicia sesión o elige un plan para descargar."}
+              {activationPending
+                ? "Tu cuenta ya está creada. Solicita la activación para recuperar la vigencia de tu membresía."
+                : user
+                  ? "Accede a tus colecciones, paquetes y nuevos lanzamientos DJGABO."
+                  : "Mira todo el catálogo y escucha demos. Inicia sesión o elige un plan para descargar."}
             </p>
             {!user && (
               <button onClick={() => navigate("/login")} className="mb-2 w-full rounded-md border border-primary/30 py-1.5 text-[12px] font-semibold text-primary hover:bg-primary/[0.06]">
                 Acceso VIP
               </button>
             )}
-            <button onClick={() => navigate("/planes")} className="w-full rounded-md bg-primary py-1.5 text-[12px] font-semibold text-black hover:brightness-95">Planes y Precios</button>
+            {activationPending ? (
+              <a
+                href={activationWhatsappUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex w-full items-center justify-center gap-1.5 rounded-md bg-emerald-500 py-2 text-center text-[11px] font-bold text-black hover:brightness-95"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                Activa tu membresía VIP vía WhatsApp
+              </a>
+            ) : (
+              <button onClick={() => navigate("/planes")} className="w-full rounded-md bg-primary py-1.5 text-[12px] font-semibold text-black hover:brightness-95">Planes y Precios</button>
+            )}
           </div>
         </div>
       </aside>

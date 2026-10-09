@@ -48,8 +48,11 @@ export default function AdminClientsPage() {
                   <td className="px-4 py-3">
                     <p className="text-sm font-medium text-ink">{c.name}</p>
                     <p className="text-xs text-ink-tertiary">{c.email}</p>
+                    {c.whatsapp && <p className="mt-0.5 text-xs text-ink-tertiary">WhatsApp: +{c.whatsapp}</p>}
                   </td>
-                  <td className="px-4 py-3 text-sm text-ink-secondary">{c.plan ?? "—"}</td>
+                  <td className="px-4 py-3 text-sm text-ink-secondary">
+                    {c.activationPending ? <Badge tone="warning">Pendiente activación</Badge> : c.plan ?? "—"}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge tone={STATUS_TONE[c.status] ?? "neutral"}>{STATUS_LABEL[c.status] ?? c.status}</Badge>
                   </td>

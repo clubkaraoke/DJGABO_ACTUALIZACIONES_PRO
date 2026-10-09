@@ -11,10 +11,11 @@ import { useAuth } from "../lib/authContext";
 
 export default function UpdatesPage() {
   const { user } = useAuth();
+  const hasVipAccess = Boolean(user && (user.role === "ADMIN" || user.plan));
   const [year, setYear] = useState(2026);
   const [moreOpen, setMoreOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const { data = [], isLoading, isError } = useQuery({ queryKey: ["collections", user ? "private" : "public"], queryFn: () => api.get<CollectionSummaryDTO[]>(user ? "/collections" : "/public/collections") });
+  const { data = [], isLoading, isError } = useQuery({ queryKey: ["collections", hasVipAccess ? "private" : "public"], queryFn: () => api.get<CollectionSummaryDTO[]>(hasVipAccess ? "/collections" : "/public/collections") });
   const periods = useMemo(() => data.filter((c) => c.year === year).sort((a,b) => b.month - a.month), [data, year]);
 
   useEffect(() => { const fn=(e:MouseEvent)=>{if(ref.current && !ref.current.contains(e.target as Node)) setMoreOpen(false)}; document.addEventListener("mousedown",fn); return()=>document.removeEventListener("mousedown",fn); },[]);

@@ -91,6 +91,8 @@ export interface AdminClientRowDTO {
   id: string;
   name: string;
   email: string;
+  whatsapp: string | null;
+  activationPending: boolean;
   plan: string | null;
   status: UserStatus;
   subscriptionStart: string | null;

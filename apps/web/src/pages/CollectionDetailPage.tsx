@@ -61,6 +61,7 @@ function formatUpdatedAt(iso: string): string {
 
 export default function CollectionDetailPage() {
   const { user } = useAuth();
+  const hasVipAccess = Boolean(user && (user.role === "ADMIN" || user.plan));
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const requestedFolder = searchParams.get("folder");
@@ -269,7 +270,7 @@ export default function CollectionDetailPage() {
                     Compartir
                   </button>
                   <button
-                    onClick={() => user ? setShowBatch(true) : setShowVip(true)}
+                    onClick={() => hasVipAccess ? setShowBatch(true) : setShowVip(true)}
                     className="rounded-md bg-primary px-3.5 py-2 text-[13px] font-semibold text-black hover:brightness-95"
                   >
                     Descargar todo

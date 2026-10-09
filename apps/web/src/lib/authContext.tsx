@@ -9,6 +9,7 @@ interface AuthContextValue {
   loading: boolean;
   loginError: string | null;
   login: (email: string, password: string) => Promise<boolean>;
+  vipInviteRegister: (inviteCode: string, email: string, whatsapp: string, password: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 }
@@ -89,6 +90,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const vipInviteRegister = useCallback(async (inviteCode: string, email: string, whatsapp: string, password: string): Promise<{ ok: boolean; message?: string }> => {
+    try {
+      const res = await fetch(apiEndpoint("/auth/vip-invite/register"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteCode, email, whatsapp, password }),
+      });
+      const body = await res.json();
+      if (!res.ok) return { ok: false, message: body.message ?? "No se pudo completar el registro" };
+      const data = body as LoginResponseDTO;
+      localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+      setAccessToken(data.accessToken);
+      setUser(data.user);
+      setLoginError(null);
+      return { ok: true };
+    } catch {
+      return { ok: false, message: "No se pudo conectar con el servidor" };
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     const stored = localStorage.getItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -112,8 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadMe]);
 
   const value = useMemo(
-    () => ({ user, loading, loginError, login, logout, refreshMe }),
-    [user, loading, loginError, login, logout, refreshMe],
+    () => ({ user, loading, loginError, login, vipInviteRegister, logout, refreshMe }),
+    [user, loading, loginError, login, vipInviteRegister, logout, refreshMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
