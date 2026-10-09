@@ -2,7 +2,9 @@ import { Readable } from "node:stream";
 import { spawn } from "node:child_process";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { and, eq, isNull } from "drizzle-orm";
 import { assets, collections, karaokes } from "../db/schema.js";
+import { openDemoAudioWithRecovery } from "../services/demoAudioRecovery.js";
 import { deriveSourceGroup, isClubKaraokeSource } from "../services/sourceGroup.js";
 import { signDemoTicket, verifyDemoTicket } from "../auth/demoTicket.js";
 import {
@@ -266,9 +268,26 @@ export async function registerDemoPlayerRoutes(fastify: FastifyInstance) {
       );
       if (!resolved.ok) return reply.code(resolved.status).send(resolved);
 
-      const source = resolved.audioProviderFileId
-        ? await fastify.storageService.getSecureFileByProviderFileIdStream(resolved.audioProviderFileId)
-        : await fastify.storageService.getSecureFileStream(resolved.audioKey);
+      const source = await openDemoAudioWithRecovery(fastify.storageService, resolved.audioAsset, {
+        expectedSource: (key) => isClubKaraokeSource(deriveSourceGroup(key, resolved.collection.storagePath)),
+        onRepaired: async (metadata) => {
+          try {
+            // Only update this asset; never alter karaoke-CDG pairing.
+            await fastify.db.update(assets).set({
+              providerFileId: metadata.providerFileId ?? null,
+              size: metadata.size,
+            }).where(and(
+              eq(assets.id, resolved.audioAsset.id),
+              resolved.audioAsset.providerFileId
+                ? eq(assets.providerFileId, resolved.audioAsset.providerFileId)
+                : isNull(assets.providerFileId),
+            ));
+            request.log.info({ assetId: resolved.audioAsset.id }, "Repaired stale Dropbox WAV identifier");
+          } catch (err) {
+            request.log.warn({ err, assetId: resolved.audioAsset.id }, "Could not persist recovered WAV identifier");
+          }
+        },
+      });
       const input = Readable.fromWeb(source.body as never);
       const ffmpeg = spawn(
         "ffmpeg",
