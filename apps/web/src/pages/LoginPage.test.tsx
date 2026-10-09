@@ -12,6 +12,7 @@ describe("LoginPage", () => {
       loading: false,
       loginError: null,
       login,
+      vipInviteRegister: vi.fn(),
       logout: vi.fn(),
       refreshMe: vi.fn(),
     });
@@ -35,6 +36,7 @@ describe("LoginPage", () => {
       loading: false,
       loginError: "Tu cuenta está suspendida.",
       login: vi.fn(),
+      vipInviteRegister: vi.fn(),
       logout: vi.fn(),
       refreshMe: vi.fn(),
     });

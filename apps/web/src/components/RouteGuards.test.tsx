@@ -10,6 +10,7 @@ function renderWithAuth(mockAuth: Partial<ReturnType<typeof authModule.useAuth>>
     loading: false,
     loginError: null,
     login: vi.fn(),
+    vipInviteRegister: vi.fn(),
     logout: vi.fn(),
     refreshMe: vi.fn(),
     ...mockAuth,
