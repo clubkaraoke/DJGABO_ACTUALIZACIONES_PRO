@@ -19,7 +19,6 @@ const accessSchema = z.object({
   expiresAt: z.string().datetime().nullable().optional(),
 });
 
-/** Todas las rutas /api/admin/* exigen rol ADMIN. Un MEMBER recibe 403 aunque adivine la URL. */
 export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
   const guard = { preHandler: [fastify.authenticate, fastify.requireRole("ADMIN")] };
@@ -33,6 +32,7 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
     const rows: AdminClientRowDTO[] = [];
     for (const u of memberUsers) {
       const plan = u.planId ? await db.query.plans.findFirst({ where: eq(plans.id, u.planId) }) : null;
+      const migration = await fastify.vipMigrationService.findByUserId(u.id);
       const [devicesRow] = await db
         .select({ value: count() })
         .from(deviceSessions)
@@ -46,6 +46,8 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
         id: u.id,
         name: u.name,
         email: u.email,
+        whatsapp: migration?.whatsapp ?? null,
+        activationPending: Boolean(migration && !u.planId),
         plan: plan?.name ?? null,
         status: u.status as AdminClientRowDTO["status"],
         subscriptionStart: u.subscriptionStart?.toISOString() ?? null,
@@ -62,6 +64,7 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
     const user = await db.query.users.findFirst({ where: eq(users.id, request.params.id) });
     if (!user) return reply.code(404).send({ error: "NOT_FOUND", message: "Cliente no encontrado", statusCode: 404 });
 
+    const migration = await fastify.vipMigrationService.findByUserId(user.id);
     const allCollections = await db.query.collections.findMany({
       orderBy: (c, { desc }) => [desc(c.year), desc(c.month)],
     });
@@ -79,6 +82,8 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
       id: user.id,
       name: user.name,
       email: user.email,
+      whatsapp: migration?.whatsapp ?? null,
+      activationPending: Boolean(migration && !user.planId),
       status: user.status,
       planId: user.planId,
       subscriptionStart: user.subscriptionStart?.toISOString() ?? null,
@@ -145,13 +150,6 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
     return reply.code(204).send();
   });
 
-  /**
-   * Desvincula un dispositivo (punto 6). Al poner active=false, el
-   * X-Device-Token que ese dispositivo tenga guardado deja de servir de
-   * inmediato: resolveVerifiedDeviceId consulta este mismo campo en cada
-   * descarga (no hace falta esperar a que el JWT expire, porque no tiene
-   * expiración corta — ver deviceToken.ts).
-   */
   fastify.post<{ Params: { userId: string; sessionId: string } }>(
     "/api/admin/clients/:userId/devices/:sessionId/deactivate",
     guard,

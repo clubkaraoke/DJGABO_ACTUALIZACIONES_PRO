@@ -18,6 +18,7 @@ import { DropboxIncrementalSyncService } from "./services/DropboxIncrementalSync
 import { DemoPlayerSettingsService } from "./services/DemoPlayerSettingsService.js";
 import { KaraokeRequestService } from "./services/KaraokeRequestService.js";
 import { CoverEnrichmentService } from "./services/CoverEnrichmentService.js";
+import { VipMigrationService } from "./services/VipMigrationService.js";
 
 import { registerAuthRoutes } from "./routes/auth.routes.js";
 import { registerBase44BridgeRoutes } from "./routes/base44Bridge.routes.js";
@@ -55,6 +56,7 @@ declare module "fastify" {
     demoPlayerSettingsService: DemoPlayerSettingsService;
     karaokeRequestService: KaraokeRequestService;
     coverEnrichmentService: CoverEnrichmentService;
+    vipMigrationService: VipMigrationService;
   }
 }
 
@@ -68,17 +70,13 @@ export interface BuildAppOptions {
 export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> {
   const fastify = Fastify({
     logger: opts.env.NODE_ENV === "development" ? { level: "info" } : { level: "warn" },
-    // Los tickets de descarga son JWT firmados y viajan como un único
-    // parámetro de ruta. Fastify/find-my-way limita por defecto los params
-    // a 100 caracteres; 1024 permite el ticket actual sin abrir un límite
-    // innecesariamente grande.
     routerOptions: {
       maxParamLength: 1024,
     },
   });
 
   await fastify.register(cors, { origin: opts.env.CORS_ORIGIN, credentials: true });
-  await fastify.register(rateLimit, { global: false }); // rate limit se activa por ruta (login/downloads)
+  await fastify.register(rateLimit, { global: false });
   await fastify.register(authPlugin, { env: opts.env });
 
   fastify.decorate("db", opts.db);
@@ -137,6 +135,12 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
         from: opts.env.KARAOKE_REQUEST_EMAIL_FROM,
         publicUrl: opts.env.KARAOKE_REQUEST_PUBLIC_URL,
       },
+    ),
+  );
+  fastify.decorate(
+    "vipMigrationService",
+    new VipMigrationService(
+      `${opts.env.CATALOG_JSON_DIR ?? "./data/catalog"}/vip-migration-clients.json`,
     ),
   );
 

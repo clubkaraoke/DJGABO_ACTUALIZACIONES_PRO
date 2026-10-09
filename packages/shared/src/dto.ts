@@ -31,7 +31,6 @@ export interface CollectionSummaryDTO {
   karaokeCount: number;
   updatedAt: string;
   publishedAt: string | null;
-  /** Si el usuario NO tiene acceso, locked=true y no se exponen conteos sensibles adicionales */
   locked: boolean;
 }
 
@@ -47,11 +46,9 @@ export interface KaraokeSummaryDTO {
   coverUrl: string | null;
   collectionId: string;
   hasPreview: boolean;
-  /** true solo cuando el origen físico del master está habilitado para demo CDG. */
   demoAvailable: boolean;
   hasMaster: boolean;
   publishedAt: string | null;
-  /** Subcarpeta/marca de origen dentro del mes, por ejemplo 02_KK-Live. */
   sourceGroup?: string | null;
 }
 
@@ -62,10 +59,6 @@ export interface CollectionDetailDTO {
 
 export interface TemporaryUrlDTO {
   url: string;
-  /**
-   * null cuando el provider no puede informar una expiración real (ver
-   * docs/STORAGE.md — DropboxStorageProvider no fabrica un TTL ficticio).
-   */
   expiresAt: string | null;
   type: AssetType;
   fileName: string;
@@ -91,6 +84,8 @@ export interface AdminClientRowDTO {
   id: string;
   name: string;
   email: string;
+  whatsapp: string | null;
+  activationPending: boolean;
   plan: string | null;
   status: UserStatus;
   subscriptionStart: string | null;

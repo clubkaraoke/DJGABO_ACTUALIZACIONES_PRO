@@ -15,6 +15,7 @@ const envSchema = z.object({
   BASE44_OWNER_EMAIL: z.string().email().optional(),
   BASE44_OWNER_SUBJECT: z.string().min(1).optional(),
   BASE44_OWNER_RAILWAY_EMAIL: z.string().email().optional(),
+  VIP_MIGRATION_INVITE_CODE: z.string().min(16).optional(),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   STORAGE_PROVIDER: z.enum(["mock", "dropbox"]).default("mock"),
   DROPBOX_APP_KEY: z.string().optional(),
