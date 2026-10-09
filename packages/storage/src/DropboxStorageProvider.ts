@@ -323,7 +323,35 @@ export class DropboxStorageProvider implements StorageProvider {
 
   async downloadFileStream(key: string): Promise<StorageDownloadStream> {
     const path = this.resolvePath(key);
-    const res = await this.content("/files/download", { path });
+    let res: Response | null = null;
+    let lastError: unknown = null;
+    try {
+      res = await this.content("/files/download", { path });
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof StorageError) || error.reason !== "NOT_FOUND") throw error;
+    }
+
+    // A reuploaded WAV keeps its folder+name but receives a new Dropbox ID.
+    // The catalog can see the file via metadata, while file-content requests
+    // require the shared catalog namespace (same fallback as folder ZIPs).
+    if (!res && this.config.downloadNamespaceId && !key.startsWith("id:")) {
+      for (const candidate of this.toDownloadNamespacePaths(key)) {
+        try {
+          res = await this.content(
+            "/files/download",
+            { path: candidate },
+            0,
+            this.config.downloadNamespaceId,
+          );
+          break;
+        } catch (error) {
+          lastError = error;
+          if (!(error instanceof StorageError) || error.reason !== "NOT_FOUND") throw error;
+        }
+      }
+    }
+    if (!res) throw lastError;
     const fileName = path.split("/").filter(Boolean).pop() ?? "archivo";
     const contentLengthHeader = res.headers.get("content-length");
     return {
