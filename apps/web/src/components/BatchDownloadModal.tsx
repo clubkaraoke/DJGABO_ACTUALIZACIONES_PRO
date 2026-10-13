@@ -80,7 +80,7 @@ export function BatchDownloadModal({
       <div className="w-full max-w-md rounded-lg border border-graphite-border bg-graphite p-6 shadow-card">
         <h2 className="font-display text-lg font-semibold text-ink">Descargar {title}</h2>
         <p className="mt-2 text-sm leading-6 text-ink-secondary">
-          La descarga se genera con un enlace seguro temporal. Dropbox no se mostrará al cliente.
+          El ZIP se genera mientras se descarga. Si Dropbox o la conexión falla, el servidor liberará automáticamente el intento interrumpido. Puedes volver a descargar la carpeta; continuar desde el mismo porcentaje no está disponible todavía.
         </p>
 
         {loadingStatus ? (

@@ -27,6 +27,11 @@ interface ClientDetail {
   collections: { id: string; title: string; enabled: boolean; accessMode: "AUTOMATIC" | "BLOCKED" | "OUT_OF_PLAN" | "MANUAL" | "NONE"; expiresAt: string | null }[];
   devices: ClientDeviceRow[];
 }
+interface DownloadAttempt {
+  id:string;collectionTitle:string;createdAt:string;status:string;
+  errorCode:string|null;charged:boolean;restoredAt:string|null;
+  restorationReason:string|null;restoredBy:string|null;
+}
 interface Plan {
   id: string;
   name: string;
@@ -45,6 +50,9 @@ export default function AdminClientDetailPage() {
   const [savedMsg, setSavedMsg] = useState("");
   const [newInvite, setNewInvite] = useState<{message:string;whatsappUrl:string}|null>(null);
   const [showCollectionOverrides, setShowCollectionOverrides] = useState(false);
+  const [refundReason,setRefundReason]=useState("ZIP incompleto: descarga interrumpida o error Dropbox verificado.");
+  const [refundNotice,setRefundNotice]=useState("");
+
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin", "client", id],
@@ -52,6 +60,20 @@ export default function AdminClientDetailPage() {
     enabled: Boolean(id),
   });
   const { data: plans } = useQuery({ queryKey: ["admin", "plans"], queryFn: () => api.get<Plan[]>("/admin/plans") });
+  const {data:downloads, isLoading:downloadHistoryLoading}=useQuery({
+    queryKey:["admin","download-attempts",id],
+    queryFn:()=>api.get<{items:DownloadAttempt[]}>("/admin/clients/"+id+"/download-attempts"),
+    enabled:Boolean(id)
+  });
+  const refund=useMutation({
+    mutationFn:(logId:string)=>api.post("/admin/clients/"+id+"/download-attempts/"+logId+"/restore",{reason:refundReason}),
+    onSuccess:()=>{
+      setRefundNotice("Intento restituido. El historial se conservó para auditoría.");
+      qc.invalidateQueries({queryKey:["admin","download-attempts",id]});
+      qc.invalidateQueries({queryKey:["admin","client",id]});
+    },
+    onError:()=>setRefundNotice("No se pudo restituir. Comprueba si ya estaba acreditado o si el intento no corresponde a este cliente.")
+  });
 
   const updateClient = useMutation({
     mutationFn: (body: Record<string, unknown>) => api.patch(`/admin/clients/${id}`, body),
@@ -172,6 +194,42 @@ export default function AdminClientDetailPage() {
           </label>
         </div>
         {savedMsg && <p className="text-xs text-accent">{savedMsg}</p>}
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-graphite-border bg-graphite p-5">
+        <h2 className="font-display text-base font-semibold text-ink">Historial y restitución de descargas</h2>
+        <p className="text-xs text-ink-secondary">Las descargas ZIP fallidas o interrumpidas se liberan automáticamente cuando el servidor detecta el fallo. Para incidencias anteriores, verifica la cuenta y pulsa «Restituir intento». No se borra el historial.</p>
+        {downloadHistoryLoading ? <p className="text-xs text-ink-secondary">Revisando descargas…</p>
+          : downloads?.items.length ? <>
+          <label className="block text-xs text-ink-secondary">Motivo de restitución (queda auditado)
+            <input value={refundReason} minLength={12} onChange={e=>setRefundReason(e.target.value)}
+              className="mt-1 w-full rounded-md border border-graphite-border bg-graphite-elevated px-3 py-2 text-sm text-ink" />
+          </label>
+          <div className="max-h-[380px] divide-y divide-graphite-border overflow-y-auto">
+            {downloads.items.slice(0,30).map(row=>(
+              <div key={row.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-ink">{row.collectionTitle}</p>
+                  <p className="text-xs text-ink-secondary">{formatDateTime(row.createdAt)} · {
+                    row.status==="LEGACY"?"Histórico (finalización no comprobada)":
+                    row.status==="IN_PROGRESS"?"En curso":
+                    row.status==="COMPLETE"?"Transmitida por servidor":
+                    row.status==="FAILED"?"Fallida":row.status==="INTERRUPTED"?"Interrumpida":row.status
+                  }</p>
+                  {row.errorCode && <p className="text-xs text-red-400">{row.errorCode.slice(0,130)}</p>}
+                  {row.restoredAt && <p className="text-xs text-emerald-400">Restituida el {formatDateTime(row.restoredAt)}</p>}
+                </div>
+                {row.charged ? <Button variant="secondary" className="px-3 py-1.5 text-xs"
+                  disabled={refund.isPending || refundReason.trim().length<12}
+                  onClick={()=>{
+                    if(window.confirm("¿Restituir este intento a este cliente? Se conservará el registro y se auditará el motivo."))refund.mutate(row.id);
+                  }}>Restituir intento</Button>
+                : <span className="text-xs text-ink-tertiary">{row.restoredAt?"Restituido":row.status==="FAILED" || row.status==="INTERRUPTED"?"No descontado":"Sin cargo"}</span>}
+              </div>
+            ))}
+          </div>
+          </>:<p className="text-xs text-ink-secondary">No hay intentos de descarga de carpetas para este cliente.</p>}
+        {refundNotice && <p role="status" className="text-xs text-ink-secondary">{refundNotice}</p>}
       </section>
 
       <section className="space-y-3 rounded-lg border border-graphite-border bg-graphite p-5">
