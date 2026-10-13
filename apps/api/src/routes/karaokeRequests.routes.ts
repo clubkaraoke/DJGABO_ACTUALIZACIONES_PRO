@@ -12,6 +12,12 @@ const updateSchema = z.object({
 
 export async function registerKaraokeRequestRoutes(fastify: FastifyInstance) {
   fastify.get(
+    "/api/karaoke-requests/quota",
+    { preHandler: fastify.authenticate },
+    async (request, reply) => reply.send(await fastify.karaokeRequestService.getQuota(request.authUser!.sub)),
+  );
+
+  fastify.get(
     "/api/karaoke-requests",
     { preHandler: fastify.authenticate },
     async (request, reply) => {
@@ -43,6 +49,20 @@ export async function registerKaraokeRequestRoutes(fastify: FastifyInstance) {
         return reply.code(result.alreadyAvailable ? 200 : 201).send(result);
       } catch (error) {
         const message = error instanceof Error ? error.message : "REQUEST_FAILED";
+        if (message === "KARAOKE_REQUEST_MEMBERSHIP_REQUIRED") {
+          return reply.code(403).send({
+            error: message,
+            message: "Activa una membresía VIP para solicitar karaokes gratis.",
+            statusCode: 403,
+          });
+        }
+        if (message === "KARAOKE_REQUEST_QUOTA_EXHAUSTED") {
+          return reply.code(429).send({
+            error: message,
+            message: "Ya utilizaste tus karaokes a pedido gratuitos de este mes. Podrás solicitar más en tu próximo periodo.",
+            statusCode: 429,
+          });
+        }
         if (message === "INVALID_YOUTUBE_URL") {
           return reply.code(400).send({
             error: message,

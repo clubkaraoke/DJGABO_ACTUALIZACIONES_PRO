@@ -3,7 +3,8 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
-import { users } from "../db/schema.js";
+import { plans, users } from "../db/schema.js";
+import { calculateFreeRequestQuota, commercialRequestTier, type FreeRequestQuota } from "./KaraokeRequestQuota.js";
 
 export type KaraokeRequestStatus = "REQUESTED" | "IN_PROGRESS" | "READY" | "REJECTED";
 
@@ -106,6 +107,38 @@ export class KaraokeRequestService {
     private readonly filePath: string,
     private readonly emailOptions?: KaraokeRequestEmailOptions,
   ) {}
+
+  // One backend instance writes the JSON ledger on the persistent volume.
+  // Serialize mutations so simultaneous requests cannot exceed free quotas.
+  private writeQueue: Promise<void> = Promise.resolve();
+
+  private async serialized<T>(run: () => Promise<T>): Promise<T> {
+    let release!: () => void;
+    const previous = this.writeQueue;
+    this.writeQueue = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try { return await run(); } finally { release(); }
+  }
+
+  private async quotaForUser(
+    user: typeof users.$inferSelect,
+    items: KaraokeRequestRecord[],
+    now = new Date(),
+  ): Promise<FreeRequestQuota> {
+    const plan = user.planId ? await this.db.query.plans.findFirst({ where: eq(plans.id, user.planId) }) : null;
+    return calculateFreeRequestQuota(
+      user,
+      commercialRequestTier(plan?.slug),
+      items.filter((item) => item.userId === user.id),
+      now,
+    );
+  }
+
+  async getQuota(userId: string): Promise<FreeRequestQuota> {
+    const user = await this.db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (!user) throw new Error("USER_NOT_FOUND");
+    return this.serialized(async () => this.quotaForUser(user, await this.readAll()));
+  }
 
   private async sendReadyEmail(item: KaraokeRequestRecord): Promise<boolean> {
     const apiKey = this.emailOptions?.apiKey;
@@ -218,41 +251,52 @@ export class KaraokeRequestService {
       return { alreadyAvailable: true as const, match: existingMatch };
     }
 
-    const items = await this.readAll();
-    const duplicate = items.find(
-      (item) =>
-        item.userId === userId &&
-        item.videoId === meta.videoId &&
-        item.status !== "REJECTED",
-    );
-    if (duplicate) return { alreadyAvailable: false as const, duplicate: true as const, request: duplicate };
+    return this.serialized(async () => {
+      const items = await this.readAll();
+      const duplicate = items.find(
+        (item) =>
+          item.userId === userId &&
+          item.videoId === meta.videoId &&
+          item.status !== "REJECTED",
+      );
+      if (duplicate) return { alreadyAvailable: false as const, duplicate: true as const, request: duplicate };
 
-    const now = new Date().toISOString();
-    const record: KaraokeRequestRecord = {
-      id: `req_${randomUUID()}`,
-      userId,
-      userEmail: user.email,
-      userName: user.name,
-      youtubeUrl,
-      videoId: meta.videoId,
-      sourceTitle: meta.title,
-      sourceAuthor: meta.author,
-      status: "REQUESTED",
-      matchedKaraokeId: null,
-      matchedCollectionId: null,
-      matchedCollectionTitle: null,
-      createdAt: now,
-      updatedAt: now,
-      readyAt: null,
-      readyEmailSentAt: null,
-      readyEmailEligibleAt: null,
-    };
-    items.unshift(record);
-    await this.writeAll(items);
-    return { alreadyAvailable: false as const, duplicate: false as const, request: record };
+      // Recheck the current membership under the write lock. A duplicate
+      // or already-catalogued song never consumes another free request.
+      const currentUser = await this.db.query.users.findFirst({ where: eq(users.id, userId) });
+      if (!currentUser) throw new Error("USER_NOT_FOUND");
+      const quota = await this.quotaForUser(currentUser, items);
+      if (!quota.active) throw new Error("KARAOKE_REQUEST_MEMBERSHIP_REQUIRED");
+      if (quota.remaining !== null && quota.remaining <= 0) throw new Error("KARAOKE_REQUEST_QUOTA_EXHAUSTED");
+
+      const now = new Date().toISOString();
+      const record: KaraokeRequestRecord = {
+        id: `req_${randomUUID()}`,
+        userId,
+        userEmail: currentUser.email,
+        userName: currentUser.name,
+        youtubeUrl,
+        videoId: meta.videoId,
+        sourceTitle: meta.title,
+        sourceAuthor: meta.author,
+        status: "REQUESTED",
+        matchedKaraokeId: null,
+        matchedCollectionId: null,
+        matchedCollectionTitle: null,
+        createdAt: now,
+        updatedAt: now,
+        readyAt: null,
+        readyEmailSentAt: null,
+        readyEmailEligibleAt: null,
+      };
+      items.unshift(record);
+      await this.writeAll(items);
+      return { alreadyAvailable: false as const, duplicate: false as const, request: record };
+    });
   }
 
   async reconcile(): Promise<KaraokeRequestRecord[]> {
+    return this.serialized(async () => {
     const items = await this.readAll();
     let changed = false;
 
@@ -293,6 +337,7 @@ export class KaraokeRequestService {
 
     if (changed) await this.writeAll(items);
     return items;
+    });
   }
 
   async listForUser(userId: string): Promise<KaraokeRequestRecord[]> {
@@ -305,6 +350,7 @@ export class KaraokeRequestService {
   }
 
   async updateStatus(id: string, status: KaraokeRequestStatus): Promise<KaraokeRequestRecord | null> {
+    return this.serialized(async () => {
     const items = await this.readAll();
     const item = items.find((candidate) => candidate.id === id);
     if (!item) return null;
@@ -333,5 +379,6 @@ export class KaraokeRequestService {
     }
     await this.writeAll(items);
     return item;
+    });
   }
 }

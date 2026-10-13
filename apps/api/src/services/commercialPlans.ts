@@ -70,8 +70,8 @@ export function commercialCollectionAllowed(
 
 export const COMMERCIAL_PLANS = [
   { slug: "pro-mensual", name: "1 mes · US$59.99", description: "3 carpetas diferentes de 2026 en 30 días", maxDevices: 2, maxSelectedCollections: 3 },
-  { slug: "pro-semestral", name: "6 meses · US$139.99", description: "Año de compra completo y seis meses de novedades", maxDevices: 2, maxSelectedCollections: null },
-  { slug: "pro-anual", name: "Pro Anual · US$179.99", description: "Todos los años y nuevas actualizaciones durante 12 meses", maxDevices: 3, maxSelectedCollections: null },
+  { slug: "pro-semestral", name: "6 meses · US$149.99", description: "Año de compra completo y seis meses de novedades", maxDevices: 2, maxSelectedCollections: null },
+  { slug: "pro-anual", name: "Pro Anual · US$189.99", description: "Todos los años y nuevas actualizaciones durante 12 meses", maxDevices: 3, maxSelectedCollections: null },
 ] as const;
 
 /** Ensure commercial choices exist on the persistent Railway DB without affecting user assignments. */
