@@ -5,6 +5,7 @@ import type { AdminClientRowDTO } from "@djgabo/shared";
 import { users, plans, collections, deviceSessions, userCollectionAccess } from "../../db/schema.js";
 import { addMonths, commercialTier, commercialCollectionAllowed, membershipDeadline } from "../../services/commercialPlans.js";
 import { createId } from "../../db/id.js";
+import { sqliteClient } from "../../db/client.js";
 
 const updateClientSchema = z.object({
   status: z.enum(["ACTIVE", "EXPIRED", "SUSPENDED"]).optional(),
@@ -61,7 +62,7 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
         id: u.id,
         name: u.name,
         email: u.email,
-        whatsapp: migration?.whatsapp ?? null,
+        whatsapp: migration?.whatsapp ?? (sqliteClient(db).prepare("SELECT phone FROM manual_customer_accounts WHERE user_id=?").get(u.id) as {phone:string}|undefined)?.phone ?? null,
         activationPending: Boolean(migration && !u.planId),
         plan: plan?.name ?? null,
         status: u.status as AdminClientRowDTO["status"],
@@ -100,13 +101,14 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
       id: user.id,
       name: user.name,
       email: user.email,
-      whatsapp: migration?.whatsapp ?? null,
+      whatsapp: migration?.whatsapp ?? (sqliteClient(db).prepare("SELECT phone FROM manual_customer_accounts WHERE user_id=?").get(user.id) as {phone:string}|undefined)?.phone ?? null,
       activationPending: Boolean(migration && !user.planId),
       status: user.status,
       planId: user.planId,
       subscriptionStart: user.subscriptionStart?.toISOString() ?? null,
       subscriptionEnd: user.subscriptionEnd?.toISOString() ?? null,
       pendingLegacyExpiry: user.legacyPendingExpiry,
+      manualAccountStatus: (sqliteClient(db).prepare("SELECT setup_consumed FROM manual_customer_accounts WHERE user_id=?").get(user.id) as {setup_consumed:number|null}|undefined)?.setup_consumed === undefined ? null : (sqliteClient(db).prepare("SELECT setup_consumed FROM manual_customer_accounts WHERE user_id=?").get(user.id) as {setup_consumed:number|null}).setup_consumed ? "ACTIVATED" : "PENDING_PASSWORD",
       maxDevices: user.maxDevices,
       collections: allCollections.map((c) => ({
         id: c.id,

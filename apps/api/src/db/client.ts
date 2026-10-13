@@ -33,7 +33,30 @@ export function createDb(databaseUrl: string) {
     items TEXT NOT NULL, annual_bonus TEXT,
     updated_at INTEGER NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS djgabo_feature_migrations (name TEXT PRIMARY KEY);`);
+  CREATE TABLE IF NOT EXISTS djgabo_feature_migrations (name TEXT PRIMARY KEY);
+  CREATE TABLE IF NOT EXISTS manual_customer_accounts (
+    user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    phone TEXT NOT NULL UNIQUE,
+    setup_hash TEXT UNIQUE,
+    setup_expires INTEGER,
+    setup_consumed INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS manual_customer_payments (
+    id TEXT PRIMARY KEY NOT NULL,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    plan_slug TEXT NOT NULL,
+    plan_price_usd TEXT NOT NULL,
+    amount_paid TEXT NOT NULL,
+    payment_currency TEXT NOT NULL,
+    payment_method TEXT NOT NULL,
+    payment_reference TEXT,
+    period_start INTEGER NOT NULL,
+    period_end INTEGER NOT NULL,
+    paid_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS manual_customer_payments_user_idx ON manual_customer_payments(user_id);`);
   const userColumns = sqlite.prepare("PRAGMA table_info(users)").all() as Array<{name:string}>;
   if (userColumns.length && !userColumns.some(c => c.name === "legacy_pending_expiry")) {
     sqlite.exec("ALTER TABLE users ADD COLUMN legacy_pending_expiry INTEGER NOT NULL DEFAULT 0");

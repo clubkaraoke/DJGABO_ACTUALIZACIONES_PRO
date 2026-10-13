@@ -30,6 +30,8 @@ export function loadTestDb() {
     "CREATE TABLE IF NOT EXISTS vip_allowed_phones (phone TEXT PRIMARY KEY, reference_email TEXT, verification_hash TEXT, verification_expires INTEGER, used_user_id TEXT UNIQUE, used_at INTEGER, revoked INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS plan_marketing (slug TEXT PRIMARY KEY, title TEXT NOT NULL, price TEXT NOT NULL, period TEXT NOT NULL, description TEXT NOT NULL, items TEXT NOT NULL, annual_bonus TEXT, updated_at INTEGER NOT NULL)",
     "ALTER TABLE plan_marketing ADD COLUMN free_requests_per_month INTEGER NOT NULL DEFAULT 0",
+    "CREATE TABLE IF NOT EXISTS manual_customer_accounts (user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,phone TEXT NOT NULL UNIQUE,setup_hash TEXT UNIQUE,setup_expires INTEGER,setup_consumed INTEGER,created_at INTEGER NOT NULL,updated_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS manual_customer_payments (id TEXT PRIMARY KEY NOT NULL,user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,plan_slug TEXT NOT NULL,plan_price_usd TEXT NOT NULL,amount_paid TEXT NOT NULL,payment_currency TEXT NOT NULL,payment_method TEXT NOT NULL,payment_reference TEXT,period_start INTEGER NOT NULL,period_end INTEGER NOT NULL,paid_at INTEGER NOT NULL)",
     "ALTER TABLE plans ADD COLUMN max_collection_downloads_per_day INTEGER NOT NULL DEFAULT 2",
     "ALTER TABLE plans ADD COLUMN max_distinct_collections_per_day INTEGER NOT NULL DEFAULT 5",
     "ALTER TABLE plans ADD COLUMN max_selected_collections INTEGER",
