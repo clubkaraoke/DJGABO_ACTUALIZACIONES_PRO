@@ -3,6 +3,8 @@ import { RequireAdmin, RequireAuth } from "./components/RouteGuards";
 import { AdminShell } from "./components/AdminShell";
 import LoginPage from "./pages/LoginPage";
 import VipInvitePage from "./pages/VipInvitePage";
+import ActivateManualClientPage from "./pages/ActivateManualClientPage";
+import AdminNewClientPage from "./pages/admin/AdminNewClientPage";
 import HomePage from "./pages/HomePage";
 import UpdatesPage from "./pages/UpdatesPage";
 import CollectionDetailPage from "./pages/CollectionDetailPage";
@@ -27,6 +29,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/acceso-vip/:inviteCode" element={<VipInvitePage />} />
+      <Route path="/activar-cuenta" element={<ActivateManualClientPage />} />
 
       {/* Web pública: catálogo completo visible sin login. */}
       <Route path="/" element={<Navigate to="/panel" replace />} />
@@ -44,6 +47,7 @@ export default function App() {
           <Route path="/admin" element={<AdminShell />}>
             <Route index element={<AdminDashboardPage />} />
             <Route path="clientes" element={<AdminClientsPage />} />
+            <Route path="clientes/nuevo" element={<AdminNewClientPage />} />
             <Route path="clientes/:id" element={<AdminClientDetailPage />} />
             <Route path="pedidos" element={<AdminRequestsPage />} />
             <Route path="planes" element={<AdminPlansPage />} />

@@ -12,6 +12,7 @@ import { VipAccessModal } from "../components/VipAccessModal";
 import { useAuth } from "../lib/authContext";
 import { EmptyState } from "../components/primitives";
 import { buildPublicFolderAliases, publicSearchMatches } from "../lib/publicCatalogPresentation";
+import { alphabeticalCollection } from "../lib/alphabeticalCollection";
 
 interface DemoPlayerSettings {
   enabled: boolean;
@@ -68,6 +69,7 @@ export default function CollectionDetailPage() {
   const [query] = useState("");
   const [open, setOpen] = useState<string | null>(requestedFolder);
   const [showBatch, setShowBatch] = useState(false);
+  const [viewMode, setViewMode] = useState<"folders" | "all">("folders");
   const [showVip, setShowVip] = useState(false);
 
   const {
@@ -202,6 +204,8 @@ export default function CollectionDetailPage() {
       });
   }, [data, catalog, query]);
 
+  const alphabetical=useMemo(()=>alphabeticalCollection(groups),[groups]);
+
   if (error instanceof ApiError) {
     return (
       <VipShell>
@@ -305,10 +309,35 @@ export default function CollectionDetailPage() {
               </div>
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[12px] text-muted-foreground">{alphabetical.length} karaokes · {groups.length} carpetas</span>
+              <div role="group" aria-label="Vista de colección" className="inline-flex rounded-lg border border-white/[0.10] bg-card p-1 text-[12px]">
+                <button type="button" aria-pressed={viewMode==="folders"} onClick={()=>setViewMode("folders")}
+                  className={"rounded-md px-3 py-1.5 font-semibold "+(viewMode==="folders"?"bg-primary text-black":"text-muted-foreground hover:text-foreground")}>Por carpetas</button>
+                <button type="button" aria-pressed={viewMode==="all"} onClick={()=>setViewMode("all")}
+                  className={"rounded-md px-3 py-1.5 font-semibold "+(viewMode==="all"?"bg-primary text-black":"text-muted-foreground hover:text-foreground")}>Todas A–Z</button>
+              </div>
+            </div>
             <div className="overflow-hidden rounded-[10px] border border-white/[0.06] bg-card">
               {groups.length === 0 ? (
                 <div className="px-4 py-10 text-center text-[13px] text-muted-foreground">
                   No hay resultados.
+                </div>
+              ) : viewMode==="all" ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full md:min-w-[760px]">
+                    <thead className="hidden md:table-header-group"><tr className="border-b border-white/[0.06] text-left font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <th className="w-[56px] px-4 py-2.5">Cover</th><th className="px-4 py-2.5">Karaoke</th>
+                      <th className="px-4 py-2.5">Código</th><th className="px-4 py-2.5">Formato</th>
+                      <th className="px-4 py-2.5">Tamaño</th><th className="px-4 py-2.5">Acciones</th>
+                    </tr></thead>
+                    <tbody>{alphabetical.map(({karaoke,folder})=><KaraokeRow
+                      key={karaoke.id} karaoke={karaoke} folderLabel={folder}
+                      demoAllowed={demoSettings?.enabled===true}
+                      allowIndividualDownloads={user?.role==="ADMIN"&&downloadSettings?.individualKaraokeDownloadsEnabled===true}
+                      canDownloadCollection={collectionDownloadStatus?.canDownload===true||user?.role==="ADMIN"}
+                      onDownloadCollection={()=>setShowBatch(true)} />)}</tbody>
+                  </table>
                 </div>
               ) : (
                 groups.map(([name, karaokes], index) => {

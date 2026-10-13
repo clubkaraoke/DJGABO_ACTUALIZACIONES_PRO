@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/apiClient";
 import { VipShell } from "../components/VipShell";
+import { planSubscriptionWhatsappUrl } from "../lib/planWhatsApp";
 
 interface Offer {slug:string;title:string;price:string;period:string;description:string;items:string[];annualBonus:string|null}
 export default function PlansPage() {
@@ -82,11 +83,11 @@ export default function PlansPage() {
                   </p>
                 )}
 
-                <button
+                <a href={planSubscriptionWhatsappUrl(plan)} target="_blank" rel="noopener noreferrer" aria-label={"Suscribirme por WhatsApp: "+plan.name}
                   className={`mt-5 rounded-md py-2.5 text-[13px] font-semibold transition hover:brightness-95 ${plan.featured ? "bg-primary text-black" : "border border-white/[0.08] bg-secondary text-foreground"}`}
                 >
                   Suscribirme
-                </button>
+                </a>
               </article>
             ))}
           </div>

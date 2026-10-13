@@ -18,6 +18,7 @@ interface ClientDetail {
   whatsapp: string | null;
   activationPending: boolean;
   pendingLegacyExpiry?: boolean;
+  manualAccountStatus?: "PENDING_PASSWORD" | "ACTIVATED" | null;
   status: "ACTIVE" | "SUSPENDED" | "EXPIRED";
   planId: string | null;
   subscriptionStart: string | null;
@@ -42,6 +43,7 @@ export default function AdminClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const [savedMsg, setSavedMsg] = useState("");
+  const [newInvite, setNewInvite] = useState<{message:string;whatsappUrl:string}|null>(null);
   const [showCollectionOverrides, setShowCollectionOverrides] = useState(false);
 
   const { data, isLoading } = useQuery({
@@ -59,6 +61,11 @@ export default function AdminClientDetailPage() {
       setSavedMsg("Guardado");
       setTimeout(() => setSavedMsg(""), 1500);
     },
+  });
+
+  const resend = useMutation({
+    mutationFn: () => api.post<{message:string;whatsappUrl:string}>("/admin/clients/" + id + "/activation-link",{}),
+    onSuccess: (result) => setNewInvite(result),
   });
 
   const toggleAccess = useMutation({
@@ -90,6 +97,7 @@ export default function AdminClientDetailPage() {
         {data.whatsapp && <p className="mt-1 text-sm text-ink-secondary">WhatsApp: +{data.whatsapp}</p>}
       </div>
 
+      {data.manualAccountStatus === "PENDING_PASSWORD" && <section className="space-y-3 rounded-lg border border-amber-400/20 bg-graphite p-4"><p className="text-sm font-semibold text-amber-300">Cliente nuevo: pendiente de configurar contraseña</p><p className="text-xs text-ink-secondary">Genera un nuevo enlace privado (48 horas) si no recibió el anterior.</p><Button variant="secondary" disabled={resend.isPending} onClick={()=>resend.mutate()}>{resend.isPending?"Generando…":"Generar nuevo enlace de activación"}</Button>{resend.isError&&<p role="alert" className="text-xs text-red-400">No se pudo generar el enlace.</p>}{newInvite&&<div className="space-y-2"><pre className="whitespace-pre-wrap break-words rounded-md bg-graphite-elevated p-3 font-sans text-xs">{newInvite.message}</pre><a className="inline-flex rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white" href={newInvite.whatsappUrl} target="_blank" rel="noopener noreferrer">Enviar por WhatsApp</a></div>}</section>}
       {data.pendingLegacyExpiry && <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">VIP antiguo activo por invitación. Vencimiento pendiente de asignar: introduce la fecha real de caducidad.</div>}
       {data.activationPending && (
         <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">

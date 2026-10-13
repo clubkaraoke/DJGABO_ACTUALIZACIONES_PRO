@@ -24,7 +24,7 @@ export default function AdminClientsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="font-display text-2xl font-bold text-ink">Clientes</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="font-display text-2xl font-bold text-ink">Clientes</h1><Link to="/admin/clientes/nuevo" className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-black">+ Nuevo cliente VIP</Link></div>
 
       {isLoading && <Skeleton className="h-64 w-full" />}
 

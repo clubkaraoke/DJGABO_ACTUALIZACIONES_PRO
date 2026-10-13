@@ -14,10 +14,11 @@ function formatSize(bytes: number | null): string {
 }
 
 export function KaraokeRow({
-  karaoke, demoAllowed = false, allowIndividualDownloads = false,
+  karaoke, folderLabel, demoAllowed = false, allowIndividualDownloads = false,
   canDownloadCollection = false, onDownloadCollection,
 }: {
   karaoke: KaraokeSummaryDTO;
+  folderLabel?: string;
   demoAllowed?: boolean;
   allowIndividualDownloads?: boolean;
   canDownloadCollection?: boolean;
@@ -103,6 +104,7 @@ export function KaraokeRow({
           <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={display.artist}>
             {display.artist}
           </p>
+          {folderLabel && <p className="mt-1 text-[10px] text-primary/85">Carpeta: {folderLabel}</p>}
           <div className="mt-1"><KaraokeTypeBadges karaoke={karaoke} /></div>
         </td>
         <td className="px-4 py-2.5 font-mono text-[11px] uppercase text-muted-foreground">{karaoke.code}</td>
@@ -122,6 +124,7 @@ export function KaraokeRow({
               <p className="mt-0.5 truncate text-[11px] text-muted-foreground" title={display.artist}>
                 {display.artist}
               </p>
+              {folderLabel && <p className="mt-1 text-[10px] text-primary/85">Carpeta: {folderLabel}</p>}
               <div className="mt-1.5"><KaraokeTypeBadges karaoke={karaoke} /></div>
               <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] text-muted-foreground">
                 <span>{karaoke.code}</span>
