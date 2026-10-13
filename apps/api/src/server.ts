@@ -10,6 +10,7 @@ import {
 import { StorageIndexerService, parseMonthFolder, parseYearFolder } from "@djgabo/storage";
 import { DrizzleIndexerRepository } from "./db/drizzleIndexerRepository.js";
 import { buildApp } from "./app.js";
+import { restoreVerifiedJuneIncident } from "./services/restoreVerifiedJuneIncident.js";
 import { resolveDropboxMonthPath } from "./services/DropboxMonthPathResolver.js";
 
 async function main() {
@@ -21,6 +22,8 @@ async function main() {
   seedPendingDropboxFiles(provider);
 
   const app = await buildApp({ db, env, storageProvider: provider, storageProviderReason: reason });
+  // Idempotent, verified incident-only restitution; runs before serving traffic.
+  restoreVerifiedJuneIncident(app);
   let bootstrapTarget: { path: string; year: number; month: number } | null = null;
 
   // Bootstrap controlado de un mes que ya existía antes de activar el

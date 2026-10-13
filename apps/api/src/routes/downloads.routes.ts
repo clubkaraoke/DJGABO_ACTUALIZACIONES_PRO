@@ -3,6 +3,7 @@ import { commercialTier } from "../services/commercialPlans.js";
 import { PassThrough, Readable } from "node:stream";
 import archiver from "archiver";
 import crypto from "node:crypto";
+import { expireOrphanedDownloads, isChargedDownload, trackStreamingOutcome } from "../services/downloadLedger.js";
 import { and, eq, gte, isNull, lt } from "drizzle-orm";
 import { parseMonthFolder, parseYearFolder } from "@djgabo/storage";
 import { resolveVerifiedDeviceId } from "./deviceTokenGuard.js";
@@ -199,6 +200,10 @@ function createCollectionZipStream(
 ): PassThrough {
   const output = new PassThrough();
   const archive = archiver("zip", { store: true });
+  output.once("close", () => {
+    // Stop packaging/Dropbox work if the customer disconnects mid-download.
+    if (!output.writableFinished) archive.abort();
+  });
 
   archive.on("warning", (error) => {
     fastify.log.warn({ err: error }, "ZIP stream warning");
@@ -265,13 +270,14 @@ async function getPolicyState(
   const maxSelectedCollections = tier === "MONTH" ? 3 : tier ? null : (plan?.maxSelectedCollections ?? null);
   const dayStart = startOfPeruDay(now);
 
-  const todayLogs = await db.query.downloadLogs.findMany({
+  expireOrphanedDownloads(db);
+  const todayLogs = (await db.query.downloadLogs.findMany({
     where: and(
       eq(downloadLogs.userId, userId),
       eq(downloadLogs.type, "COLLECTION_ARCHIVE"),
       gte(downloadLogs.createdAt, dayStart),
     ),
-  });
+  })).filter(isChargedDownload);
 
   const downloadsForCollectionToday = todayLogs.filter((l) => l.collectionId === collectionId).length;
   const distinctCollectionsToday = new Set(todayLogs.map((l) => l.collectionId).filter(Boolean)).size;
@@ -754,21 +760,27 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
         }).onConflictDoNothing();
       }
 
+      const streamLogId=createId("dl");
       await db.insert(downloadLogs).values({
-        id: createId("dl"),
+        id: streamLogId,
         userId: ticket.sub,
         collectionId: collection.id,
         type: "COLLECTION_ARCHIVE",
         ip: request.ip,
         deviceId: ticket.deviceId,
+        status: "IN_PROGRESS",
         createdAt: new Date(),
       });
 
       reply.header("Content-Type", "application/zip");
       reply.header("Content-Disposition", `attachment; filename="${safeFileName(collection.title)}.zip"`);
       reply.header("Transfer-Encoding", "chunked");
+      // Dynamic ZIP has no stable byte offsets; deliberately do not advertise Range.
+      reply.header("Accept-Ranges","none");
+      reply.header("X-Download-Retry","automatic-quota-refund-on-stream-error");
 
       const zipStream = createCollectionZipStream(fastify, folderKey, zipFiles);
+      trackStreamingOutcome(fastify,reply,zipStream,streamLogId);
       return reply.send(zipStream);
     },
   );

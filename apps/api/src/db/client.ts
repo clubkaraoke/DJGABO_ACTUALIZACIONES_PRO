@@ -57,6 +57,23 @@ export function createDb(databaseUrl: string) {
     paid_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS manual_customer_payments_user_idx ON manual_customer_payments(user_id);`);
+  const downloadLogCols=sqlite.prepare("PRAGMA table_info(download_logs)").all() as Array<{name:string}>;
+  if(downloadLogCols.length){
+    const columns:Record<string,string>={
+      status:"TEXT NOT NULL DEFAULT 'LEGACY'",
+      finished_at:"INTEGER",
+      error_code:"TEXT",
+      bytes_sent:"INTEGER",
+      quota_reversed_at:"INTEGER",
+      quota_reversal_reason:"TEXT",
+      quota_reversed_by:"TEXT"
+    };
+    for(const [name,definition] of Object.entries(columns)){
+      if(!downloadLogCols.some(c=>c.name===name)){
+        sqlite.exec("ALTER TABLE download_logs ADD COLUMN "+name+" "+definition);
+      }
+    }
+  }
   const karaokeColumns = sqlite.prepare("PRAGMA table_info(karaokes)").all() as Array<{name:string}>;
   if (karaokeColumns.length && !karaokeColumns.some(c=>c.name==="catalog_active")) {
     sqlite.exec("ALTER TABLE karaokes ADD COLUMN catalog_active INTEGER NOT NULL DEFAULT 1");

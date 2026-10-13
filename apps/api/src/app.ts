@@ -31,6 +31,7 @@ import { registerPreviewRoutes } from "./routes/preview.routes.js";
 import { registerDeviceRoutes } from "./routes/devices.routes.js";
 import { registerAdminClientsRoutes } from "./routes/admin/clients.routes.js";
 import { registerAdminPlansRoutes } from "./routes/admin/plans.routes.js";
+import { registerAdminDownloadRefundRoutes } from "./routes/admin/downloadRefunds.routes.js";
 import { registerManualClientsRoutes } from "./routes/admin/manualClients.routes.js";
 import { registerAdminVipInvitationsRoutes } from "./routes/admin/vipInvitations.routes.js";
 import { registerAdminCollectionsRoutes } from "./routes/admin/collections.routes.js";
@@ -174,6 +175,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await registerDeviceRoutes(fastify);
   await registerAdminClientsRoutes(fastify);
   await registerAdminPlansRoutes(fastify);
+  registerAdminDownloadRefundRoutes(fastify);
   registerManualClientsRoutes(fastify);
   await registerAdminVipInvitationsRoutes(fastify);
   await registerAdminCollectionsRoutes(fastify);

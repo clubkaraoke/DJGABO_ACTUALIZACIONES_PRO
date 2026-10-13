@@ -242,6 +242,14 @@ export const downloadLogs = sqliteTable(
     ip: text("ip"),
     deviceId: text("device_id"),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+    // LEGACY is for old records (completion was not measured).
+    status: text("status").notNull().default("LEGACY"),
+    finishedAt: integer("finished_at", { mode: "timestamp" }),
+    errorCode: text("error_code"),
+    bytesSent: integer("bytes_sent"),
+    quotaReversedAt: integer("quota_reversed_at", { mode: "timestamp" }),
+    quotaReversalReason: text("quota_reversal_reason"),
+    quotaReversedBy: text("quota_reversed_by"),
   },
   (t) => ({
     userIdx: index("download_logs_user_idx").on(t.userId),
