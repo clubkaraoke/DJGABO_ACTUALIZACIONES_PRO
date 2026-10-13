@@ -26,6 +26,9 @@ export function loadTestDb() {
   // The baseline Drizzle SQL predates the production schema extensions.
   // Keep the in-memory integration DB aligned with the current app schema.
   sqlite.exec([
+    "ALTER TABLE users ADD COLUMN legacy_pending_expiry INTEGER NOT NULL DEFAULT 0",
+    "CREATE TABLE IF NOT EXISTS vip_allowed_phones (phone TEXT PRIMARY KEY, reference_email TEXT, verification_hash TEXT, verification_expires INTEGER, used_user_id TEXT UNIQUE, used_at INTEGER, revoked INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS plan_marketing (slug TEXT PRIMARY KEY, title TEXT NOT NULL, price TEXT NOT NULL, period TEXT NOT NULL, description TEXT NOT NULL, items TEXT NOT NULL, annual_bonus TEXT, updated_at INTEGER NOT NULL)",
     "ALTER TABLE plans ADD COLUMN max_collection_downloads_per_day INTEGER NOT NULL DEFAULT 2",
     "ALTER TABLE plans ADD COLUMN max_distinct_collections_per_day INTEGER NOT NULL DEFAULT 5",
     "ALTER TABLE plans ADD COLUMN max_selected_collections INTEGER",
@@ -38,6 +41,10 @@ export function loadTestDb() {
     "CREATE TABLE IF NOT EXISTS sync_state (id TEXT PRIMARY KEY NOT NULL, provider TEXT NOT NULL, root_path TEXT NOT NULL, cursor TEXT NOT NULL, initialized_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)",
     "CREATE UNIQUE INDEX IF NOT EXISTS sync_state_provider_root_unique ON sync_state(provider,root_path)"
   ].join(";") + ";");
+  const seedOffer = sqlite.prepare("INSERT OR IGNORE INTO plan_marketing (slug,title,price,period,description,items,annual_bonus,updated_at) VALUES (?,?,?,?,?,?,?,?)");
+  seedOffer.run("pro-mensual","1 MES","59.99","/ mes","Renueva tu karaoke",JSON.stringify(["3 karaokes gratis"]),null,Date.now());
+  seedOffer.run("pro-semestral","6 MESES","149.99","/ 6 meses","Nuevos karaokes",JSON.stringify(["5 karaokes gratis"]),null,Date.now());
+  seedOffer.run("pro-anual","1 AÑO","189.99","/ año","Todas las actualizaciones",JSON.stringify(["15 karaokes gratis"]),null,Date.now());
   return drizzle(sqlite, { schema });
 }
 

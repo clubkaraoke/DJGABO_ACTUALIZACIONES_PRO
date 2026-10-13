@@ -6,6 +6,7 @@ export interface FreeRequestMembership {
   status: string;
   subscriptionStart: Date | null;
   subscriptionEnd: Date | null;
+  legacyPendingExpiry?: boolean;
 }
 export interface ExistingFreeRequest {
   createdAt: string;
@@ -42,7 +43,7 @@ export function calculateFreeRequestQuota(
   if (!tier || !membershipActive(user, tier, now) || !user.subscriptionStart) {
     return { active: false, limit: 0, used: 0, remaining: 0, periodStart: null, periodEnd: null };
   }
-  const subscriptionEnd = membershipDeadline(tier, user.subscriptionStart, user.subscriptionEnd)!;
+  const subscriptionEnd = membershipDeadline(tier, user.subscriptionStart, user.subscriptionEnd, user.legacyPendingExpiry)!;
   let periodStart = user.subscriptionStart;
   let periodEnd = tier === "MONTH"
     ? new Date(periodStart.getTime() + 30 * 86_400_000)

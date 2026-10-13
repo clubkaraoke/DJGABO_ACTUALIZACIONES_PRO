@@ -47,6 +47,7 @@ export async function registerAdminCollectionsRoutes(fastify: FastifyInstance) {
         karaokeCount: row?.value ?? 0,
         updatedAt: c.updatedAt.toISOString(),
         archiveAvailable: archiveStatus.available,
+        preparing: !c.active,
         archiveSize: archiveStatus.size ?? null,
       });
     }
@@ -71,7 +72,8 @@ export async function registerAdminCollectionsRoutes(fastify: FastifyInstance) {
       storagePath: d.storagePath,
       sortOrder: d.sortOrder,
       slug: `${d.year}-${String(d.month).padStart(2, "0")}`,
-      publishedAt: now,
+      publishedAt: null,
+      active: false,
       updatedAt: now,
       createdAt: now,
     });
@@ -84,7 +86,10 @@ export async function registerAdminCollectionsRoutes(fastify: FastifyInstance) {
     if (!parsed.success) {
       return reply.code(400).send({ error: "INVALID_INPUT", message: "Datos de colección inválidos", statusCode: 400 });
     }
-    await db.update(collections).set({ ...parsed.data, updatedAt: new Date() }).where(eq(collections.id, request.params.id));
+    const original=await db.query.collections.findFirst({where:eq(collections.id,request.params.id)});
+    if(!original)return reply.code(404).send({error:"NOT_FOUND"});
+    await db.update(collections).set({ ...parsed.data, ...(parsed.data.active===true ? {publishedAt: original.publishedAt ?? new Date()} : {}),updatedAt: new Date() }).where(eq(collections.id, request.params.id));
+    if(parsed.data.active!==undefined)await fastify.catalogJsonService.publishMonths([{year:original.year,month:original.month}]);
     const collection = await db.query.collections.findFirst({ where: eq(collections.id, request.params.id) });
     return reply.send(collection);
   });

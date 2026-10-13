@@ -27,7 +27,8 @@ export class DrizzleIndexerRepository implements IndexerRepositoryPort {
       title: input.title,
       slug: `${input.year}-${String(input.month).padStart(2, "0")}`,
       storagePath: input.storagePath,
-      publishedAt: now,
+      publishedAt: null,
+      active: false,
       updatedAt: now,
       createdAt: now,
     });

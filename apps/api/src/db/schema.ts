@@ -40,6 +40,7 @@ export const users = sqliteTable(
     planId: text("plan_id").references(() => plans.id),
     subscriptionStart: integer("subscription_start", { mode: "timestamp" }),
     subscriptionEnd: integer("subscription_end", { mode: "timestamp" }),
+    legacyPendingExpiry: integer("legacy_pending_expiry", { mode: "boolean" }).notNull().default(false),
     maxDevices: integer("max_devices").notNull().default(2),
     createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),

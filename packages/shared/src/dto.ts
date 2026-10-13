@@ -32,6 +32,7 @@ export interface CollectionSummaryDTO {
   updatedAt: string;
   publishedAt: string | null;
   locked: boolean;
+  preparing?: boolean;
 }
 
 export interface KaraokeSummaryDTO {
@@ -93,6 +94,7 @@ export interface AdminClientRowDTO {
   devicesUsed: number;
   maxDevices: number;
   accessibleCollections: number;
+  pendingLegacyExpiry?: boolean;
 }
 
 export interface AdminDashboardStatsDTO {

@@ -24,7 +24,9 @@ export function membershipDeadline(
   tier: CommercialTier,
   start: Date | null,
   recordedEnd: Date | null,
+  pendingLegacy = false,
 ): Date | null {
+  if (start && pendingLegacy && !recordedEnd) return new Date("9999-12-31T00:00:00.000Z");
   if (!start || !recordedEnd) return null;
   const cap = tier === "MONTH"
     ? new Date(start.getTime() + 30 * 24 * 60 * 60 * 1000)
@@ -36,6 +38,7 @@ export interface Membership {
   status: string;
   subscriptionStart: Date | null;
   subscriptionEnd: Date | null;
+  legacyPendingExpiry?: boolean;
 }
 export interface EntitledCollection {
   year: number;
@@ -45,7 +48,7 @@ export interface EntitledCollection {
 
 export function membershipActive(user: Membership, tier: CommercialTier, now = new Date()): boolean {
   if (user.status !== "ACTIVE" || !user.subscriptionStart) return false;
-  const until = membershipDeadline(tier, user.subscriptionStart, user.subscriptionEnd);
+  const until = membershipDeadline(tier, user.subscriptionStart, user.subscriptionEnd, user.legacyPendingExpiry);
   return !!until && user.subscriptionStart.getTime() <= now.getTime() && now.getTime() < until.getTime();
 }
 
@@ -80,8 +83,7 @@ export async function ensureCommercialPlans(db: Db): Promise<void> {
     const old = await db.query.plans.findFirst({ where: eq(plans.slug, definition.slug) });
     if (old) {
       await db.update(plans).set({
-        name: definition.name,
-        description: definition.description,
+        // Marketing names/descriptions are edited by Admin, never overwritten at restart.
         active: true,
         maxSelectedCollections: definition.maxSelectedCollections,
         updatedAt: new Date(),
@@ -92,6 +94,7 @@ export async function ensureCommercialPlans(db: Db): Promise<void> {
         slug: definition.slug,
         name: definition.name,
         description: definition.description,
+        // Marketing names/descriptions are edited by Admin, never overwritten at restart.
         active: true,
         maxDevices: definition.maxDevices,
         maxCollectionDownloadsPerDay: 2,

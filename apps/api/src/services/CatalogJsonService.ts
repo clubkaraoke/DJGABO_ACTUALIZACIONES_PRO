@@ -147,7 +147,7 @@ export class CatalogJsonService {
       )
       .orderBy(asc(karaokes.artist), asc(karaokes.title));
 
-    const karaokesOut: CatalogKaraoke[] = rows.map((row) => {
+    const karaokesOut: CatalogKaraoke[] = (collection.active ? rows : []).map((row) => {
       const brand = this.deriveBrand(year, month, row.storageKey ?? "");
       return {
         id: row.id,

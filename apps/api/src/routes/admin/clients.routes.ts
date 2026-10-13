@@ -67,6 +67,7 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
         status: u.status as AdminClientRowDTO["status"],
         subscriptionStart: u.subscriptionStart?.toISOString() ?? null,
         subscriptionEnd: u.subscriptionEnd?.toISOString() ?? null,
+      pendingLegacyExpiry: u.legacyPendingExpiry,
         devicesUsed: devicesRow?.value ?? 0,
         maxDevices: u.maxDevices,
         accessibleCollections: effectiveCollections,
@@ -105,6 +106,7 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
       planId: user.planId,
       subscriptionStart: user.subscriptionStart?.toISOString() ?? null,
       subscriptionEnd: user.subscriptionEnd?.toISOString() ?? null,
+      pendingLegacyExpiry: user.legacyPendingExpiry,
       maxDevices: user.maxDevices,
       collections: allCollections.map((c) => ({
         id: c.id,
@@ -158,6 +160,7 @@ export async function registerAdminClientsRoutes(fastify: FastifyInstance) {
         ...rest,
         subscriptionStart: start,
         subscriptionEnd: end,
+        ...(end ? { legacyPendingExpiry: false } : {}),
         updatedAt: new Date(),
       })
       .where(eq(users.id, request.params.id));

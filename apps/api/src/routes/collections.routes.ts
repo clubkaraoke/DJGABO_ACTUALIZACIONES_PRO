@@ -16,6 +16,7 @@ function toSummaryDTO(
     coverUrl: string | null;
     updatedAt: Date;
     publishedAt: Date | null;
+    active: boolean;
   },
   karaokeCount: number,
   locked: boolean,
@@ -32,6 +33,7 @@ function toSummaryDTO(
     updatedAt: c.updatedAt.toISOString(),
     publishedAt: c.publishedAt?.toISOString() ?? null,
     locked,
+    preparing: "active" in c ? !c.active : false,
   };
 }
 
@@ -96,14 +98,13 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
   // Catálogo público: visible para visitantes, sin conceder ninguna descarga.
   fastify.get("/api/public/collections", async (_request, reply) => {
     const activeCollections = await db.query.collections.findMany({
-      where: eq(collections.active, true),
       orderBy: [desc(collections.year), desc(collections.month), asc(collections.sortOrder)],
     });
 
     const dto: CollectionSummaryDTO[] = [];
     for (const c of activeCollections) {
       const [row] = await db.select({ value: count() }).from(karaokes).where(eq(karaokes.collectionId, c.id));
-      dto.push(toSummaryDTO(c, row?.value ?? 0, false));
+      dto.push(toSummaryDTO(c, c.active ? row?.value ?? 0 : 0, false));
     }
     return reply.send(dto);
   });
@@ -135,14 +136,13 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
     const accessibleIds = new Set(await getAccessibleCollectionIds(db, userId, role));
 
     const activeCollections = await db.query.collections.findMany({
-      where: eq(collections.active, true),
       orderBy: [desc(collections.year), desc(collections.month), asc(collections.sortOrder)],
     });
 
     const dto: CollectionSummaryDTO[] = [];
     for (const c of activeCollections) {
       const [row] = await db.select({ value: count() }).from(karaokes).where(eq(karaokes.collectionId, c.id));
-      dto.push(toSummaryDTO(c, row?.value ?? 0, !accessibleIds.has(c.id)));
+      dto.push(toSummaryDTO(c, c.active ? row?.value ?? 0 : 0, !accessibleIds.has(c.id)));
     }
     return reply.send(dto);
   });

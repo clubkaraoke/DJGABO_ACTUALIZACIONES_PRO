@@ -1,4 +1,4 @@
-import { createHash, timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual, createHmac } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { eq, and, count } from "drizzle-orm";
 import { z } from "zod";
@@ -8,6 +8,8 @@ import type { Env } from "../env.js";
 import type { MeDTO, LoginResponseDTO } from "@djgabo/shared";
 import { users, plans, refreshTokens, deviceSessions } from "../db/schema.js";
 import { createId } from "../db/id.js";
+import { sqliteClient } from "../db/client.js";
+import { normalizeVipPhone } from "../services/vipPhones.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -19,6 +21,7 @@ const vipInviteSchema = z.object({
   email: z.string().email(),
   whatsapp: z.string().min(8).max(40),
   password: z.string().min(8).max(128),
+  verificationCode: z.string().regex(/^\d{6}$/),
 });
 
 const refreshSchema = z.object({
@@ -98,47 +101,41 @@ export async function registerAuthRoutes(fastify: FastifyInstance, env: Env) {
       }
 
       const email = parsed.data.email.trim().toLowerCase();
-      const whatsapp = parsed.data.whatsapp.replace(/\D/g, "");
-      if (whatsapp.length < 8 || whatsapp.length > 15) {
-        return reply.code(400).send({ error: "INVALID_WHATSAPP", message: "Ingresa tu WhatsApp con código de país", statusCode: 400 });
-      }
-
-      const existing = await db.query.users.findFirst({ where: eq(users.email, email) });
-      if (existing) {
-        return reply.code(409).send({
-          error: "EMAIL_ALREADY_REGISTERED",
-          message: "Este correo ya tiene una cuenta. Ingresa desde Acceso VIP.",
-          statusCode: 409,
-        });
-      }
-
+      const whatsapp = normalizeVipPhone(parsed.data.whatsapp);
+      if (!whatsapp) return reply.code(400).send({error:"INVALID_WHATSAPP",message:"Ingresa un WhatsApp válido con código de país"});
+      const sqlite = sqliteClient(db);
+      const record = sqlite.prepare("SELECT * FROM vip_allowed_phones WHERE phone=?").get(whatsapp) as
+        {phone:string; verification_hash:string|null; verification_expires:number|null; used_user_id:string|null; revoked:number}|undefined;
+      if (!record || record.revoked) return reply.code(403).send({error:"WHATSAPP_NOT_AUTHORIZED",message:"Tu WhatsApp no está autorizado para este registro VIP."});
+      if (record.used_user_id) return reply.code(409).send({error:"WHATSAPP_ALREADY_REGISTERED",message:"Este WhatsApp ya registró su membresía. Inicia sesión."});
+      const digest = createHmac("sha256", env.JWT_ACCESS_SECRET).update(whatsapp + ":" + parsed.data.verificationCode).digest("hex");
+      const valid = record.verification_hash && record.verification_expires && record.verification_expires >= Date.now() &&
+        timingSafeEqual(Buffer.from(digest), Buffer.from(record.verification_hash));
+      if (!valid) return reply.code(403).send({error:"VERIFICATION_REQUIRED",message:"Código de verificación incorrecto o vencido. Solicita uno nuevo por WhatsApp."});
+      const plan = await db.query.plans.findFirst({where:eq(plans.slug,"pro-anual")});
+      if (!plan) return reply.code(503).send({error:"VIP_PLAN_UNAVAILABLE",message:"El plan VIP no está disponible temporalmente."});
       const now = new Date();
       const userId = createId("usr");
       const passwordHash = await hashPassword(password);
-      const name = email.split("@")[0]?.slice(0, 60) || "Cliente VIP";
-
-      await db.insert(users).values({
-        id: userId,
-        email,
-        passwordHash,
-        name,
-        role: "MEMBER",
-        status: "ACTIVE",
-        planId: null,
-        subscriptionStart: null,
-        subscriptionEnd: null,
-        maxDevices: 2,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      await fastify.vipMigrationService.save({
-        userId,
-        email,
-        whatsapp,
-        registeredAt: now.toISOString(),
-      });
-
+      const name = email.split("@")[0]?.slice(0,60) || "Cliente VIP";
+      // One SQLite transaction prevents concurrent reuse and partial account creation.
+      try {
+        const transaction = sqlite.transaction(() => {
+          const claimed = sqlite.prepare("UPDATE vip_allowed_phones SET used_user_id=?,used_at=?,verification_hash=NULL,verification_expires=NULL WHERE phone=? AND used_user_id IS NULL AND revoked=0 AND verification_hash=? AND verification_expires>=?").run(userId,Date.now(),whatsapp,digest,Date.now());
+          if (claimed.changes !== 1) throw new Error("INVITATION_ALREADY_USED");
+          // Better-sqlite3 stores Drizzle timestamp dates as Unix seconds.
+          sqlite.prepare("INSERT INTO users(id,email,password_hash,name,role,status,plan_id,subscription_start,subscription_end,legacy_pending_expiry,max_devices,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            .run(userId,email,passwordHash,name,"MEMBER","ACTIVE",plan.id,Math.floor(now.getTime()/1000),null,1,plan.maxDevices,Math.floor(now.getTime()/1000),Math.floor(now.getTime()/1000));
+        });
+        transaction();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (message.includes("UNIQUE constraint failed: users.email")) return reply.code(409).send({error:"EMAIL_ALREADY_REGISTERED",message:"Este correo ya tiene una cuenta. Ingresa desde Acceso VIP."});
+        if (message.includes("INVITATION_ALREADY_USED")) return reply.code(409).send({error:"INVITATION_ALREADY_USED",message:"Este WhatsApp ya utilizó su invitación."});
+        throw error;
+      }
+      try { await fastify.vipMigrationService.save({userId,email,whatsapp,registeredAt:now.toISOString()}); }
+      catch (err) { fastify.log.error({err},"Could not sync legacy VIP contact record"); }
       const body = await issueSession(userId, "MEMBER");
       return reply.code(201).send(body);
     },
