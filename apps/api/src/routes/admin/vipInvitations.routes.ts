@@ -3,6 +3,8 @@ import { createHmac, randomInt } from "node:crypto";
 import { z } from "zod";
 import { sqliteClient } from "../../db/client.js";
 import { normalizeVipPhone } from "../../services/vipPhones.js";
+import { getPlanOffer } from "../../services/planOffers.js";
+import { createVipInviteMessage } from "../../services/vipInviteMessage.js";
 
 const addSchema = z.object({whatsapp:z.string().min(8).max(40),email:z.string().email().optional()});
 export async function registerAdminVipInvitationsRoutes(app:FastifyInstance) {
@@ -30,11 +32,13 @@ export async function registerAdminVipInvitationsRoutes(app:FastifyInstance) {
     const phone=normalizeVipPhone(req.params.phone);if(!phone)return reply.code(400).send({error:"INVALID_WHATSAPP"});
     const row=sql.prepare("SELECT used_user_id,revoked FROM vip_allowed_phones WHERE phone=?").get(phone) as {used_user_id:string|null;revoked:number}|undefined;
     if(!row || row.revoked || row.used_user_id)return reply.code(409).send({error:"NOT_ELIGIBLE"});
+    const annual=getPlanOffer(app.db,"pro-anual");
+    if(!annual)return reply.code(503).send({error:"VIP_PLAN_UNAVAILABLE"});
     const code=String(randomInt(100000,1000000));
     const hash=createHmac("sha256",app.env.JWT_ACCESS_SECRET).update(phone+":"+code).digest("hex");
     sql.prepare("UPDATE vip_allowed_phones SET verification_hash=?,verification_expires=? WHERE phone=?").run(hash,Date.now()+24*60*60*1000,phone);
     const url=app.env.VIP_MIGRATION_INVITE_CODE ? "https://www.gabokaraoke.com/acceso-vip/"+encodeURIComponent(app.env.VIP_MIGRATION_INVITE_CODE):"";
-    const message="Hola, tu acceso VIP DJGABO está listo. Regístrate aquí: "+url+"\nTu código de verificación personal es: "+code+" (válido por 24 horas).";
-    return {code,whatsappUrl:"https://wa.me/"+phone+"?text="+encodeURIComponent(message),expiresHours:24};
+    const message=createVipInviteMessage(url,code,annual);
+    return {code,message,whatsappUrl:"https://wa.me/"+phone+"?text="+encodeURIComponent(message),expiresHours:24};
   });
 }

@@ -50,6 +50,25 @@ export function createDb(databaseUrl: string) {
     }
   } catch { throw new Error("VIP_INITIAL_ALLOWED_CONTACTS is not valid JSON"); }
   seedMarketing(sqlite);
+  const offerCols=sqlite.prepare("PRAGMA table_info(plan_marketing)").all() as Array<{name:string}>;
+  if (!offerCols.some(c=>c.name==="free_requests_per_month")) {
+    sqlite.exec("ALTER TABLE plan_marketing ADD COLUMN free_requests_per_month INTEGER NOT NULL DEFAULT 0");
+    const rows=sqlite.prepare("SELECT slug,items FROM plan_marketing").all() as Array<{slug:string;items:string}>;
+    const standard:Record<string,number>={"pro-mensual":3,"pro-semestral":5,"pro-anual":15};
+    const update=sqlite.prepare("UPDATE plan_marketing SET free_requests_per_month=? WHERE slug=?");
+    const init=sqlite.transaction(()=>{
+      for (const row of rows) {
+        let amount=standard[row.slug]??0;
+        try {
+          const lines=JSON.parse(row.items) as string[];
+          const existing=lines.map(line=>line.match(/\b(\d+)\s+karaokes?\s+a\s+pedido\s+gratis\b/i)).find(Boolean);
+          if(existing)amount=Number(existing[1]);
+        } catch { /* existing unusual copy: use tier default */ }
+        update.run(amount,row.slug);
+      }
+    });
+    init();
+  }
   return drizzle(sqlite, { schema });
 }
 

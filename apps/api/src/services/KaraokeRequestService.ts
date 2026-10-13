@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client.js";
 import { plans, users } from "../db/schema.js";
+import { getPlanOffer } from "./planOffers.js";
 import { calculateFreeRequestQuota, commercialRequestTier, type FreeRequestQuota } from "./KaraokeRequestQuota.js";
 
 export type KaraokeRequestStatus = "REQUESTED" | "IN_PROGRESS" | "READY" | "REJECTED";
@@ -131,6 +132,7 @@ export class KaraokeRequestService {
       commercialRequestTier(plan?.slug),
       items.filter((item) => item.userId === user.id),
       now,
+      plan ? (getPlanOffer(this.db,plan.slug)?.freeRequestsPerMonth ?? undefined) : undefined,
     );
   }
 

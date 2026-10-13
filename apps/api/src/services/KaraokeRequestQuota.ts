@@ -36,6 +36,7 @@ export function calculateFreeRequestQuota(
   tier: CommercialTier | null,
   requests: ExistingFreeRequest[],
   now = new Date(),
+  configuredLimit?: number,
 ): FreeRequestQuota {
   if (user.role === "ADMIN") {
     return { active: true, limit: null, used: 0, remaining: null, periodStart: null, periodEnd: null };
@@ -60,7 +61,7 @@ export function calculateFreeRequestQuota(
     const created = Date.parse(item.createdAt);
     return Number.isFinite(created) && created >= periodStart.getTime() && created < periodEnd.getTime();
   }).length;
-  const limit = requestLimit(tier);
+  const limit = configuredLimit ?? requestLimit(tier);
   return {
     active: true,
     limit,
