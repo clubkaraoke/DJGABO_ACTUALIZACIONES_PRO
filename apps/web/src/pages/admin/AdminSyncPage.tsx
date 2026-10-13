@@ -10,6 +10,7 @@ interface SyncResult {
   newCount: number;
   updatedCount: number;
   errorCount: number;
+  removedCount?: number;
   items: { storageKey: string; action: string; title: string; artist: string; error?: string }[];
 }
 
@@ -30,6 +31,13 @@ interface CoverStatus {
 export default function AdminSyncPage() {
   const qc = useQueryClient();
   const [result, setResult] = useState<SyncResult | null>(null);
+  const [targetYear, setTargetYear] = useState(2026);
+  const [targetMonth, setTargetMonth] = useState(9);
+  const [reconcileNotice, setReconcileNotice] = useState("");
+  const {data: months = []}=useQuery({
+    queryKey:["admin","collections"],
+    queryFn:()=>api.get<Array<{id:string;year:number;month:number;title:string}>>("/admin/collections"),
+  });
 
   const { data: status, isLoading } = useQuery({
     queryKey: ["admin", "sync", "status"],
@@ -58,6 +66,22 @@ export default function AdminSyncPage() {
     },
   });
 
+  const reconcile = useMutation({
+    mutationFn: (dryRun:boolean)=>api.post<{result:SyncResult;version?:string;sheetMirror?:string}|SyncResult>("/admin/sync/reconcile-month",{year:targetYear,month:targetMonth,dryRun}),
+    onSuccess: (data)=>{
+      const r="result" in data?data.result:data;
+      setResult(r);
+      setReconcileNotice(r.dryRun
+        ? "Análisis terminado. No se modificó el catálogo."
+        : "Sincronización finalizada: Dropbox, catálogo JSON, Google Sheets y web actualizados.");
+      qc.invalidateQueries({queryKey:["admin","sync","status"]});
+      qc.invalidateQueries({queryKey:["admin","collections"]});
+      qc.invalidateQueries({queryKey:["admin","karaokes"]});
+      qc.invalidateQueries({queryKey:["collection"]});
+      qc.invalidateQueries({queryKey:["catalog-month"]});
+    },
+    onError:()=>setReconcileNotice("No se pudo completar. Revisa el estado de Dropbox y Google Sheets; no se confirma una publicación completa."),
+  });
   const runCovers = useMutation({
     mutationFn: () => api.post<CoverStatus>("/admin/covers/run"),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "covers", "status"] }),
@@ -68,7 +92,7 @@ export default function AdminSyncPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "covers", "status"] }),
   });
 
-  const busy = analyze.isPending || runSync.isPending;
+  const busy = analyze.isPending || runSync.isPending || reconcile.isPending;
   const coverBusy = runCovers.isPending || retryCovers.isPending || coverStatus?.running === true;
   const processed = coverStatus ? Math.max(0, coverStatus.total - coverStatus.pending) : 0;
   const progress = coverStatus?.total ? Math.min(100, Math.round((processed / coverStatus.total) * 100)) : 0;
@@ -117,6 +141,25 @@ export default function AdminSyncPage() {
           {runSync.isPending ? "Sincronizando..." : "Sincronizar"}
         </Button>
       </div>
+
+      <section className="space-y-4 rounded-lg border border-graphite-border bg-graphite p-5">
+        <h2 className="font-display text-lg font-bold text-ink">Reconciliar un mes con Dropbox</h2>
+        <p className="text-sm text-ink-secondary">Comprueba canciones añadidas, renombradas, movidas o retiradas. No borra archivos de Dropbox; retira del catálogo los que ya no existen. Actualiza JSON, Sheet y web.</p>
+        <div className="flex flex-wrap gap-3">
+          <label className="space-y-1 text-xs text-ink-secondary">Colección / mes
+            <select value={targetYear+"-"+targetMonth} onChange={e=>{
+              const [y,m]=e.target.value.split("-").map(Number);setTargetYear(y);setTargetMonth(m);setReconcileNotice("");
+            }} className="block min-w-[230px] rounded-md border border-graphite-border bg-graphite-elevated px-3 py-2 text-sm text-ink">
+              {months.filter(m=>m.month>=0).map(m=><option key={m.id} value={m.year+"-"+m.month}>{m.title} ({m.year})</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <Button variant="secondary" disabled={busy} onClick={()=>reconcile.mutate(true)}>{reconcile.isPending?"Revisando…":"Analizar mes"}</Button>
+          <Button variant="primary" disabled={busy} onClick={()=>reconcile.mutate(false)}>{reconcile.isPending?"Reconciliando…":"Reconciliar y actualizar"}</Button>
+        </div>
+        {reconcileNotice&&<p role="status" className="text-xs text-ink-secondary">{reconcileNotice}</p>}
+      </section>
 
       {coversLoading || !coverStatus ? (
         <Skeleton className="h-44 w-full" />
@@ -186,7 +229,7 @@ export default function AdminSyncPage() {
           <div className="mb-3 flex items-center gap-2">
             <Badge tone={result.dryRun ? "warning" : "accent"}>{result.dryRun ? "DRY RUN" : "SINCRONIZADO"}</Badge>
             <p className="text-sm text-ink-secondary">
-              {result.filesDetected} detectados · {result.newCount} nuevos · {result.updatedCount} actualizados · {result.errorCount} errores
+              {result.filesDetected} detectados · {result.newCount} nuevos · {result.updatedCount} actualizados · {result.removedCount??0} retirados del catálogo · {result.errorCount} errores
             </p>
           </div>
           <div className="max-h-80 overflow-y-auto rounded-md border border-graphite-border">
