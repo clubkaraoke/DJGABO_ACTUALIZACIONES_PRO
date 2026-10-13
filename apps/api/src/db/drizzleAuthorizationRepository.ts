@@ -37,7 +37,7 @@ export class DrizzleAuthorizationRepository implements AuthorizationRepositoryPo
   }
 
   async getKaraoke(karaokeId: string): Promise<AuthKaraokeRecord | null> {
-    const karaoke = await this.db.query.karaokes.findFirst({ where: eq(karaokes.id, karaokeId) });
+    const karaoke = await this.db.query.karaokes.findFirst({ where: and(eq(karaokes.id, karaokeId),eq(karaokes.catalogActive,true)) });
     if (!karaoke) return null;
     return {
       id: karaoke.id,

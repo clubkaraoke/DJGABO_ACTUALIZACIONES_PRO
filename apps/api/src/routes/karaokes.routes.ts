@@ -40,7 +40,7 @@ export async function registerKaraokesRoutes(fastify: FastifyInstance) {
       : activeIds;
     if (collectionFilter.length === 0) return reply.send([]);
 
-    const conditions = [inArray(karaokes.collectionId, collectionFilter)];
+    const conditions = [inArray(karaokes.collectionId, collectionFilter),eq(karaokes.catalogActive,true)];
     if (genre) conditions.push(eq(karaokes.genre, genre));
     if (year) conditions.push(eq(karaokes.year, year));
     if (q) {
@@ -84,7 +84,7 @@ export async function registerKaraokesRoutes(fastify: FastifyInstance) {
 
     if (collectionFilter.length === 0) return reply.send([]);
 
-    const conditions = [inArray(karaokes.collectionId, collectionFilter)];
+    const conditions = [inArray(karaokes.collectionId, collectionFilter),eq(karaokes.catalogActive,true)];
     if (genre) conditions.push(eq(karaokes.genre, genre));
     if (year) conditions.push(eq(karaokes.year, year));
     if (q) {

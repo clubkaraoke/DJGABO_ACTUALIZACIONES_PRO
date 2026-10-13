@@ -1,4 +1,5 @@
 import { eq, and } from "drizzle-orm";
+import { sqliteClient } from "./client.js";
 import type { IndexerRepositoryPort } from "@djgabo/storage";
 import type { Db } from "./client.js";
 import { collections, assets, karaokes, syncRuns } from "./schema.js";
@@ -127,6 +128,7 @@ export class DrizzleIndexerRepository implements IndexerRepositoryPort {
           // providerFileId), el karaoke pasa a pertenecer a la colección
           // actual en vez de quedar huérfano en la vieja.
           collectionId: input.collectionId,
+          catalogActive: true,
           // Solo se actualiza si vino un valor: nunca se borra un preview ya
           // asociado simplemente porque esta corrida no lo volvió a detectar.
           ...(input.previewAssetId ? { previewAssetId: input.previewAssetId } : {}),
@@ -143,11 +145,28 @@ export class DrizzleIndexerRepository implements IndexerRepositoryPort {
       artist: input.artist,
       collectionId: input.collectionId,
       masterAssetId: input.masterAssetId,
+      catalogActive: true,
       previewAssetId: input.previewAssetId ?? null,
       publishedAt: new Date(),
       createdAt: new Date(),
     });
     return { id, isNew: true };
+  }
+
+  async reconcileMonthSnapshot(year:number,month:number,identityKeys:readonly string[]):Promise<number> {
+    const sql=sqliteClient(this.db);
+    // A per-month snapshot is authoritative ONLY after the indexer completed every
+    // listFolder and every upsert without errors. No physical deletion is performed.
+    const collection=sql.prepare("SELECT id FROM collections WHERE year=? AND month=?").get(year,month) as {id:string}|undefined;
+    if(!collection)return 0;
+    const seen=new Set(identityKeys);
+    const rows=sql.prepare(
+      "SELECT k.id,k.identity_key,k.catalog_active FROM karaokes k JOIN assets a ON a.id=k.master_asset_id WHERE k.collection_id=? AND a.provider=?"
+    ).all(collection.id,this.storageProviderKind) as Array<{id:string;identity_key:string;catalog_active:number}>;
+    const missing=rows.filter(x=>x.catalog_active===1 && !seen.has(x.identity_key));
+    const upd=sql.prepare("UPDATE karaokes SET catalog_active=0 WHERE id=? AND catalog_active=1");
+    sql.transaction(()=>{for(const row of missing)upd.run(row.id)})();
+    return missing.length;
   }
 
   async recordSyncRun(result: {

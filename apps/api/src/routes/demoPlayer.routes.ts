@@ -71,7 +71,7 @@ async function resolveDemoMedia(
     return { ok: false, status: 403, error: "DEMO_DISABLED", message: "Los demos están desactivados." };
   }
 
-  const karaoke = await fastify.db.query.karaokes.findFirst({ where: (k, { eq }) => eq(k.id, karaokeId) });
+  const karaoke = await fastify.db.query.karaokes.findFirst({ where: (k, { eq, and }) => and(eq(k.id, karaokeId),eq(k.catalogActive,true)) });
   if (!karaoke) {
     return { ok: false, status: 404, error: "KARAOKE_NOT_FOUND", message: "Karaoke no encontrado." };
   }

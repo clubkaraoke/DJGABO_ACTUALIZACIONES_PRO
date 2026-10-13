@@ -48,6 +48,8 @@ export interface IndexerRepositoryPort {
     /** Si se omite, NO se toca el previewAssetId existente (nunca se borra un preview ya asociado por no encontrarlo en esta corrida). */
     previewAssetId?: string;
   }): Promise<{ id: string; isNew: boolean }>;
+  /** Mark missing masters inactive only after a complete successful listing for a month. */
+  reconcileMonthSnapshot?(year:number, month:number, identityKeys: readonly string[]): Promise<number>;
   recordSyncRun(result: {
     dryRun: boolean;
     filesDetected: number;
@@ -77,4 +79,6 @@ export interface SyncResult {
   updatedCount: number;
   errorCount: number;
   items: SyncPlanItem[];
+  removedCount?: number;
+  scannedMonths?: Array<{path:string;year:number;month:number}>;
 }

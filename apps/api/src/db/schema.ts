@@ -173,6 +173,7 @@ export const karaokes = sqliteTable(
     size: integer("size"),
     coverUrl: text("cover_url"),
     collectionId: text("collection_id").notNull().references(() => collections.id, { onDelete: "cascade" }),
+    catalogActive: integer("catalog_active", { mode: "boolean" }).notNull().default(true),
     masterAssetId: text("master_asset_id").unique().references(() => assets.id),
     previewAssetId: text("preview_asset_id").unique().references(() => assets.id),
     publishedAt: integer("published_at", { mode: "timestamp" }),

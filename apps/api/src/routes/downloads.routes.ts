@@ -619,7 +619,7 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
           return reply.code(status).send({ error: check.reason ?? "FORBIDDEN", message: describeReason(check.reason ?? "FORBIDDEN"), statusCode: status });
         }
 
-        const karaoke = await db.query.karaokes.findFirst({ where: eq(karaokes.id, ticket.resourceId) });
+        const karaoke = await db.query.karaokes.findFirst({ where: and(eq(karaokes.id, ticket.resourceId),eq(karaokes.catalogActive,true)) });
         if (!karaoke?.masterAssetId) {
           return reply.code(404).send({ error: "ASSET_NOT_AVAILABLE", message: describeReason("ASSET_NOT_AVAILABLE"), statusCode: 404 });
         }
@@ -679,7 +679,7 @@ export async function registerDownloadsRoutes(fastify: FastifyInstance) {
       }
 
       const collectionKaraokes = await db.query.karaokes.findMany({
-        where: eq(karaokes.collectionId, collection.id),
+        where: and(eq(karaokes.collectionId, collection.id),eq(karaokes.catalogActive,true)),
         with: { masterAsset: true },
       });
       const masterAsset =

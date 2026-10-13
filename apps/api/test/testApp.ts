@@ -27,6 +27,7 @@ export function loadTestDb() {
   // Keep the in-memory integration DB aligned with the current app schema.
   sqlite.exec([
     "ALTER TABLE users ADD COLUMN legacy_pending_expiry INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE karaokes ADD COLUMN catalog_active INTEGER NOT NULL DEFAULT 1",
     "CREATE TABLE IF NOT EXISTS vip_allowed_phones (phone TEXT PRIMARY KEY, reference_email TEXT, verification_hash TEXT, verification_expires INTEGER, used_user_id TEXT UNIQUE, used_at INTEGER, revoked INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)",
     "CREATE TABLE IF NOT EXISTS plan_marketing (slug TEXT PRIMARY KEY, title TEXT NOT NULL, price TEXT NOT NULL, period TEXT NOT NULL, description TEXT NOT NULL, items TEXT NOT NULL, annual_bonus TEXT, updated_at INTEGER NOT NULL)",
     "ALTER TABLE plan_marketing ADD COLUMN free_requests_per_month INTEGER NOT NULL DEFAULT 0",

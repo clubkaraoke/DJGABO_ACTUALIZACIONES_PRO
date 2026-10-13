@@ -22,7 +22,7 @@ export async function registerCatalogIndexRoutes(fastify: FastifyInstance) {
         total: count(assets.id),
       })
       .from(collections)
-      .leftJoin(karaokes, eq(karaokes.collectionId, collections.id))
+      .leftJoin(karaokes, and(eq(karaokes.collectionId, collections.id),eq(karaokes.catalogActive,true)))
       .leftJoin(
         assets,
         and(

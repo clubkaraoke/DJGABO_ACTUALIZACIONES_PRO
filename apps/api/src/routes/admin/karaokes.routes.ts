@@ -30,7 +30,7 @@ export async function registerAdminKaraokesRoutes(fastify: FastifyInstance) {
     }
     const { q, collectionId, page, pageSize } = parsed.data;
 
-    const conditions = [];
+    const conditions = [eq(karaokes.catalogActive,true)];
     if (collectionId) conditions.push(eq(karaokes.collectionId, collectionId));
     if (q) {
       const term = `%${q}%`;

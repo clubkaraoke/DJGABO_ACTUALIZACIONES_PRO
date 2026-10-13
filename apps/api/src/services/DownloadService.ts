@@ -30,7 +30,7 @@ export class DownloadService {
     const check = await this.authorization.canDownloadKaraoke(userId, karaokeId, context.deviceId);
     if (!check.allowed) return { ok: false, reason: check.reason ?? "FORBIDDEN" };
 
-    const karaoke = await this.db.query.karaokes.findFirst({ where: eq(karaokes.id, karaokeId) });
+    const karaoke = await this.db.query.karaokes.findFirst({ where: and(eq(karaokes.id, karaokeId),eq(karaokes.catalogActive,true)) });
     if (!karaoke?.masterAssetId) return { ok: false, reason: "ASSET_NOT_AVAILABLE" };
     const masterAsset = await this.db.query.assets.findFirst({ where: eq(assets.id, karaoke.masterAssetId) });
     if (!masterAsset) return { ok: false, reason: "ASSET_NOT_AVAILABLE" };

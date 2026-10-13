@@ -121,6 +121,8 @@ export class StorageIndexerService {
   ): Promise<SyncResult> {
     const items: SyncPlanItem[] = [];
     const seen = new Set<string>();
+    const snapshots: Array<{year:number;month:number;identities:string[]}> = [];
+    const scannedMonths: Array<{path:string;year:number;month:number}> = [];
 
     for (const target of targets) {
       const key = `${target.year}-${target.month}`;
@@ -130,6 +132,10 @@ export class StorageIndexerService {
       const monthContents = await this.storage.listFolder(target.path);
       const fileEntries = await this.collectMasterCandidates(monthContents);
       const previewsByFileName = await this.buildPreviewsMap(monthContents);
+      const identities=fileEntries.filter(f=>MASTER_EXTENSIONS.has(parseKaraokeFileName(f.name).extension))
+        .map(f=>deriveIdentityKey(this.storage.kind,f.providerFileId,f.path));
+      snapshots.push({year:target.year,month:target.month,identities});
+      scannedMonths.push(target);
 
       for (const fileEntry of fileEntries) {
         items.push(
@@ -144,8 +150,16 @@ export class StorageIndexerService {
       }
     }
 
+    // Never deactivate records on partial listings, failed upserts or dry-runs.
+    let removedCount=0;
+    if(!options.dryRun && !items.some(item=>item.action==="ERROR")) {
+      for(const snapshot of snapshots) {
+        removedCount+=await this.repo.reconcileMonthSnapshot?.(snapshot.year,snapshot.month,snapshot.identities)??0;
+      }
+    }
     const result: SyncResult = {
       dryRun: options.dryRun,
+      removedCount, scannedMonths,
       filesDetected: items.length,
       newCount: items.filter((i) => i.action === "CREATE").length,
       updatedCount: items.filter((i) => i.action === "UPDATE").length,

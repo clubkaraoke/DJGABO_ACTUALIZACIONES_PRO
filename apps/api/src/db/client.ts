@@ -57,6 +57,10 @@ export function createDb(databaseUrl: string) {
     paid_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS manual_customer_payments_user_idx ON manual_customer_payments(user_id);`);
+  const karaokeColumns = sqlite.prepare("PRAGMA table_info(karaokes)").all() as Array<{name:string}>;
+  if (karaokeColumns.length && !karaokeColumns.some(c=>c.name==="catalog_active")) {
+    sqlite.exec("ALTER TABLE karaokes ADD COLUMN catalog_active INTEGER NOT NULL DEFAULT 1");
+  }
   const userColumns = sqlite.prepare("PRAGMA table_info(users)").all() as Array<{name:string}>;
   if (userColumns.length && !userColumns.some(c => c.name === "legacy_pending_expiry")) {
     sqlite.exec("ALTER TABLE users ADD COLUMN legacy_pending_expiry INTEGER NOT NULL DEFAULT 0");

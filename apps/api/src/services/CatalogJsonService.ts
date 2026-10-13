@@ -142,6 +142,7 @@ export class CatalogJsonService {
       .where(
         and(
           eq(karaokes.collectionId, collection.id),
+          eq(karaokes.catalogActive, true),
           eq(assets.provider, "dropbox"),
         ),
       )

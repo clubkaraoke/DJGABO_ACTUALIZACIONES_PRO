@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { loadEnv } from "./env.js";
-import { createDb } from "./db/client.js";
+import { createDb, sqliteClient } from "./db/client.js";
 import {
   getStorageProvider,
   bootstrapMockStorageFromDb,
@@ -121,6 +121,30 @@ async function main() {
   console.log(`[STORAGE_PROVIDER] ${provider.kind} (${reason})`);
 
   await app.listen({ port: env.PORT, host: "0.0.0.0" });
+
+  // One-time reconciliation of the reported September 2026 stale catalogue.
+  // Runs after healthcheck is ready. Never deletes files or historical records.
+  if (env.NODE_ENV === "production" && provider.kind === "dropbox" && app.dropboxIncrementalSyncService) {
+    void (async () => {
+      const sqlite=sqliteClient(db);
+      const key="20261013-reconcile-2026-09";
+      if (sqlite.prepare("SELECT name FROM djgabo_feature_migrations WHERE name=?").get(key)) return;
+      const collection=await db.query.collections.findFirst({where:(c,{and,eq})=>and(eq(c.year,2026),eq(c.month,9))});
+      if(!collection)return;
+      try {
+        const month={path:collection.storagePath,year:2026,month:9};
+        const indexer=new StorageIndexerService(provider,new DrizzleIndexerRepository(db,provider.kind));
+        const result=await indexer.runMonths([month],{dryRun:false});
+        if(result.errorCount)throw new Error("Month reconciliation errors: "+result.errorCount);
+        const version=await app.catalogJsonService.publishMonths([month]);
+        await app.dropboxIncrementalSyncService!.mirrorCurrentMonths([month],version.version);
+        sqlite.prepare("INSERT OR IGNORE INTO djgabo_feature_migrations(name) VALUES(?)").run(key);
+        console.log("[RECONCILE_SEPTEMBER_2026_DONE]",JSON.stringify({filesDetected:result.filesDetected,removedCount:result.removedCount,version:version.version,sheetMirror:app.sheetMirrorService.enabled?"sent":"disabled"}));
+      } catch(error) {
+        console.error("[RECONCILE_SEPTEMBER_2026_ERROR]",error);
+      }
+    })();
+  }
 
   // Bootstrap masivo controlado del catálogo histórico. Se ejecuta DESPUÉS
   // de levantar HTTP para no bloquear el healthcheck de Railway. Es

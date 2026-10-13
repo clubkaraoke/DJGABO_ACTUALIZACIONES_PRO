@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, and } from "drizzle-orm";
 import { collections, karaokes } from "../../db/schema.js";
 import { createId } from "../../db/id.js";
 
@@ -33,7 +33,7 @@ export async function registerAdminCollectionsRoutes(fastify: FastifyInstance) {
     });
     const result = [];
     for (const c of allCollections) {
-      const [row] = await db.select({ value: count() }).from(karaokes).where(eq(karaokes.collectionId, c.id));
+      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),eq(karaokes.catalogActive,true)));
       const archiveStatus = await fastify.storageService.getArchiveStatus(c.slug);
       result.push({
         id: c.id,

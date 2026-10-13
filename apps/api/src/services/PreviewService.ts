@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import type { AuthorizationService } from "@djgabo/domain";
 import type { Db } from "../db/client.js";
 import { karaokes, assets } from "../db/schema.js";
@@ -23,7 +23,7 @@ export class PreviewService {
     const check = await this.authorization.canPreviewKaraoke(userId, karaokeId);
     if (!check.allowed) return { ok: false, reason: check.reason ?? "FORBIDDEN" };
 
-    const karaoke = await this.db.query.karaokes.findFirst({ where: eq(karaokes.id, karaokeId) });
+    const karaoke = await this.db.query.karaokes.findFirst({ where: and(eq(karaokes.id, karaokeId),eq(karaokes.catalogActive,true)) });
     if (!karaoke?.previewAssetId) return { ok: false, reason: "ASSET_NOT_AVAILABLE" };
     const previewAsset = await this.db.query.assets.findFirst({ where: eq(assets.id, karaoke.previewAssetId) });
     if (!previewAsset) return { ok: false, reason: "ASSET_NOT_AVAILABLE" };

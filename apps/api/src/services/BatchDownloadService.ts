@@ -64,7 +64,7 @@ export class BatchDownloadService {
     const collection = await this.db.query.collections.findFirst({ where: eq(collections.id, collectionId) });
     if (!collection) return { ok: false, reason: "COLLECTION_NOT_FOUND" };
 
-    const collectionKaraokes = await this.db.query.karaokes.findMany({ where: eq(karaokes.collectionId, collectionId) });
+    const collectionKaraokes = await this.db.query.karaokes.findMany({ where: and(eq(karaokes.collectionId, collectionId),eq(karaokes.catalogActive,true)) });
     const available: { id: string; title: string; artist: string; masterAssetId: string }[] = [];
     for (const k of collectionKaraokes) {
       if (k.masterAssetId) available.push({ id: k.id, title: k.title, artist: k.artist, masterAssetId: k.masterAssetId });

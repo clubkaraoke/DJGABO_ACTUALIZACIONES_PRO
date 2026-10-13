@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { eq, desc, asc, count } from "drizzle-orm";
+import { eq, desc, asc, count, and } from "drizzle-orm";
 import type { CollectionSummaryDTO, CollectionDetailDTO, KaraokeSummaryDTO, ArchiveStatusDTO } from "@djgabo/shared";
 import { getAccessibleCollectionIds } from "../services/accessibleCollections.js";
 import { deriveSourceGroup, isClubKaraokeSource } from "../services/sourceGroup.js";
@@ -103,7 +103,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
 
     const dto: CollectionSummaryDTO[] = [];
     for (const c of activeCollections) {
-      const [row] = await db.select({ value: count() }).from(karaokes).where(eq(karaokes.collectionId, c.id));
+      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),eq(karaokes.catalogActive,true)));
       dto.push(toSummaryDTO(c, c.active ? row?.value ?? 0 : 0, false));
     }
     return reply.send(dto);
@@ -117,7 +117,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
     }
 
     const collectionKaraokes = await db.query.karaokes.findMany({
-      where: eq(karaokes.collectionId, id),
+      where: and(eq(karaokes.collectionId, id),eq(karaokes.catalogActive,true)),
       orderBy: asc(karaokes.title),
       with: { masterAsset: true },
     });
@@ -141,7 +141,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
 
     const dto: CollectionSummaryDTO[] = [];
     for (const c of activeCollections) {
-      const [row] = await db.select({ value: count() }).from(karaokes).where(eq(karaokes.collectionId, c.id));
+      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),eq(karaokes.catalogActive,true)));
       dto.push(toSummaryDTO(c, c.active ? row?.value ?? 0 : 0, !accessibleIds.has(c.id)));
     }
     return reply.send(dto);
@@ -164,7 +164,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
         return reply.code(404).send({ error: "COLLECTION_NOT_FOUND", message: "Colección no encontrada", statusCode: 404 });
       }
       const collectionKaraokes = await db.query.karaokes.findMany({
-        where: eq(karaokes.collectionId, id),
+        where: and(eq(karaokes.collectionId, id),eq(karaokes.catalogActive,true)),
         orderBy: asc(karaokes.title),
         with: { masterAsset: true },
       });
