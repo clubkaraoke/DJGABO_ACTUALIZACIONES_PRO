@@ -84,7 +84,7 @@ export default function PlansPage() {
                 )}
 
                 <a href={planSubscriptionWhatsappUrl(plan)} target="_blank" rel="noopener noreferrer" aria-label={"Suscribirme por WhatsApp: "+plan.name}
-                  className={`mt-5 rounded-md py-2.5 text-[13px] font-semibold transition hover:brightness-95 ${plan.featured ? "bg-primary text-black" : "border border-white/[0.08] bg-secondary text-foreground"}`}
+                  className={`mt-5 flex items-center justify-center rounded-md py-2.5 text-center text-[13px] font-semibold transition hover:brightness-95 ${plan.featured ? "bg-primary text-black" : "border border-white/[0.08] bg-secondary text-foreground"}`}
                 >
                   Suscribirme
                 </a>
