@@ -4,6 +4,7 @@ import type { CollectionSummaryDTO, CollectionDetailDTO, KaraokeSummaryDTO, Arch
 import { getAccessibleCollectionIds } from "../services/accessibleCollections.js";
 import { deriveSourceGroup, isClubKaraokeSource } from "../services/sourceGroup.js";
 import { collections, karaokes } from "../db/schema.js";
+import { liveCatalogKaraoke } from "../services/catalogVisibility.js";
 
 function toSummaryDTO(
   c: {
@@ -94,6 +95,7 @@ export function toKaraokeDTO(
 
 export async function registerCollectionsRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
+  const liveKaraoke=liveCatalogKaraoke(db,fastify.storageProvider.kind);
 
   // Catálogo público: visible para visitantes, sin conceder ninguna descarga.
   fastify.get("/api/public/collections", async (_request, reply) => {
@@ -103,7 +105,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
 
     const dto: CollectionSummaryDTO[] = [];
     for (const c of activeCollections) {
-      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),eq(karaokes.catalogActive,true)));
+      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),liveKaraoke));
       dto.push(toSummaryDTO(c, c.active ? row?.value ?? 0 : 0, false));
     }
     return reply.send(dto);
@@ -117,7 +119,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
     }
 
     const collectionKaraokes = await db.query.karaokes.findMany({
-      where: and(eq(karaokes.collectionId, id),eq(karaokes.catalogActive,true)),
+      where: and(eq(karaokes.collectionId, id),liveKaraoke),
       orderBy: asc(karaokes.title),
       with: { masterAsset: true },
     });
@@ -141,7 +143,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
 
     const dto: CollectionSummaryDTO[] = [];
     for (const c of activeCollections) {
-      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),eq(karaokes.catalogActive,true)));
+      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),liveKaraoke));
       dto.push(toSummaryDTO(c, c.active ? row?.value ?? 0 : 0, !accessibleIds.has(c.id)));
     }
     return reply.send(dto);
@@ -164,7 +166,7 @@ export async function registerCollectionsRoutes(fastify: FastifyInstance) {
         return reply.code(404).send({ error: "COLLECTION_NOT_FOUND", message: "Colección no encontrada", statusCode: 404 });
       }
       const collectionKaraokes = await db.query.karaokes.findMany({
-        where: and(eq(karaokes.collectionId, id),eq(karaokes.catalogActive,true)),
+        where: and(eq(karaokes.collectionId, id),liveKaraoke),
         orderBy: asc(karaokes.title),
         with: { masterAsset: true },
       });

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { eq, desc, count, and } from "drizzle-orm";
 import { collections, karaokes } from "../../db/schema.js";
 import { createId } from "../../db/id.js";
+import { liveCatalogKaraoke } from "../../services/catalogVisibility.js";
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -25,6 +26,7 @@ const updateSchema = z.object({
 
 export async function registerAdminCollectionsRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
+  const liveKaraoke=liveCatalogKaraoke(db,fastify.storageProvider.kind);
   const guard = { preHandler: [fastify.authenticate, fastify.requireRole("ADMIN")] };
 
   fastify.get("/api/admin/collections", guard, async (_request, reply) => {
@@ -33,7 +35,7 @@ export async function registerAdminCollectionsRoutes(fastify: FastifyInstance) {
     });
     const result = [];
     for (const c of allCollections) {
-      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),eq(karaokes.catalogActive,true)));
+      const [row] = await db.select({ value: count() }).from(karaokes).where(and(eq(karaokes.collectionId, c.id),liveKaraoke));
       const archiveStatus = await fastify.storageService.getArchiveStatus(c.slug);
       result.push({
         id: c.id,

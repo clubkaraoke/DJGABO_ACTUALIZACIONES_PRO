@@ -4,6 +4,7 @@ import { and, or, like, eq, inArray, desc, asc } from "drizzle-orm";
 import { getAccessibleCollectionIds } from "../services/accessibleCollections.js";
 import { toKaraokeDTO } from "./collections.routes.js";
 import { collections, karaokes } from "../db/schema.js";
+import { liveCatalogKaraoke } from "../services/catalogVisibility.js";
 
 const querySchema = z.object({
   q: z.string().trim().optional(),
@@ -20,6 +21,7 @@ const querySchema = z.object({
  */
 export async function registerKaraokesRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
+  const liveKaraoke=liveCatalogKaraoke(db,fastify.storageProvider.kind);
 
   fastify.get("/api/public/karaokes/search", async (request, reply) => {
     const parsed = querySchema.safeParse(request.query);
@@ -40,7 +42,7 @@ export async function registerKaraokesRoutes(fastify: FastifyInstance) {
       : activeIds;
     if (collectionFilter.length === 0) return reply.send([]);
 
-    const conditions = [inArray(karaokes.collectionId, collectionFilter),eq(karaokes.catalogActive,true)];
+    const conditions = [inArray(karaokes.collectionId, collectionFilter),liveKaraoke];
     if (genre) conditions.push(eq(karaokes.genre, genre));
     if (year) conditions.push(eq(karaokes.year, year));
     if (q) {
@@ -84,7 +86,7 @@ export async function registerKaraokesRoutes(fastify: FastifyInstance) {
 
     if (collectionFilter.length === 0) return reply.send([]);
 
-    const conditions = [inArray(karaokes.collectionId, collectionFilter),eq(karaokes.catalogActive,true)];
+    const conditions = [inArray(karaokes.collectionId, collectionFilter),liveKaraoke];
     if (genre) conditions.push(eq(karaokes.genre, genre));
     if (year) conditions.push(eq(karaokes.year, year));
     if (q) {
