@@ -13,6 +13,7 @@ import { DrizzleIndexerRepository } from "../db/drizzleIndexerRepository.js";
 import type { Env } from "../env.js";
 import { CatalogJsonService } from "./CatalogJsonService.js";
 import { SheetMirrorService } from "./SheetMirrorService.js";
+import { resolveDropboxMonthPath } from "./DropboxMonthPathResolver.js";
 
 interface MonthTarget {
   path: string;
@@ -125,7 +126,11 @@ export class DropboxIncrementalSyncService {
       return { processed: 0, months: [] };
     }
 
-    const targets = this.deriveMonthTargets(delta.entries);
+    const initialTargets = this.deriveMonthTargets(delta.entries);
+    const targets = await Promise.all(initialTargets.map(async target=>({
+      ...target,
+      path: await resolveDropboxMonthPath(this.provider,target.year,target.month,target.path,this.env.SYNC_ROOT_PATH)
+    })));
     let version: string | undefined;
 
     if (targets.length > 0) {

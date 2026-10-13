@@ -5,6 +5,7 @@ import { StorageIndexerService } from "@djgabo/storage";
 import type { SyncStatusDTO } from "@djgabo/shared";
 import { DrizzleIndexerRepository } from "../../db/drizzleIndexerRepository.js";
 import { syncRuns, collections } from "../../db/schema.js";
+import { resolveDropboxMonthPath } from "../../services/DropboxMonthPathResolver.js";
 
 export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
   const { db } = fastify;
@@ -65,13 +66,14 @@ export async function registerAdminSyncRoutes(fastify: FastifyInstance) {
     // Some historical month paths are relative to a different yearly sync root.
     if(!c.storagePath.startsWith("/") || c.storagePath.split("/").includes(".."))
       return reply.code(409).send({error:"MONTH_OUTSIDE_SYNC_ROOT"});
+    const realPath=await resolveDropboxMonthPath(fastify.storageProvider,year,month,c.storagePath,fastify.env.SYNC_ROOT_PATH);
     const result=await new StorageIndexerService(
       fastify.storageProvider,new DrizzleIndexerRepository(db,fastify.storageProvider.kind)
-    ).runMonths([{path:c.storagePath,year,month}],{dryRun});
+    ).runMonths([{path:realPath,year,month}],{dryRun});
     if(result.errorCount) return reply.code(503).send({error:"SYNC_PARTIAL",result});
     if(dryRun)return reply.send(result);
     const version=await fastify.catalogJsonService.publishMonths([{year,month}]);
-    await fastify.dropboxIncrementalSyncService.mirrorCurrentMonths([{path:c.storagePath,year,month}],version.version);
+    await fastify.dropboxIncrementalSyncService.mirrorCurrentMonths([{path:realPath,year,month}],version.version);
     return reply.send({result,version:version.version,sheetMirror:"completed"});
   });
 

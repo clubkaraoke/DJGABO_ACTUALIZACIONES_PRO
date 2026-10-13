@@ -10,6 +10,7 @@ import {
 import { StorageIndexerService, parseMonthFolder, parseYearFolder } from "@djgabo/storage";
 import { DrizzleIndexerRepository } from "./db/drizzleIndexerRepository.js";
 import { buildApp } from "./app.js";
+import { resolveDropboxMonthPath } from "./services/DropboxMonthPathResolver.js";
 
 async function main() {
   const env = loadEnv();
@@ -132,7 +133,8 @@ async function main() {
       const collection=await db.query.collections.findFirst({where:(c,{and,eq})=>and(eq(c.year,2026),eq(c.month,9))});
       if(!collection)return;
       try {
-        const month={path:collection.storagePath,year:2026,month:9};
+        const realPath=await resolveDropboxMonthPath(provider,2026,9,collection.storagePath,env.SYNC_ROOT_PATH);
+        const month={path:realPath,year:2026,month:9};
         const indexer=new StorageIndexerService(provider,new DrizzleIndexerRepository(db,provider.kind));
         const result=await indexer.runMonths([month],{dryRun:false});
         if(result.errorCount)throw new Error("Month reconciliation errors: "+result.errorCount);
