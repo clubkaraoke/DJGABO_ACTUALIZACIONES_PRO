@@ -22,6 +22,15 @@ interface KaraokeRequest {
   readyAt: string | null;
 }
 
+interface RequestQuota {
+  active: boolean;
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+}
+
 interface CreateResponse {
   alreadyAvailable: boolean;
   duplicate?: boolean;
@@ -61,6 +70,13 @@ export default function OrderPage() {
   const [available, setAvailable] = useState<CreateResponse["match"] | null>(null);
   const [showVip, setShowVip] = useState(false);
 
+  const { data: quota } = useQuery({
+    queryKey: ["karaoke-request-quota", user?.id ?? "guest"],
+    queryFn: () => api.get<RequestQuota>("/karaoke-requests/quota"),
+    enabled: Boolean(user),
+    refetchOnWindowFocus: true,
+  });
+
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ["karaoke-requests", user?.id ?? "guest"],
     queryFn: () => api.get<KaraokeRequest[]>("/karaoke-requests"),
@@ -91,6 +107,7 @@ export default function OrderPage() {
         setYoutubeUrl("");
       }
       await queryClient.invalidateQueries({ queryKey: ["karaoke-requests"] });
+      await queryClient.invalidateQueries({ queryKey: ["karaoke-request-quota"] });
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : "No se pudo registrar la solicitud.");
     } finally {
@@ -112,6 +129,30 @@ export default function OrderPage() {
             ¿No encuentras una canción? Envíanos el enlace de YouTube y la prepararemos para una próxima actualización.
           </p>
         </header>
+
+        {user && quota && (
+          <div className="rounded-[10px] border border-primary/15 bg-primary/[0.05] px-4 py-3 text-[12px]">
+            {quota.limit === null ? (
+              <span className="font-semibold text-primary">Administrador: pedidos sin cuota mensual.</span>
+            ) : quota.active ? (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold text-foreground">
+                  Karaokes a pedido GRATIS: {quota.remaining} de {quota.limit} disponibles
+                </span>
+                {quota.periodEnd && (
+                  <span className="text-muted-foreground">
+                    Reinicia el {formatDate(quota.periodEnd)} · No acumulables
+                  </span>
+                )}
+              </div>
+            ) : (
+              <span className="font-semibold text-primary">
+                Activa tu membresía VIP para solicitar karaokes gratuitos.
+                <Link to="/planes" className="ml-2 underline">Ver planes</Link>
+              </span>
+            )}
+          </div>
+        )}
 
         <section className="rounded-[14px] border border-white/[0.08] bg-card p-4 shadow-card sm:p-6">
           <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/[0.08] px-3 py-2 text-[12px] font-semibold text-primary">

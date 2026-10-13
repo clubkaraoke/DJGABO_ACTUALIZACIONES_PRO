@@ -7,38 +7,38 @@ const plans = [
     name: "1 MES",
     price: "59.99",
     period: "/ mes",
-    description: "Ve todo el catálogo y descarga 3 carpetas de actualizaciones de 2026 durante 30 días.",
+    description: "¡Empieza a renovar tu karaoke!",
     items: [
-      "Visualiza todo el catálogo y escucha demos",
-      "Elige 3 carpetas diferentes de 2026",
-      "2 descargas por carpeta al día",
-      "Enlaces protegidos y control de dispositivos",
+      "Elige 3 actualizaciones de 2026",
+      "3 karaokes a pedido GRATIS",
+      "Acceso a tu panel VIP por 30 días",
     ],
   },
   {
     name: "6 MESES",
-    price: "139.99",
+    price: "149.99",
     period: "/ 6 meses",
-    description: "Descarga todo el año de compra y recibe seis meses de nuevas actualizaciones.",
+    description: "¡Nuevos karaokes para tu repertorio cada mes!",
     featured: true,
     items: [
-      "Todas las carpetas del año de compra",
+      "Todas las actualizaciones del año de compra",
       "6 meses de nuevas actualizaciones",
-      "Visualiza el catálogo de todos los años",
-      "Límite antiabuso: 2 descargas por carpeta/día",
+      "5 karaokes a pedido GRATIS cada mes",
+      "Acceso a tu panel VIP por 6 meses",
     ],
   },
   {
     name: "1 AÑO",
-    price: "179.99",
+    price: "189.99",
     period: "/ año",
-    description: "Todas las colecciones históricas y las nuevas publicaciones durante 12 meses.",
+    description: "¡Todo el catálogo de karaokes a tu alcance!",
     items: [
-      "Todas las colecciones disponibles desde 2012",
+      "Acceso FULL a todas las actualizaciones históricas",
       "12 meses de nuevas actualizaciones",
-      "Acceso completo al catálogo histórico",
-      "Límite antiabuso: 2 descargas por carpeta/día",
+      "15 karaokes a pedido GRATIS cada mes",
+      "Todas las colecciones habilitadas para descargar",
     ],
+    annualBonus: "¡Hasta 180 karaokes a pedido GRATIS durante tu año VIP!",
   },
 ];
 
@@ -62,8 +62,11 @@ export default function PlansPage() {
 
         <section className="px-0 py-8 md:py-10">
           <h2 className="text-center text-[18px] font-bold">
-            Actualiza tu colección con nuevos karaokes
+            Elige tu membresía VIP
           </h2>
+          <p className="mt-1.5 text-center text-[12px] text-muted-foreground">
+            Nuevas actualizaciones y karaokes a pedido para tu repertorio.
+          </p>
 
           <div className="mx-auto mt-6 flex max-w-[900px] flex-wrap items-stretch justify-center gap-5">
             {plans.map((plan) => (
@@ -105,6 +108,12 @@ export default function PlansPage() {
                   ))}
                 </ul>
 
+                {"annualBonus" in plan && plan.annualBonus && (
+                  <p className="mt-3 rounded-[5px] border border-primary/20 bg-primary/[0.09] px-2.5 py-2 text-center text-[11px] font-bold leading-4 text-primary">
+                    {plan.annualBonus}
+                  </p>
+                )}
+
                 <button
                   className={`mt-5 rounded-md py-2.5 text-[13px] font-semibold transition hover:brightness-95 ${plan.featured ? "bg-primary text-black" : "border border-white/[0.08] bg-secondary text-foreground"}`}
                 >
@@ -115,8 +124,10 @@ export default function PlansPage() {
           </div>
 
           <p className="mx-auto mt-4 max-w-[760px] text-center text-[11px] leading-5 text-muted-foreground">
-            En todos los planes: máximo 2 descargas por carpeta al día y 5 carpetas diferentes al día, salvo límite particular del plan.
-            Cada enlace de descarga dura 90 segundos y es de un solo uso. Las descargas individuales están sujetas al control del administrador.
+            Todos los planes permiten visualizar el catálogo y escuchar demos.
+            Las descargas se realizan por carpeta completa: máximo 2 por carpeta al día y 5 carpetas diferentes por día, salvo límites particulares.
+            Los pedidos gratis son mensuales, no acumulables, y corresponden a nuevas solicitudes.
+            Cada enlace de descarga dura 90 segundos y es de un solo uso.
           </p>
           <div className="mt-6 text-center">
             <Link to="/panel" className="text-[12px] font-medium text-primary hover:underline">
