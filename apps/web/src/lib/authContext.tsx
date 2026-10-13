@@ -9,7 +9,7 @@ interface AuthContextValue {
   loading: boolean;
   loginError: string | null;
   login: (email: string, password: string) => Promise<boolean>;
-  vipInviteRegister: (inviteCode: string, email: string, whatsapp: string, password: string) => Promise<{ ok: boolean; message?: string }>;
+  vipInviteRegister: (inviteCode: string, email: string, whatsapp: string, password: string, verificationCode: string) => Promise<{ ok: boolean; message?: string }>;
   logout: () => Promise<void>;
   refreshMe: () => Promise<void>;
 }
@@ -90,12 +90,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const vipInviteRegister = useCallback(async (inviteCode: string, email: string, whatsapp: string, password: string): Promise<{ ok: boolean; message?: string }> => {
+  const vipInviteRegister = useCallback(async (inviteCode: string, email: string, whatsapp: string, password: string, verificationCode: string): Promise<{ ok: boolean; message?: string }> => {
     try {
       const res = await fetch(apiEndpoint("/auth/vip-invite/register"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ inviteCode, email, whatsapp, password }),
+        body: JSON.stringify({ inviteCode, email, whatsapp, password, verificationCode }),
       });
       const body = await res.json();
       if (!res.ok) return { ok: false, message: body.message ?? "No se pudo completar el registro" };

@@ -11,6 +11,7 @@ import {
   RefreshCw,
   SlidersHorizontal,
   Users,
+  UserRoundCheck,
   X,
   ClipboardList,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import { useAuth } from "../lib/authContext";
 const NAV_ITEMS = [
   { to: "/admin", label: "Dashboard", icon: BarChart3, end: true },
   { to: "/admin/clientes", label: "Clientes", icon: Users },
+  { to: "/admin/invitaciones", label: "Invitaciones VIP", icon: UserRoundCheck },
   { to: "/admin/pedidos", label: "Pedidos", icon: ClipboardList },
   { to: "/admin/planes", label: "Planes", icon: CircleDollarSign },
   { to: "/admin/colecciones", label: "Colecciones", icon: Database },

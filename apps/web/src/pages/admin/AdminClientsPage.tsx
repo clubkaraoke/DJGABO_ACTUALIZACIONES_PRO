@@ -57,7 +57,7 @@ export default function AdminClientsPage() {
                     <Badge tone={STATUS_TONE[c.status] ?? "neutral"}>{STATUS_LABEL[c.status] ?? c.status}</Badge>
                   </td>
                   <td className="px-4 py-3 text-sm text-ink-secondary">
-                    {formatDate(c.subscriptionStart)} → {formatDate(c.subscriptionEnd)}
+                    {c.pendingLegacyExpiry ? <Badge tone="warning">Falta asignar vencimiento</Badge> : <>{formatDate(c.subscriptionStart)} → {formatDate(c.subscriptionEnd)}</>}
                   </td>
                   <td className="px-4 py-3 text-sm text-ink-secondary">
                     {c.devicesUsed}/{c.maxDevices}

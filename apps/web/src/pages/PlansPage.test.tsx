@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import PlansPage from "./PlansPage";
 
 vi.mock("../components/VipShell", () => ({
@@ -9,7 +10,7 @@ vi.mock("../components/VipShell", () => ({
 
 describe("VIP published pricing and free karaoke request benefits", () => {
   it("shows the three approved prices, up to 180 orders yearly and download limits note", () => {
-    render(<MemoryRouter><PlansPage /></MemoryRouter>);
+    render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><MemoryRouter><PlansPage /></MemoryRouter></QueryClientProvider>);
     expect(screen.getByText("$59.99")).toBeInTheDocument();
     expect(screen.getByText("$149.99")).toBeInTheDocument();
     expect(screen.getByText("$189.99")).toBeInTheDocument();

@@ -33,6 +33,7 @@ export interface CollectionSummaryDTO {
   publishedAt: string | null;
   /** Si el usuario NO tiene acceso, locked=true y no se exponen conteos sensibles adicionales */
   locked: boolean;
+  preparing?: boolean;
 }
 
 export interface KaraokeSummaryDTO {
@@ -93,6 +94,7 @@ export interface AdminClientRowDTO {
   email: string;
   whatsapp: string | null;
   activationPending: boolean;
+  pendingLegacyExpiry?: boolean;
   plan: string | null;
   status: UserStatus;
   subscriptionStart: string | null;

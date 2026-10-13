@@ -14,6 +14,7 @@ interface AdminCollection {
   updatedAt: string;
   archiveAvailable: boolean;
   archiveSize: number | null;
+  preparing?: boolean;
 }
 
 export default function AdminCollectionsPage() {
@@ -55,18 +56,18 @@ export default function AdminCollectionsPage() {
                   <td className="px-4 py-3 text-xs text-ink-tertiary">{c.storagePath}</td>
                   <td className="px-4 py-3">
                     <Badge tone={c.archiveAvailable ? "accent" : "neutral"}>
-                      {c.archiveAvailable ? `ZIP disponible${c.archiveSize ? ` (${(c.archiveSize / 1_000_000_000).toFixed(1)} GB)` : ""}` : "Sin ZIP — solo individual"}
+                      {c.archiveAvailable ? `ZIP preparado${c.archiveSize ? ` (${(c.archiveSize / 1_000_000_000).toFixed(1)} GB)` : ""}` : "ZIP generado al descargar"}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge tone={c.active ? "accent" : "neutral"}>{c.active ? "Activa" : "Inactiva"}</Badge>
+                    <Badge tone={c.active ? "accent" : "neutral"}>{c.active ? "Actualización completada" : "En preparación"}</Badge>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => toggleActive.mutate({ id: c.id, active: !c.active })}
                       className="text-xs font-medium text-accent hover:underline"
                     >
-                      {c.active ? "Desactivar" : "Activar"}
+                      {c.active ? "Volver a preparación" : "Publicar actualización"}
                     </button>
                   </td>
                 </tr>

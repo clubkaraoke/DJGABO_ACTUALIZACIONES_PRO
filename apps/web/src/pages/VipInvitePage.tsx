@@ -13,6 +13,7 @@ export default function VipInvitePage() {
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [password, setPassword] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -37,7 +38,7 @@ export default function VipInvitePage() {
     event.preventDefault();
     setError("");
     setSubmitting(true);
-    const result = await vipInviteRegister(inviteCode, email.trim(), whatsapp.trim(), password);
+    const result = await vipInviteRegister(inviteCode, email.trim(), whatsapp.trim(), password, verificationCode.trim());
     setSubmitting(false);
     if (!result.ok) {
       setError(result.message ?? "No se pudo completar el registro");
@@ -101,6 +102,10 @@ export default function VipInvitePage() {
               </div>
             </label>
 
+            <label className="block">
+              <span className="mb-1.5 block text-[12px] font-medium text-muted-foreground">Código personal enviado por DJGABO a tu WhatsApp</span>
+              <input type="text" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required value={verificationCode} onChange={(e)=>setVerificationCode(e.target.value.replace(/[^0-9]/g,""))} placeholder="6 dígitos" className="h-11 w-full rounded-md border border-white/[0.08] bg-secondary px-3 text-[13px] outline-none focus:border-primary/50"/>
+            </label>
             {error && <p className="rounded-md bg-danger/10 px-3 py-2 text-[12px] text-danger">{error}</p>}
 
             <button disabled={submitting} className="flex h-11 w-full items-center justify-center rounded-md bg-primary text-[13px] font-bold text-black hover:brightness-95 disabled:opacity-50">
@@ -108,7 +113,7 @@ export default function VipInvitePage() {
             </button>
 
             <p className="text-center text-[10px] leading-4 text-muted-foreground">
-              Después de registrarte podrás entrar al panel y solicitar la activación de tu membresía por WhatsApp.
+              Solo WhatsApp autorizados. Tu VIP Anual se activa automáticamente tras registrarte.
             </p>
           </form>
         )}

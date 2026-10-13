@@ -14,6 +14,7 @@ import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import AdminClientsPage from "./pages/admin/AdminClientsPage";
 import AdminClientDetailPage from "./pages/admin/AdminClientDetailPage";
 import AdminPlansPage from "./pages/admin/AdminPlansPage";
+import AdminVipInvitationsPage from "./pages/admin/AdminVipInvitationsPage";
 import AdminCollectionsPage from "./pages/admin/AdminCollectionsPage";
 import AdminKaraokesPage from "./pages/admin/AdminKaraokesPage";
 import AdminDownloadsPage from "./pages/admin/AdminDownloadsPage";
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="clientes/:id" element={<AdminClientDetailPage />} />
             <Route path="pedidos" element={<AdminRequestsPage />} />
             <Route path="planes" element={<AdminPlansPage />} />
+            <Route path="invitaciones" element={<AdminVipInvitationsPage />} />
             <Route path="colecciones" element={<AdminCollectionsPage />} />
             <Route path="karaokes" element={<AdminKaraokesPage />} />
             <Route path="descargas" element={<AdminDownloadsPage />} />

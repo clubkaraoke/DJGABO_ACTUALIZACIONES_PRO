@@ -17,6 +17,7 @@ interface ClientDetail {
   email: string;
   whatsapp: string | null;
   activationPending: boolean;
+  pendingLegacyExpiry?: boolean;
   status: "ACTIVE" | "SUSPENDED" | "EXPIRED";
   planId: string | null;
   subscriptionStart: string | null;
@@ -89,6 +90,7 @@ export default function AdminClientDetailPage() {
         {data.whatsapp && <p className="mt-1 text-sm text-ink-secondary">WhatsApp: +{data.whatsapp}</p>}
       </div>
 
+      {data.pendingLegacyExpiry && <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">VIP antiguo activo por invitación. Vencimiento pendiente de asignar: introduce la fecha real de caducidad.</div>}
       {data.activationPending && (
         <div className="rounded-lg border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
           Solicitud de activación VIP pendiente. Verifica este cliente en tu lista histórica y asigna su plan y vigencia.

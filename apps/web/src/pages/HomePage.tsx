@@ -10,6 +10,7 @@ import { BatchDownloadModal } from "../components/BatchDownloadModal";
 import { CdgDemoModal } from "../components/CdgDemoModal";
 import { KaraokeTypeBadges } from "../components/KaraokeTypeBadges";
 import { VipAccessModal } from "../components/VipAccessModal";
+import { CollectionPreparingModal } from "../components/CollectionPreparingModal";
 import { useAuth } from "../lib/authContext";
 import { publicKaraokeDisplay } from "../lib/publicCatalogPresentation";
 
@@ -38,6 +39,7 @@ export default function HomePage() {
     : "";
   const [download, setDownload] = useState<CollectionSummaryDTO | null>(null);
   const [showVip, setShowVip] = useState(false);
+  const [preparingModal, setPreparingModal] = useState<CollectionSummaryDTO | null>(null);
   const [playingKaraoke, setPlayingKaraoke] = useState<KaraokeSummaryDTO | null>(null);
   const { data = [], isLoading, isError } = useQuery({
     queryKey: ["collections", hasVipAccess ? "private" : "public"],
@@ -54,8 +56,9 @@ export default function HomePage() {
     enabled: Boolean(user),
   });
   const collections = useMemo(() => [...data].sort(sortCollections), [data]);
-  const latest = collections.find((c) => !c.locked) ?? collections[0];
-  const recent = collections.filter((c) => c.id !== latest?.id).slice(0, 10);
+  const latest = collections.find((c) => !c.preparing && !c.locked) ?? collections.find(c=>!c.preparing);
+  const recent = collections.filter((c) => !c.preparing && c.id !== latest?.id).slice(0, 10);
+  const nextPreparing=collections.find(c=>c.preparing);
   const readyRequest = karaokeRequests.find((request) => request.status === "READY" && request.matchedCollectionId);
 
   return (
@@ -98,6 +101,7 @@ export default function HomePage() {
         )}
         {isLoading && <div className="flex justify-center py-24"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>}
         {isError && <div className="rounded-[10px] border border-white/[0.06] bg-card p-12 text-center text-[13px] text-muted-foreground">No se pudo cargar el catâlogo.</div>}
+        {nextPreparing && <button type="button" onClick={()=>setPreparingModal(nextPreparing)} className="w-full rounded-lg border border-amber-400/30 bg-amber-400/[0.08] p-4 text-left text-sm hover:bg-amber-400/[0.12]"><span className="font-semibold text-amber-300">{nextPreparing.title} · En preparación</span><span className="mt-1 block text-xs text-muted-foreground">Estamos preparando los próximos karaokes. Pulsa para conocer más.</span></button>}
         {latest && (
           <>
             <section className="overflow-hidden rounded-[10px] border border-white/[0.06] bg-card">
@@ -171,6 +175,7 @@ export default function HomePage() {
           </>
         )}
       </div>
+      {preparingModal && <CollectionPreparingModal collection={preparingModal} onClose={()=>setPreparingModal(null)} />}
       {download && <BatchDownloadModal collectionId={download.id} title={download.title} onClose={() => setDownload(null)} />}
       {showVip && <VipAccessModal onClose={() => setShowVip(false)} />}
       {playingKaraoke && (
