@@ -65,13 +65,23 @@ export class DrizzleIndexerRepository implements IndexerRepositoryPort {
     // `this.storageProviderKind` — el mismo providerFileId o el mismo
     // storageKey en OTRO provider son archivos distintos, nunca se
     // confunden ni se pisan entre sí.
-    const existing = input.providerFileId
+    // Dropbox assigns a fresh providerFileId to a reuploaded/replaced WAV.
+    // If the old ID no longer exists, reuse the asset occupying the SAME
+    // provider+path instead of attempting a duplicate UNIQUE storage_key.
+    const byId = input.providerFileId
       ? await this.db.query.assets.findFirst({
           where: and(eq(assets.provider, this.storageProviderKind), eq(assets.providerFileId, input.providerFileId)),
         })
-      : await this.db.query.assets.findFirst({
-          where: and(eq(assets.provider, this.storageProviderKind), eq(assets.storageKey, input.storageKey)),
-        });
+      : null;
+    const byPath = await this.db.query.assets.findFirst({
+      where: and(eq(assets.provider, this.storageProviderKind), eq(assets.storageKey, input.storageKey)),
+    });
+    if (byId && byPath && byId.id !== byPath.id) {
+      // A genuine moved asset collided with a former occupant of its new path.
+      // Do NOT silently reassign the old karaoke or delete historical records.
+      throw new Error("ASSET_PATH_IDENTITY_COLLISION: "+input.fileName);
+    }
+    const existing = byId ?? byPath;
 
     if (existing) {
       await this.db
@@ -115,7 +125,15 @@ export class DrizzleIndexerRepository implements IndexerRepositoryPort {
     masterAssetId: string;
     previewAssetId?: string;
   }) {
-    const existing = await this.db.query.karaokes.findFirst({ where: eq(karaokes.identityKey, input.identityKey) });
+    const byIdentity = await this.db.query.karaokes.findFirst({ where: eq(karaokes.identityKey, input.identityKey) });
+    const byMaster = await this.db.query.karaokes.findFirst({ where: eq(karaokes.masterAssetId, input.masterAssetId) });
+    if (byIdentity && byMaster && byIdentity.id !== byMaster.id) {
+      // Unrelated identities must never be merged just to clear a UNIQUE error.
+      throw new Error("KARAOKE_IDENTITY_COLLISION: "+input.identityKey);
+    }
+    // A replacement at the same path may have a new Dropbox ID, but it is
+    // still the same logical karaoke if it uses the same master asset.
+    const existing = byIdentity ?? byMaster;
     if (existing) {
       await this.db
         .update(karaokes)
@@ -123,6 +141,7 @@ export class DrizzleIndexerRepository implements IndexerRepositoryPort {
           title: input.title,
           artist: input.artist,
           code: input.code,
+          identityKey: input.identityKey,
           masterAssetId: input.masterAssetId,
           // Si el archivo se movió a otro mes (identidad estable por
           // providerFileId), el karaoke pasa a pertenecer a la colección

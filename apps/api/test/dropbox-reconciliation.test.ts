@@ -62,6 +62,21 @@ describe("Dropbox source-of-truth reconciliation, preserving historical referenc
     const summary=await app.inject({method:"GET",url:"/api/public/collections"});
     expect(summary.json().find((x:{id:string})=>x.id===collectionId).karaokeCount).toBe(1);
   });
+  it("reuses the SAME asset and karaoke when Dropbox changes the ID of a reuploaded WAV",async()=>{
+    const before=(await items()).find(x=>x.title.toLowerCase().includes("otro"))!;
+    const assetId=before.masterAssetId;
+    const previousIdentity=before.identityKey;
+    storage.seedFile(file2,{providerFileId:"id:reuploaded-new-file-id",size:3000});
+    const r=await indexer().runMonths([{path:month,year:2026,month:9}],{dryRun:false});
+    expect(r.errorCount).toBe(0);
+    expect(r.removedCount).toBe(0);
+    expect((await items()).length).toBe(2);
+    const after=(await items()).find(x=>x.id===before.id)!;
+    expect(after.identityKey).not.toBe(previousIdentity);
+    expect(after.masterAssetId).toBe(assetId);
+    expect(after.catalogActive).toBe(true);
+    expect((await app.inject({method:"GET",url:"/api/public/collections/"+collectionId})).json().karaokes).toHaveLength(1);
+  });
   it("restores same file identity after reupload or move back",async()=>{
     storage.moveFile("/ACTUALIZACIONES/2026/10_OCTUBRE_2026/01_Club_Karaoke/ARTISTA - Zaperoko.wav",file1);
     const r=await indexer().runMonths([{path:month,year:2026,month:9}],{dryRun:false});
