@@ -4,49 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../lib/apiClient";
 import { VipShell } from "../components/VipShell";
 
-const fallbackPlans = [
-  {
-    name: "1 MES",
-    price: "59.99",
-    period: "/ mes",
-    description: "¡Empieza a renovar tu karaoke!",
-    items: [
-      "Elige 3 actualizaciones de 2026",
-      "3 karaokes a pedido GRATIS",
-    ],
-  },
-  {
-    name: "6 MESES",
-    price: "149.99",
-    period: "/ 6 meses",
-    description: "¡Nuevos karaokes VIP cada mes!",
-    featured: true,
-    items: [
-      "Acceso Carpeta VIP 2026",
-      "6 meses de nuevas actualizaciones",
-      "5 karaokes a pedido GRATIS cada mes",
-      "Acceso a tu panel VIP por 6 meses",
-    ],
-  },
-  {
-    name: "1 AÑO",
-    price: "189.99",
-    period: "/ año",
-    description: "Todas nuestras Actualizaciones VIP",
-    items: [
-      "Acceso Carpeta VIP 2026 - 2012",
-      "12 meses de nuevas actualizaciones",
-      "15 karaokes a pedido GRATIS cada mes",
-      "Todas las colecciones habilitadas para descargar",
-    ],
-    annualBonus: "¡Hasta 180 karaokes a pedido GRATIS durante tu año VIP!",
-  },
-];
-
 interface Offer {slug:string;title:string;price:string;period:string;description:string;items:string[];annualBonus:string|null}
 export default function PlansPage() {
-  const {data}=useQuery({queryKey:["public","plan-offers"],queryFn:()=>api.get<Offer[]>("/public/plan-offers"),staleTime:60000});
-  const plans=(data?.length===3 ? data.map((o,i)=>({name:o.title,price:o.price,period:o.period,description:o.description,items:o.items,featured:i===1,annualBonus:o.annualBonus})) : fallbackPlans);
+  const {data,isLoading,isError}=useQuery({queryKey:["public","plan-offers"],queryFn:()=>api.get<Offer[]>("/public/plan-offers"),staleTime:60000});
+  const plans=(data?.length===3 ? data.map((o,i)=>({name:o.title,price:o.price,period:o.period,description:o.description,items:o.items,featured:i===1,annualBonus:o.annualBonus})) : []);
+  const availabilityError=isError || (!isLoading && plans.length===0);
   return (
     <VipShell>
       <div className="mx-auto w-full max-w-[1120px]">
@@ -73,6 +35,8 @@ export default function PlansPage() {
           </p>
 
           <div className="mx-auto mt-6 flex max-w-[900px] flex-wrap items-stretch justify-center gap-5">
+            {isLoading && <p className="py-12 text-center text-sm text-muted-foreground">Cargando los planes VIP actualizados…</p>}
+            {availabilityError && <p role="alert" className="py-12 text-center text-sm text-muted-foreground">No pudimos cargar los planes en este momento. Actualiza la página para consultar precios y beneficios vigentes.</p>}
             {plans.map((plan) => (
               <article
                 key={plan.name}

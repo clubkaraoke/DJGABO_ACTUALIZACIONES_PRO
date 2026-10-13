@@ -18,7 +18,7 @@ export default function AdminVipInvitationsPage() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
-  const [lastCode, setLastCode] = useState<{ phone: string; code: string; whatsappUrl: string } | null>(null);
+  const [lastCode, setLastCode] = useState<{ phone: string; code: string; message: string; whatsappUrl: string } | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ["vip-invitations"] });
   const add = useMutation({
     mutationFn: () => api.post("/admin/vip-invitations", { whatsapp: phone, email: email || undefined }),
@@ -30,7 +30,7 @@ export default function AdminVipInvitationsPage() {
     onSuccess: refresh, onError: (e: Error) => setError(e.message),
   });
   const generate = useMutation({
-    mutationFn: (p: string) => api.post<{ code: string; whatsappUrl: string }>("/admin/vip-invitations/" + encodeURIComponent(p) + "/code", {}),
+    mutationFn: (p: string) => api.post<{ code: string; message: string; whatsappUrl: string }>("/admin/vip-invitations/" + encodeURIComponent(p) + "/code", {}),
     onSuccess: (v, p) => { setLastCode({ ...v, phone: p }); setError(""); refresh(); },
     onError: (e: Error) => setError(e.message),
   });
@@ -56,7 +56,12 @@ export default function AdminVipInvitationsPage() {
     {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     {lastCode && <section className="max-w-2xl space-y-2 rounded-lg border border-primary/40 bg-primary/[0.07] p-4">
       <p className="font-semibold">Código generado para +{lastCode.phone}: <span className="font-mono text-lg">{lastCode.code}</span></p>
-      <p className="text-xs">Se muestra solo ahora. Envía este código al titular mediante WhatsApp; no lo publiques junto al enlace general.</p>
+      <p className="text-xs">Mensaje personalizado con beneficios actuales de Admin → Planes. Se muestra solo ahora; envíalo al titular por WhatsApp.</p>
+      <div className="rounded-lg border border-graphite-border bg-graphite-elevated p-3">
+        <p className="mb-2 text-xs font-semibold text-ink-secondary">Vista previa del texto WhatsApp</p>
+        <pre className="whitespace-pre-wrap break-words font-sans text-xs leading-5">{lastCode.message}</pre>
+      </div>
+      <Button variant="secondary" onClick={()=>void navigator.clipboard.writeText(lastCode.message)}>Copiar mensaje</Button>
       <a href={lastCode.whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex rounded-md bg-emerald-600 px-3 py-2 text-sm font-semibold text-white">Enviar invitación y código por WhatsApp</a>
     </section>}
     {isLoading ? <Skeleton className="h-44 w-full" /> :

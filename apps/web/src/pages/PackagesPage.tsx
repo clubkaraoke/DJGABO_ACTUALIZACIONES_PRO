@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Check, FolderOpen } from "lucide-react";
 import { VipShell } from "../components/VipShell";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "../lib/apiClient";
 
 function Benefit({ children }: { children: ReactNode }) {
   return (
@@ -35,7 +37,12 @@ function Feature({ children, detail }: { children: ReactNode; detail?: ReactNode
   );
 }
 
+interface VipOffer {slug:string; freeRequestsPerMonth:number}
 export default function PackagesPage() {
+  const {data}=useQuery({queryKey:["public","plan-offers"],queryFn:()=>api.get<VipOffer[]>("/public/plan-offers"),staleTime:60000});
+  const semestral=data?.find(p=>p.slug==="pro-semestral");
+  const anual=data?.find(p=>p.slug==="pro-anual");
+  const benefit=(amount:number|undefined)=>amount===undefined?"Consulta el beneficio VIP vigente":amount===0?"Sin pedidos a solicitud incluidos":amount===1?"1 karaoke a pedido GRATIS al mes":String(amount)+" karaokes a pedido GRATIS al mes";
   return (
     <VipShell>
       <div className="mx-auto w-full max-w-[1120px]">
@@ -101,7 +108,7 @@ export default function PackagesPage() {
 
               <SectionTitle>Acceso VIP</SectionTitle>
               <Feature detail="Incluidos gratis.">6 meses de actualizaciones</Feature>
-              <Feature detail="Incluidos gratis.">5 karaokes a pedido por mes</Feature>
+              <Feature detail="Incluidos gratis.">{benefit(semestral?.freeRequestsPerMonth)}</Feature>
 
               <button className="mt-5 rounded-md bg-primary py-2.5 text-[13px] font-semibold text-black">
                 Consultar paquete
@@ -136,7 +143,7 @@ export default function PackagesPage() {
 
               <SectionTitle>Acceso VIP</SectionTitle>
               <Feature detail="Incluidos gratis.">12 meses de actualizaciones</Feature>
-              <Feature detail="Incluidos gratis.">15 karaokes a pedido por mes</Feature>
+              <Feature detail="Incluidos gratis.">{benefit(anual?.freeRequestsPerMonth)}</Feature>
 
               <button className="mt-5 rounded-md border border-white/[0.08] bg-secondary py-2.5 text-[13px] font-semibold">
                 Consultar paquete
