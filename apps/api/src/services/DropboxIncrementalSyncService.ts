@@ -138,6 +138,7 @@ export class DropboxIncrementalSyncService {
       const indexer = new StorageIndexerService(this.provider, repo);
       const result = await indexer.runMonths(targets, { dryRun: false });
       if (result.errorCount > 0) {
+        this.log.error({errors:result.items.filter(i=>i.action==="ERROR").slice(0,12).map(i=>({filename:i.storageKey.split("/").at(-1),error:i.error}))},"Dropbox incremental file errors");
         throw new Error(`Incremental indexer terminó con ${result.errorCount} errores`);
       }
 

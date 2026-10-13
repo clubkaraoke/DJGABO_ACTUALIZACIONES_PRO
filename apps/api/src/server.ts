@@ -137,7 +137,10 @@ async function main() {
         const month={path:realPath,year:2026,month:9};
         const indexer=new StorageIndexerService(provider,new DrizzleIndexerRepository(db,provider.kind));
         const result=await indexer.runMonths([month],{dryRun:false});
-        if(result.errorCount)throw new Error("Month reconciliation errors: "+result.errorCount);
+        if(result.errorCount){
+          console.error("[RECONCILE_SEPTEMBER_2026_FILE_ERRORS]",JSON.stringify({monthPath:realPath,total:result.filesDetected,failed:result.items.filter(i=>i.action==="ERROR").map(i=>({filename:i.storageKey.split("/").at(-1),error:i.error})).slice(0,12)}));
+          throw new Error("Month reconciliation errors: "+result.errorCount);
+        }
         const version=await app.catalogJsonService.publishMonths([month]);
         await app.dropboxIncrementalSyncService!.mirrorCurrentMonths([month],version.version);
         sqlite.prepare("INSERT OR IGNORE INTO djgabo_feature_migrations(name) VALUES(?)").run(key);
