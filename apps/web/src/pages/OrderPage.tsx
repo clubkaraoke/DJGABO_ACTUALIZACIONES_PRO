@@ -171,36 +171,49 @@ export default function OrderPage() {
           </div>
         )}
 
-        <section className="rounded-[14px] border border-white/[0.08] bg-card p-4 shadow-card sm:p-6">
+        <section id="solicitar-karaoke" className="scroll-mt-24 rounded-[14px] border border-white/[0.08] bg-card p-4 shadow-card sm:p-6">
           <div className="mb-4 inline-flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/[0.08] px-3 py-2 text-[12px] font-semibold text-primary">
             <Youtube className="h-4 w-4" /> Enlace de YouTube
           </div>
 
+          <h2 className="mb-2 text-[17px] font-extrabold">Pega el enlace de tu canción</h2>
+          <p className="mb-4 text-[12px] text-muted-foreground">1. Copia YouTube · 2. Pega aquí · 3. Solicita tu karaoke.</p>
           <form onSubmit={submit}>
             <div className="relative">
               <Youtube className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-tertiary" />
               <input
                 value={youtubeUrl}
-                onChange={(event) => setYoutubeUrl(event.target.value)}
+                onChange={(event) => { setYoutubeUrl(event.target.value); setMessage(""); setAvailable(null); }}
+                type="url"
+                required
+                aria-label="Enlace del video de YouTube"
                 placeholder="https://youtu.be/..."
                 inputMode="url"
                 autoComplete="off"
                 className="h-[58px] w-full rounded-[10px] border border-white/[0.09] bg-background pl-12 pr-4 text-[14px] text-foreground outline-none transition placeholder:text-ink-tertiary focus:border-primary/50 focus:ring-2 focus:ring-primary/[0.08]"
               />
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Antes de crear el pedido comprobamos si la canción ya existe en Actualizaciones PRO.
+            {youtubeUrl.trim() && !validVideoUrl && <p className="mt-2 text-[11px] text-amber-300">Pega una dirección válida de YouTube.</p>}
+            <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+              {hasVipQuota ? "Antes de crear tu pedido VIP comprobamos si la canción ya está en Actualizaciones PRO." : "Para visitantes coordinamos el pago por WhatsApp antes de preparar el karaoke MP4."}
             </p>
+            {user && quotaError && <p role="alert" className="mt-2 text-[12px] text-amber-300">No pudimos verificar tu cupo VIP. Actualiza la página para intentar nuevamente.</p>}
 
             <button
               type="submit"
-              disabled={!youtubeUrl.trim() || submitting}
+              disabled={!validVideoUrl || submitting || authLoading || Boolean(user && quotaLoading) || Boolean(user && quotaError)}
               className="mt-5 inline-flex h-[44px] min-w-[190px] items-center justify-center gap-2 rounded-md bg-primary px-5 text-[13px] font-bold text-black transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Music2 className="h-4 w-4" />}
-              {submitting ? "Comprobando…" : "Solicitar karaoke"}
+              {submitting || authLoading || (user && quotaLoading) ? <Loader2 className="h-4 w-4 animate-spin" /> : hasVipQuota ? <Music2 className="h-4 w-4" /> : <MessageCircle className="h-4 w-4" />}
+              {submitting ? "Comprobando..." : authLoading || (user && quotaLoading) ? "Verificando acceso..." : hasVipQuota ? "Solicitar mi CD+G gratis" : "Solicitar MP4 por WhatsApp"}
             </button>
           </form>
+          {!user && !authLoading && (
+            <Link to="/login" state={{ from: loginReturn }} className="mt-3 inline-flex items-center gap-2 text-[12px] font-semibold text-primary hover:underline"><Crown className="h-4 w-4" /> ¿Ya eres cliente VIP? Inicia sesión y solicita tu CD+G gratis.</Link>
+          )}
+          {user && quota?.active && quota.limit !== null && (quota.remaining ?? 0) <= 0 && (
+            <p className="mt-3 text-[11px] text-amber-300">Agotaste tus pedidos VIP de este período. Puedes solicitar un MP4 de pago por WhatsApp.</p>
+          )}
 
           {message && (
             <div className={"mt-5 rounded-[10px] border p-4 text-[13px] " + (available ? "border-emerald-400/20 bg-emerald-400/[0.08]" : "border-white/[0.07] bg-white/[0.03]")}>
@@ -227,7 +240,7 @@ export default function OrderPage() {
           )}
         </section>
 
-        <section>
+        {user && <section>
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-[16px] font-bold tracking-tight text-foreground">Mis solicitudes</h2>
@@ -279,13 +292,10 @@ export default function OrderPage() {
               </div>
             )}
           </div>
-        </section>
+        </section>}
       </div>
-      {showVip && (
-        <VipAccessModal
-          onClose={() => setShowVip(false)}
-          message="La sección A pedido es exclusiva para usuarios VIP. Inicia sesión o revisa los planes para solicitar canciones."
-        />
+      {showVisitorConfirm && validVideoUrl && (
+        <VisitorOrderModal youtubeUrl={validVideoUrl} loginReturn={loginReturn} hasFreeVipOrders={hasVipQuota} onClose={() => setShowVisitorConfirm(false)} />
       )}
     </VipShell>
   );
