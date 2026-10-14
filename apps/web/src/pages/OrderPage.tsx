@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Clock3, ExternalLink, Loader2, Music2, SearchCheck, Sparkles, Youtube } from "lucide-react";
-import { Link } from "react-router-dom";
+import { CheckCircle2, Clock3, Crown, ExternalLink, Loader2, LogIn, MessageCircle, Music2, SearchCheck, Sparkles, Youtube } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
 import { VipShell } from "../components/VipShell";
 import { api, ApiError } from "../lib/apiClient";
 import { useAuth } from "../lib/authContext";
-import { VipAccessModal } from "../components/VipAccessModal";
+import { OrderShowcase } from "./OrderShowcase";
+import { VisitorOrderModal } from "./VisitorOrderModal";
+import { normalizedYouTubeVideoUrl } from "../lib/orderWhatsApp";
 
 type RequestStatus = "REQUESTED" | "IN_PROGRESS" | "READY" | "REJECTED";
 
@@ -62,15 +64,18 @@ function formatDate(value: string) {
 }
 
 export default function OrderPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [youtubeUrl, setYoutubeUrl] = useState(() => searchParams.get("youtube") ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [available, setAvailable] = useState<CreateResponse["match"] | null>(null);
-  const [showVip, setShowVip] = useState(false);
+  const [showVisitorConfirm, setShowVisitorConfirm] = useState(false);
+  const validVideoUrl = normalizedYouTubeVideoUrl(youtubeUrl);
+  const loginReturn = "/panel/a-pedido" + (validVideoUrl ? "?youtube=" + encodeURIComponent(validVideoUrl) : "");
 
-  const { data: quota } = useQuery({
+  const { data: quota, isLoading: quotaLoading, isError: quotaError } = useQuery({
     queryKey: ["karaoke-request-quota", user?.id ?? "guest"],
     queryFn: () => api.get<RequestQuota>("/karaoke-requests/quota"),
     enabled: Boolean(user),
@@ -83,14 +88,24 @@ export default function OrderPage() {
     enabled: Boolean(user),
   });
 
+  const hasVipQuota = Boolean(user && quota?.active && (quota.limit === null || (quota.remaining ?? 0) > 0));
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!user) {
-      setShowVip(true);
+    if (submitting || authLoading || (user && quotaLoading)) return;
+    if (!validVideoUrl) {
+      setMessage("Pega un enlace válido de YouTube para continuar.");
       return;
     }
-    const value = youtubeUrl.trim();
-    if (!value || submitting) return;
+    if (user && quotaError) {
+      setMessage("No pudimos verificar tus beneficios VIP. Actualiza la página antes de enviar.");
+      return;
+    }
+    if (!hasVipQuota) {
+      setShowVisitorConfirm(true);
+      return;
+    }
+    const value = validVideoUrl;
 
     setSubmitting(true);
     setMessage("");
@@ -126,9 +141,11 @@ export default function OrderPage() {
             Solicita tu karaoke
           </h1>
           <p className="mx-auto mt-2 max-w-[620px] text-[14px] leading-6 text-muted-foreground">
-            ¿No encuentras una canción? Envíanos el enlace de YouTube y la prepararemos para una próxima actualización.
+            ¿No encuentras una canción? Envíanos su enlace de YouTube. Visitantes: video MP4. Clientes VIP: pedidos CD+G según su membresía.
           </p>
         </header>
+
+        <OrderShowcase loginReturn={loginReturn} />
 
         {user && quota && (
           <div className="rounded-[10px] border border-primary/15 bg-primary/[0.05] px-4 py-3 text-[12px]">
