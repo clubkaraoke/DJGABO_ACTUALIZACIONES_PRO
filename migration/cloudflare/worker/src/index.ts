@@ -4,8 +4,9 @@
  * mediante /api/catalog/... No expone tablas privadas, storageKey ni tokens.
  * Autenticación y descargas comerciales siguen DESACTIVADAS.
  */
-export interface Env {
-  DB: D1Database;
+import { handleLabAuth, type LabEnv } from "./auth-lab";
+
+export interface Env extends LabEnv {
   ASSETS: Fetcher;
 }
 
@@ -71,6 +72,9 @@ export default {
         );
       }
     }
+
+    const labAuthResponse = await handleLabAuth(request, env, url);
+    if (labAuthResponse) return labAuthResponse;
 
     if (request.method === "GET" && url.pathname === "/api/catalog/version.json") {
       return publicCatalogAsset(request, env, "/version.json", true);
