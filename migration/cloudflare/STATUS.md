@@ -28,3 +28,18 @@
 - Railway y www.gabokaraoke.com sin cambios de despliegue.
 
 **IMPORTANTE:** los snapshots son una foto temporal, NO un nuevo sistema vivo. Los cambios de usuarios, pagos, cuotas o catálogo posteriores al respaldo deben reconciliarse en una etapa final. Nunca publicar archivos .sqlite/.sql ni tokens.
+
+## Avance posterior — Cloudflare autorizado y LAB creado
+
+- Inicio de sesión de Wrangler reparado y completado desde PC autorizada.
+- D1 independiente creado: `djgabo-actualizaciones-migration-lab`, UUID `2080630d-7abc-4c9c-8dfb-670bab160030`, región ENAM.
+- Importación remota exitosa mediante `wrangler d1 execute --remote --file`: 41 693 instrucciones; 20 tablas.
+- Comprobación en D1: los 20 recuentos coinciden con snapshot real; 41 648 registros totales.
+- 25 índices definidos por usuario en origen y réplica; coincidencia.
+- `PRAGMA foreign_key_check` remoto sin infracciones.
+- D1 no autoriza `PRAGMA integrity_check` remoto (SQLITE_AUTH); integridad del respaldo y de la restauración temporal sí fueron verificadas antes del envío.
+- Worker nuevo e independiente desplegado: https://djgabo-actualizaciones-cloudflare-lab.clubkaraokedjgabo.workers.dev/health
+- Endpoint `/health`: HTTP 200, `database=ok`. Todos los endpoints comerciales siguen DESHABILITADOS.
+- NO se cambiaron DNS, Railway, API comercial ni sitio web.
+- La D1 remota es una foto del 2026-11-10 00:44 UTC, NO sincroniza cambios posteriores automáticamente.
+- Pendiente: portar funcionalidades completas, migrar catálogo JSON/R2, validar login y políticas, sincronización final y cambio controlado.
