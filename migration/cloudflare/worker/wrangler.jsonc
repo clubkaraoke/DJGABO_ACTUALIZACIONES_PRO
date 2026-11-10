@@ -3,6 +3,7 @@
   "name": "djgabo-actualizaciones-cloudflare-lab",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-09",
+  "keep_vars": true,
   "assets": {
     "directory": "./public-catalog",
     "binding": "ASSETS",
