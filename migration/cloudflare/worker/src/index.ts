@@ -78,11 +78,29 @@ export default {
     const publicApiResponse = await handlePublicApi(request, url, env);
     if (publicApiResponse) return publicApiResponse;
 
-    const vipLabResponse = await handleLabCollections(request, env, url);
-    if (vipLabResponse) return vipLabResponse;
+    try {
+      const vipLabResponse = await handleLabCollections(request, env, url);
+      if (vipLabResponse) return vipLabResponse;
 
-    const labAuthResponse = await handleLabAuth(request, env, url);
-    if (labAuthResponse) return labAuthResponse;
+      const labAuthResponse = await handleLabAuth(request, env, url);
+      if (labAuthResponse) return labAuthResponse;
+    } catch (error) {
+      // La cuota diaria de D1 puede agotarse: no devolver 500 ni
+      // revelar rutas SQL o información interna al navegador.
+      console.error("LAB_AUTH_STORAGE_UNAVAILABLE", error instanceof Error ? error.name : "unknown");
+      return Response.json({
+        error: "AUTH_STORAGE_UNAVAILABLE",
+        message: "El acceso del laboratorio está temporalmente no disponible.",
+        statusCode: 503,
+      }, {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+          "X-Content-Type-Options": "nosniff",
+          "Retry-After": "60",
+        },
+      });
+    }
 
     if (request.method === "GET" && url.pathname === "/api/catalog/version.json") {
       return publicCatalogAsset(request, env, "/version.json", true);
