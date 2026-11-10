@@ -43,3 +43,19 @@
 - NO se cambiaron DNS, Railway, API comercial ni sitio web.
 - La D1 remota es una foto del 2026-11-10 00:44 UTC, NO sincroniza cambios posteriores automáticamente.
 - Pendiente: portar funcionalidades completas, migrar catálogo JSON/R2, validar login y políticas, sincronización final y cambio controlado.
+
+## Fase catálogo público — desplegada y verificada (2026-11-09 Lima)
+
+- Se extrajeron exclusivamente los JSON públicos desde el archivo privado catalog.tar.gz: 145 catálogos mensuales + version.json.
+- Se aplicó lista blanca de campos públicos para impedir subir archivos privados, rutas Dropbox, claves y configuraciones.
+- Se publicaron 146 assets mediante Workers Static Assets en el Worker de LAB, conservando binding D1 y `/health`.
+- Rutas nuevas SOLO de lectura:
+  - `/api/catalog/version.json`
+  - `/api/catalog/YYYY/MM/index.json`
+- Las rutas de login/descarga/admin y los nombres directos de archivos privados devuelven 404.
+- Se validó respuesta HTTP 200 de `/api/catalog/version.json` y `/api/catalog/2026/09/index.json`.
+- Se verificó paridad con Railway en ocho periodos de 2012 a 2026: MATCH; iguales listas y recuentos por documento.
+- Septiembre 2026: 244 karaokes y 5 marcas/productores en ambos.
+- Catálogo público total en copia de LAB: 20 110 entradas. Los 20 233 karaokes en D1 incluyen registros no visibles en esos JSON.
+- Cuidado: por ahora el JSON del LAB es una foto, NO tiene sincronización incremental. No conmutar DNS ni usar como panel comercial.
+- Próxima tarea: compatibilizar los endpoints públicos restantes y desarrollar capa segura de autenticación/autorización en Workers contra D1, con pruebas de cuotas/dispositivos; no abrir datos privados antes de validar seguridad.
