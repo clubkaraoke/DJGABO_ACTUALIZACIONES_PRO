@@ -75,3 +75,19 @@
 - Para activar las pruebas **solo del LAB**: añadir manualmente `LAB_JWT_SECRET` (tipo Secret) al Worker `djgabo-actualizaciones-cloudflare-lab` utilizando el valor guardado en la PC en `Documents\DJGABO_Migracion_Privada_20261109\cloudflare_lab_jwt.txt`. No enviar el valor al chat ni mostrarlo en capturas.
 - Luego ejecutar `python %TEMP%\djgabo-verify-vip-lab.py` desde PC, que prueba login, GET me, colecciones VIP, registro de 3 dispositivos, rechazo del cuarto, refresh de un uso y logout.
 - Ninguna función de producción ni el Worker de audio `djgabo-demo-lab` se modificó en esta fase. La migración aún NO está lista para cambiar DNS.
+
+## 2026-11-09 noche — D1 Free quota y verificación offline completa
+
+- El usuario añadió `LAB_JWT_SECRET` al Worker de Cloudflare LAB. El Worker lo recibe: `GET /api/auth/me` con gate válido y sin JWT devolvió 401, no 503.
+- **Seguridad:** `wrangler secret list` solo refleja `LAB_GATE_KEY`; `LAB_JWT_SECRET` aparentemente quedó como variable de texto del Dashboard, no Secret. Convertirla a **Secret** antes de uso real. Nunca registrar el valor en GitHub.
+- El login de cuenta ficticia falló con 500. Se inspeccionó `wrangler tail` y confirmó causa exacta:
+  `D1_ERROR: Your account has exceeded D1's free tier daily row write limit.`
+- D1 Free: 100 000 filas escritas/día, se reinicia a 00:00 UTC; el límite es **por cuenta**, con efecto potencial en otros proyectos D1.
+- Se evitó hacer escrituras adicionales en D1 remoto. No hubo daño a datos ni cambio del sistema Railway.
+- Se generó BD **local-only** con 20 tablas y 25 índices del esquema real, pero **ninguna fila real**. Se añadieron cuenta, plan anual y colección ficticios.
+- Con Wrangler dev `--local --ip 127.0.0.1 --port 8898` y D1 local, `verify-vip-local.py` devolvió PASS: login válido, rechazo de contraseña incorrecta, `/me`, acceso y denegación de colecciones, 3 registros de dispositivos exitosos y cuarto 409, refresh rotatorio de un solo uso y logout revocador.
+- Se preparó y desplegó en el Worker LAB manejo seguro de fallos de almacenamiento: ahora un login correcto cuando se agota D1 devuelve **503 `AUTH_STORAGE_UNAVAILABLE`**, y no un error 500 no manejado. Validado remoto. Uso `keep_vars=true` para conservar bindings configurados en Dashboard.
+- Las sesiones de `wrangler dev` y `wrangler tail` se cerraron al terminar la prueba.
+- Scripts nuevos: `diagnose-auth-lab.py`, `build-local-schema.py`, `seed-local-fixture.mjs`, `verify-vip-local.py`.
+- Para poder validar el laboratorio D1 real: esperar 00:00 UTC (19:00 Lima) del siguiente reinicio, o pasar voluntariamente al plan Workers Paid. **No** contratar ni alterar billing sin autorización explícita. Si el backend comercial se migra a D1 se deben considerar límites y costos del plan, concurrencia y monitoreo.
+- **Aún no migrado:** login de clientes reales (deliberadamente bloqueado), pagos, tickets 90s, descargas Dropbox, cuotas efectivas y frontend web. DNS de producción sin cambios.
