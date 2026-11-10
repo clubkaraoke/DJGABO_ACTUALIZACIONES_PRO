@@ -1,0 +1,17 @@
+# Nunca publicar datos reales, ni siquiera en la rama de migración
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite-*
+*-import.sql
+*.manifest.json
+*-inventory.json
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+private/
+backups/
+exports/
+node_modules/
+.wrangler/
