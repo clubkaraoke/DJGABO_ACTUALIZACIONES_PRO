@@ -1,13 +1,16 @@
 {
-  // LAB independiente: NO es el Worker djgabo-demo-lab ni backend de producción.
+  // Solo contenido PUBLICO extraído y saneado desde el respaldo de Railway.
   "name": "djgabo-actualizaciones-cloudflare-lab",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-09",
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "djgabo-actualizaciones-migration-lab",
-      "database_id": "2080630d-7abc-4c9c-8dfb-670bab160030"
-    }
-  ]
+  "assets": {
+    "directory": "./public-catalog",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "djgabo-actualizaciones-migration-lab",
+    "database_id": "2080630d-7abc-4c9c-8dfb-670bab160030"
+  }]
 }
