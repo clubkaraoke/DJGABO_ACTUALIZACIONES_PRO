@@ -6,6 +6,7 @@
  */
 import { handleLabAuth, type LabEnv } from "./auth-lab";
 import { handlePublicApi } from "./public-api";
+import { handleLabCollections } from "./vip-lab";
 
 export interface Env extends LabEnv {
   ASSETS: Fetcher;
@@ -76,6 +77,9 @@ export default {
 
     const publicApiResponse = await handlePublicApi(request, url, env);
     if (publicApiResponse) return publicApiResponse;
+
+    const vipLabResponse = await handleLabCollections(request, env, url);
+    if (vipLabResponse) return vipLabResponse;
 
     const labAuthResponse = await handleLabAuth(request, env, url);
     if (labAuthResponse) return labAuthResponse;
