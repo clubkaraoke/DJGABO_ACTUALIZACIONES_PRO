@@ -1,0 +1,13 @@
+{
+  "name": "djgabo-cloudflare-auth-lab",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.1.0"
+  },
+  "scripts": {
+    "deploy": "wrangler deploy --config wrangler.jsonc"
+  }
+}
