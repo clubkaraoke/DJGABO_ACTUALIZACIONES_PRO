@@ -5,6 +5,7 @@
  * Autenticación y descargas comerciales siguen DESACTIVADAS.
  */
 import { handleLabAuth, type LabEnv } from "./auth-lab";
+import { handlePublicApi } from "./public-api";
 
 export interface Env extends LabEnv {
   ASSETS: Fetcher;
@@ -72,6 +73,9 @@ export default {
         );
       }
     }
+
+    const publicApiResponse = await handlePublicApi(request, url, env);
+    if (publicApiResponse) return publicApiResponse;
 
     const labAuthResponse = await handleLabAuth(request, env, url);
     if (labAuthResponse) return labAuthResponse;
