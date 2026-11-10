@@ -59,3 +59,19 @@
 - Catálogo público total en copia de LAB: 20 110 entradas. Los 20 233 karaokes en D1 incluyen registros no visibles en esos JSON.
 - Cuidado: por ahora el JSON del LAB es una foto, NO tiene sincronización incremental. No conmutar DNS ni usar como panel comercial.
 - Próxima tarea: compatibilizar los endpoints públicos restantes y desarrollar capa segura de autenticación/autorización en Workers contra D1, con pruebas de cuotas/dispositivos; no abrir datos privados antes de validar seguridad.
+
+## Segunda fase de API y preparación VIP (2026-11-09, Perú)
+
+- Se migraron a D1 y desplegaron las rutas públicas `GET /api/public/collections`, `GET /api/public/collections/:id` y `GET /api/public/karaokes/search`.
+- Pruebas REST: listado de 144 colecciones idéntico; detalles de 2012, 2021, 2025 y septiembre 2026 idénticos.
+- Diferencias verificadas: octubre 2026 contiene 62 portadas actualizadas en Railway después del snapshot, aún ausentes en D1. Algunas búsquedas tienen distinto orden en empates; las entradas no cambian salvo un resultado en el límite 200 para una búsqueda por artista.
+- Implementación de autenticación aislada con bcryptjs, JWT HS256 mediante Web Crypto, refresh opaco y revocable, y límite de registro de dispositivos con inserción atómica.
+- Seguridad LAB: rutas autenticadas requieren `X-Lab-Key` y solo permiten cuentas sintéticas cuyo ID empieza con `labusr_`. No habilitar cuentas reales antes de completar rate limiting, sincronización, pruebas y cambio controlado.
+- También se implementó lectura VIP de colecciones y reglas de planes mensual, semestral y anual. Sin emitir tickets ni permitir descargas.
+- La tabla `lab_auth_rate` existe exclusivamente en D1 LAB (se suma a las 20 originales).
+- Se creó un usuario de laboratorio ficticio con plan anual en la D1 de prueba. Su contraseña está exclusivamente en el directorio PRIVADO de la PC, no en GitHub ni en este registro. Es normal que la copia LAB tenga ahora 15 usuarios frente a los 14 del snapshot.
+- `LAB_GATE_KEY` ya está configurado como secreto del Worker. `LAB_JWT_SECRET` **aún falta**: la prueba `verify-vip-lab.py` devolvió PENDING y no ha iniciado sesión.
+- Se comprobaron bloqueos públicos: `/api/collections` y `/api/auth/me` sin clave devolvieron 404; `/health` y `/api/public/collections` devolvieron HTTP 200.
+- Para activar las pruebas **solo del LAB**: añadir manualmente `LAB_JWT_SECRET` (tipo Secret) al Worker `djgabo-actualizaciones-cloudflare-lab` utilizando el valor guardado en la PC en `Documents\DJGABO_Migracion_Privada_20261109\cloudflare_lab_jwt.txt`. No enviar el valor al chat ni mostrarlo en capturas.
+- Luego ejecutar `python %TEMP%\djgabo-verify-vip-lab.py` desde PC, que prueba login, GET me, colecciones VIP, registro de 3 dispositivos, rechazo del cuarto, refresh de un uso y logout.
+- Ninguna función de producción ni el Worker de audio `djgabo-demo-lab` se modificó en esta fase. La migración aún NO está lista para cambiar DNS.
