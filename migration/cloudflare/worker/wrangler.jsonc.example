@@ -1,0 +1,13 @@
+{
+  // EJEMPLO, NO desplegar sin crear su base D1 de LAB
+  "name": "djgabo-actualizaciones-cloudflare-lab",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-09",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "djgabo-actualizaciones-migration-lab",
+      "database_id": "REEMPLAZAR_ID_D1_PRIVADO"
+    }
+  ]
+}
