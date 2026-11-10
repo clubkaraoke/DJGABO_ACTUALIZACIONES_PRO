@@ -43,6 +43,15 @@ async function sha256(file) {
 (async () => {
   const source = actualPath(process.env.DATABASE_URL);
   fs.mkdirSync(destDir, { recursive: true, mode: 0o700 });
+  // Comprobar espacio libre antes de duplicar temporalmente el SQLite.
+  const stat = fs.statfsSync(destDir);
+  const freeBytes = BigInt(stat.bavail) * BigInt(stat.bsize);
+  const sourceBytes = BigInt(fs.statSync(source).size);
+  const minMargin = 32n * 1024n * 1024n;
+  const margin = sourceBytes / 10n > minMargin ? sourceBytes / 10n : minMargin;
+  if (freeBytes < sourceBytes + margin) {
+    throw new Error("Espacio libre insuficiente para snapshot seguro; usar respaldo de volumen Railway");
+  }
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const base = "djgabo-sqlite-" + stamp + "-" + crypto.randomBytes(3).toString("hex");
   const target = path.join(destDir, base + ".sqlite");
