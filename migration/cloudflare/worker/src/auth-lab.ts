@@ -18,7 +18,7 @@ export interface LabEnv {
   LAB_JWT_SECRET: string;
 }
 
-interface LabUser {
+export interface LabUser {
   id: string;
   email: string;
   password_hash: string;
@@ -42,7 +42,7 @@ function apiError(status:number, error:string, message:string): Response {
     status,headers:{"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}
   });
 }
-function sameBytes(a:string,b:string):boolean {
+export function sameBytes(a:string,b:string):boolean {
   const x=encoder.encode(a),y=encoder.encode(b);
   if (x.length!==y.length) return false;
   let difference=0;
@@ -71,7 +71,7 @@ async function issueAccess(env:LabEnv,user:LabUser):Promise<string>{
     .setIssuedAt().setExpirationTime(secs()+ttl)
     .sign(secret(env,"access"));
 }
-async function requireUser(request:Request,env:LabEnv):Promise<LabUser | null> {
+export async function requireLabUser(request:Request,env:LabEnv):Promise<LabUser | null> {
   const bearer=/^Bearer (.+)$/.exec(request.headers.get("Authorization")||"");
   if(!bearer||!bearer[1])return null;
   try{
@@ -207,21 +207,23 @@ export async function handleLabAuth(request:Request,env:LabEnv,url:URL):Promise<
   if(!url.pathname.startsWith("/api/auth/") && url.pathname!=="/api/devices/register")
     return undefined;
   // Las rutas auth/device nunca están disponibles para el público de workers.dev.
-  if(!env.LAB_GATE_KEY||!env.LAB_JWT_SECRET)
-    return apiError(503,"LAB_NOT_CONFIGURED","Autenticación LAB no configurada");
+  if(!env.LAB_GATE_KEY)
+    return apiError(404,"MIGRATION_LAB_ROUTE_DISABLED","Ruta no disponible");
   const gate=request.headers.get("X-Lab-Key")||"";
   if(!sameBytes(gate,env.LAB_GATE_KEY))
     return apiError(404,"MIGRATION_LAB_ROUTE_DISABLED","Ruta no disponible");
+  if(!env.LAB_JWT_SECRET)
+    return apiError(503,"LAB_NOT_CONFIGURED","Autenticación LAB no configurada");
   if(request.method==="POST"&&url.pathname==="/api/auth/login")return login(request,env);
   if(request.method==="POST"&&url.pathname==="/api/auth/refresh")return refresh(request,env);
   if(request.method==="POST"&&url.pathname==="/api/auth/logout")return logout(request,env);
   if(request.method==="GET"&&url.pathname==="/api/auth/me"){
-    const user=await requireUser(request,env);
+    const user=await requireLabUser(request,env);
     if(!user)return apiError(401,"UNAUTHORIZED","Token inválido o expirado");
     return response(await toMe(env,user));
   }
   if(request.method==="POST"&&url.pathname==="/api/devices/register"){
-    const user=await requireUser(request,env);
+    const user=await requireLabUser(request,env);
     if(!user)return apiError(401,"UNAUTHORIZED","Token inválido o expirado");
     return registerDevice(request,env,user);
   }
