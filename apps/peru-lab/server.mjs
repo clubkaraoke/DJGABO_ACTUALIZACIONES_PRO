@@ -13,7 +13,8 @@ db.exec("PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS tracks(id TEXT PRIM
 const BRAND='DJGABO / CLUB KARAOKE', SHEET='1ww6Fe20Bhe0SLhnHv8nEITK8SYQIpFmjNhi4LKXmylk';
 const secret=process.env.PERU_LAB_SYNC_TOKEN||'';
 const demoSecret=process.env.PERU_LAB_DEMO_SECRET||'';
-if(secret.length<32||demoSecret.length<32)throw Error('LAB secrets missing');
+const viewerPassword=process.env.PERU_LAB_VIEWER_PASSWORD||'';
+if(secret.length<32||demoSecret.length<32||viewerPassword.length<12)throw Error('LAB secrets missing');
 const norm=v=>String(v??'').trim();
 const safeEq=(a,b)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
 const mediaPath=(v,ext)=>{const s=norm(v);return /^(?:ns:\d+\/|\/)[^\r\n]+$/.test(s)&&ext.test(s)&&!s.split('/').includes('..')?s:''};
@@ -101,11 +102,13 @@ async function audioDemo(storagePath){
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost'),p=url.pathname;
-    if(req.method==='GET'&&p==='/api/health')return send(res,200,{status:'ok',environment:'peru-lab',tracks:db.prepare('SELECT count(*) AS n FROM tracks').get().n,lastSync:db.prepare("SELECT value FROM meta WHERE key='lastSync'").get()?.value??null,automaticSync:Boolean(process.env.GOOGLE_SHEETS_CLIENT_EMAIL&&process.env.GOOGLE_SHEETS_PRIVATE_KEY)});
+    const viewerAuthorized=safeEq(req.headers.authorization||'','Basic '+Buffer.from('gabo:'+viewerPassword).toString('base64'));
+    if(req.method==='GET'&&p==='/api/health')return send(res,200,viewerAuthorized?{status:'ok',environment:'peru-lab',tracks:db.prepare('SELECT count(*) AS n FROM tracks').get().n,lastSync:db.prepare("SELECT value FROM meta WHERE key='lastSync'").get()?.value??null,automaticSync:Boolean(process.env.GOOGLE_SHEETS_CLIENT_EMAIL&&process.env.GOOGLE_SHEETS_PRIVATE_KEY)}:{status:'ok'});
     if(req.method==='POST'&&p==='/api/internal/peru/sync'){
       if(!safeEq(req.headers.authorization||'','Bearer '+secret))return send(res,401,{error:'UNAUTHORIZED'});
       const {rows}=await readJson(req);return send(res,200,{tracks:publish(rows)});
     }
+    if(!viewerAuthorized){res.setHeader('WWW-Authenticate','Basic realm="DJGABO PERU LAB", charset="UTF-8"');return send(res,401,{error:'LAB_AUTH_REQUIRED'});}
     if(req.method!=='GET')return send(res,405,{error:'METHOD_NOT_ALLOWED'});
     if(p==='/api/catalog/peru/index.json'){
       const tracks=db.prepare('SELECT id,artist,title,cover,format FROM tracks ORDER BY position').all();
