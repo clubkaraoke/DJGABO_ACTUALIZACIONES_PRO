@@ -42,6 +42,12 @@ function quoteCart(ids){
 }
 
 const demoPilot=JSON.parse(await readFile(new URL('./demo-pilot-manifest.json',import.meta.url),'utf8'));
+const demoPublishSecret=process.env.PERU_DEMO_PUBLISH_SECRET||'';
+db.exec('CREATE TABLE IF NOT EXISTS demo_cache(id TEXT PRIMARY KEY,version TEXT NOT NULL,revision TEXT,checked_at INTEGER NOT NULL)');
+const readDemoCache=db.prepare('SELECT * FROM demo_cache WHERE id=?');
+const writeDemoCache=db.prepare('INSERT INTO demo_cache(id,version,revision,checked_at) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET version=excluded.version,revision=excluded.revision,checked_at=excluded.checked_at');
+const demoPending=new Map();
+const REVISION_TTL=12*60*60*1000;
 const BRAND='DJGABO / CLUB KARAOKE', SHEET='1ww6Fe20Bhe0SLhnHv8nEITK8SYQIpFmjNhi4LKXmylk';
 const secret=process.env.PERU_LAB_SYNC_TOKEN||'';
 const demoSecret=process.env.PERU_LAB_DEMO_SECRET||'';
@@ -128,8 +134,9 @@ const mediaTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; cha
 async function staticFile(res,file){const b=await readFile(file);res.writeHead(200,{'Content-Type':mediaTypes[path.extname(file)]||'application/octet-stream','X-Content-Type-Options':'nosniff'});res.end(b)}
 async function readJson(req){let chunks=[],bytes=0;for await(const chunk of req){bytes+=chunk.length;if(bytes>10*1024*1024)throw Error('PAYLOAD_TOO_LARGE');chunks.push(chunk)}return JSON.parse(Buffer.concat(chunks).toString('utf8'))}
 let audioActive=0;
-async function audioDemo(storagePath){
+async function audioDemo(storagePath,onRevision){
   const source=await dropboxOpen(storagePath);
+  onRevision?.(downloadRevision(source));
   const proc=spawn('ffmpeg',['-hide_banner','-loglevel','error','-i','pipe:0','-ss','35','-t','60','-vn','-map_metadata','-1','-ac','2','-ar','44100','-c:a','libmp3lame','-b:a','160k','-f','mp3','pipe:1'],{stdio:['pipe','pipe','ignore']});
   const input=Readable.fromWeb(source.body); const output=[];let size=0;
   const timeout=setTimeout(()=>proc.kill('SIGKILL'),60000);
@@ -139,6 +146,66 @@ async function audioDemo(storagePath){
     input.on('error',()=>proc.stdin.destroy());proc.stdin.on('error',()=>input.destroy()); input.pipe(proc.stdin);
     await done;const b=Buffer.concat(output);if(!b.length)throw Error('EMPTY_DEMO');return b;
   }finally{clearTimeout(timeout);input.destroy()}
+}
+function downloadRevision(source){try{return JSON.parse(source.headers.get('dropbox-api-result')||'{}').rev||null}catch{return null}}
+async function cdgDemo(storagePath,onRevision){
+  const source=await dropboxOpen(storagePath);onRevision?.(downloadRevision(source));
+  const cap=96*300*24,parts=[];let size=0;
+  for await(const chunk of Readable.fromWeb(source.body)){const b=chunk.subarray(0,cap-size);parts.push(b);size+=b.length;if(size>=cap)break}
+  const data=Buffer.concat(parts);if(!data.length||data.length%24)throw Error('INVALID_CDG_DEMO');return data;
+}
+async function sourceRevision(storagePath){
+  const m=/^ns:(\d+)\/+(.+)$/.exec(storagePath),token=await getDropboxToken();
+  const ask=(file,namespace)=>fetch('https://api.dropboxapi.com/2/files/get_metadata',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',...(namespace?{'Dropbox-API-Path-Root':headerJson({'.tag':'namespace_id',namespace_id:namespace})}:{})},body:JSON.stringify({path:file}),signal:AbortSignal.timeout(10000)});
+  let resp=await ask(m?'/'+m[2]:storagePath,m?m[1]:null);
+  if(!resp.ok&&!m&&process.env.PERU_DROPBOX_NAMESPACE){const parts=storagePath.split('/'),idx=parts.findIndex(p=>/^Pack Top Hits PERU/i.test(p));if(idx>=0){await resp.body?.cancel();resp=await ask('/'+parts.slice(idx).join('/'),process.env.PERU_DROPBOX_NAMESPACE)}}
+  if(!resp.ok){await resp.body?.cancel();throw Error('DEMO_REVISION_'+resp.status)}
+  const metadata=await resp.json();if(!metadata.rev)throw Error('DEMO_REVISION_MISSING');return metadata.rev;
+}
+const versionFor=(audio,cdg)=>createHash('sha256').update(audio).update(cdg).digest('hex').slice(0,24);
+async function publishDemo(id,version,audio,cdg){
+  if(demoPilot.items[id]?.version===version)return;
+  const base=demoPilot.origin+'/internal/publish/'+id+'/'+version+'/';
+  const sendPart=async(file,body)=>{
+    const r=await fetch(base+file,{method:'POST',headers:{Authorization:'Bearer '+demoPublishSecret,...(body?{'Content-Type':'application/octet-stream','Content-Length':String(body.length)}:{})},body,signal:AbortSignal.timeout(25000)});
+    if(r.status===409&&file!=='ready'){const x=await r.json();if(x.error==='DEMO_IMMUTABLE')return;throw Error('DEMO_UPLOAD_CONFLICT')}
+    if(!r.ok){await r.body?.cancel();throw Error('DEMO_UPLOAD_'+r.status)}
+    await r.body?.cancel();
+  };
+  const out=await Promise.allSettled([sendPart('audio.mp3',audio),sendPart('graphics.cdg',cdg)]);
+  if(out.some(x=>x.status==='rejected'))throw Error('DEMO_UPLOAD_FAILED');
+  await sendPart('ready');
+}
+async function resolveDemo(t){
+  const id=t.id,existing=readDemoCache.get(id),pilot=demoPilot.items[id];
+  if(!demoPublishSecret)return pilot?{version:pilot.version,status:'pilot'}:null;
+  if(existing&&Date.now()-existing.checked_at<REVISION_TTL)return {version:existing.version,status:'hit'};
+  if(demoPending.has(id)){const r=await demoPending.get(id);return r?{...r,status:'shared'}:null}
+  // At most two distinct first-time jobs, sharing the same limit as legacy FFmpeg.
+  if(demoPending.size>=2||audioActive>=2){if(existing||pilot)return {version:existing?.version||pilot.version,status:'hit'};throw Error('DEMOS_BUSY')}
+  const work=(async()=>{
+    const current=existing||pilot;
+    if(current){
+      try{
+        const revision=(await Promise.all([sourceRevision(t.audio),sourceRevision(t.cdg)])).join(':');
+        if(!existing?.revision||existing.revision===revision){writeDemoCache.run(id,current.version,revision,Date.now());return {version:current.version,status:existing?'hit':'pilot'}}
+      }catch{writeDemoCache.run(id,current.version,existing?.revision||null,Date.now());return {version:current.version,status:'hit'}}
+    }
+    if(audioActive>=2)throw Error('DEMOS_BUSY');
+    audioActive++;
+    try{
+      let ar=null,cr=null;
+      const results=await Promise.allSettled([audioDemo(t.audio,v=>ar=v),cdgDemo(t.cdg,v=>cr=v)]);
+      if(results.some(x=>x.status==='rejected'))throw Error('DEMO_GENERATION_FAILED');
+      const [audio,cdg]=results.map(x=>x.value),version=versionFor(audio,cdg);
+      await publishDemo(id,version,audio,cdg);
+      writeDemoCache.run(id,version,ar&&cr?ar+':'+cr:null,Date.now());
+      console.log('PERU_DEMO_GENERATED',id,version,audio.length,cdg.length);
+      return {version,status:'generated'};
+    }finally{audioActive--}
+  })();
+  demoPending.set(id,work);
+  try{return await work}finally{demoPending.delete(id)}
 }
 const handleCommerce=commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret,dropboxTemporaryLink});
 const server=http.createServer(async(req,res)=>{
@@ -173,14 +240,17 @@ const server=http.createServer(async(req,res)=>{
       if(!t)return send(res,404,{error:'NOT_FOUND'});
       if(!t.audio||!t.cdg)return send(res,404,{error:'DEMO_NOT_AVAILABLE'});
       if(kind==='config'){
+        let cached=null;
+        if(url.searchParams.get('legacy')!=='1'){
+          try{cached=await resolveDemo(t)}catch(e){if(e.message==='DEMOS_BUSY')return send(res,429,{error:'DEMOS_BUSY'});console.warn('PERU_DEMO_RETRY',id,e.message?.slice(0,80));}
+        }
         const ticket=encodeURIComponent(expireTicket(id));
         const fallbackAudioUrl='/api/preview/cdg/'+id+'/audio?ticket='+ticket,fallbackCdgUrl='/api/preview/cdg/'+id+'/cdg?ticket='+ticket;
-        const cached=url.searchParams.get('legacy')==='1'?null:demoPilot.items[id];
         const base=cached?demoPilot.origin+'/peru/'+id+'/'+cached.version:null;
-        return send(res,200,{karaokeId:id,title:t.title,artist:t.artist,startSeconds:0,sourceStartSeconds:35,durationSeconds:60,quality:'SDF_KARAOKE_PRO',visualPreset:{backgroundType:'gradient',backgroundValue:'linear-gradient(135deg,#0A0A0B 0%,#17171B 55%,#27272A 100%)',logoUrl:null},audioUrl:base?base+'/audio.mp3':fallbackAudioUrl,cdgUrl:base?base+'/graphics.cdg':fallbackCdgUrl,...(base?{mediaSource:'r2',fallbackAudioUrl,fallbackCdgUrl}:{mediaSource:'railway'})});
+        return send(res,200,{karaokeId:id,title:t.title,artist:t.artist,startSeconds:0,sourceStartSeconds:35,durationSeconds:60,quality:'SDF_KARAOKE_PRO',visualPreset:{backgroundType:'gradient',backgroundValue:'linear-gradient(135deg,#0A0A0B 0%,#17171B 55%,#27272A 100%)',logoUrl:null},audioUrl:base?base+'/audio.mp3':fallbackAudioUrl,cdgUrl:base?base+'/graphics.cdg':fallbackCdgUrl,...(base?{mediaSource:'r2',cacheStatus:cached.status,fallbackAudioUrl,fallbackCdgUrl}:{mediaSource:'railway'})});
       }
       if(!validTicket(url.searchParams.get('ticket')||'',id))return send(res,401,{error:'DEMO_TICKET_INVALID'});
-      if(kind==='cdg'){const source=await dropboxOpen(t.cdg);const cap=96*300*24,parts=[];let size=0;for await(const chunk of Readable.fromWeb(source.body)){const b=chunk.subarray(0,cap-size);parts.push(b);size+=b.length;if(size>=cap)break}const data=Buffer.concat(parts);res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':data.length,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});return res.end(data)}
+      if(kind==='cdg'){const data=await cdgDemo(t.cdg);res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':data.length,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});return res.end(data)}
       if(audioActive>=2)return send(res,429,{error:'DEMOS_BUSY'});
       audioActive++;try{const b=await audioDemo(t.audio);res.writeHead(200,{'Content-Type':'audio/mpeg','Content-Length':b.length,'Cache-Control':'private, no-store','Accept-Ranges':'none'});return res.end(b)}finally{audioActive--}
     }
