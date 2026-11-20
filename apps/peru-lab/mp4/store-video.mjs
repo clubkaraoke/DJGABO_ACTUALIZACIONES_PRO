@@ -259,10 +259,13 @@ async function source(path,ticket,label,first,last){
  while(true){cancelled();const {done,value}=await reader.read();if(done)break;parts.push(value);total+=value.byteLength;if(total>250*1024*1024){await reader.cancel();throw Error('Archivo demasiado grande para generar el video en este dispositivo.');}if(size)progress(first+(last-first)*Math.min(1,total/size),label);}
  const result=new Uint8Array(total);let at=0;for(const part of parts){result.set(part,at);at+=part.byteLength}return result.buffer;
 }
+async function videoCacheRequest(track,csrf,body){const response=await fetch('/api/my-karaokes/'+encodeURIComponent(track.id)+'/video/cache',{method:'POST',headers:{'X-CSRF-Token':csrf,'Content-Type':'application/json'},body:JSON.stringify(body),credentials:'same-origin',cache:'no-store',signal:state.abort.signal});if(!response.ok)throw Error('CACHE_UNAVAILABLE');return response.json()}
+async function saveCache(track,csrf,version,blob){if(!version)return;const offer=await videoCacheRequest(track,csrf,{action:'offer',version,size:blob.size});if(offer.status!=='upload')return;const parts=[];for(let offset=0,n=1;offset<blob.size;offset+=offer.partSize,n++){cancelled();const u=new URL(offer.url);u.searchParams.set('part',String(n));const r=await fetch(u,{method:'PUT',headers:{'Content-Type':'application/octet-stream'},body:blob.slice(offset,offset+offer.partSize),signal:state.abort.signal});if(!r.ok)throw Error('CACHE_UPLOAD_FAILED');parts.push(await r.json());status('MP4 descargado · guardando copia '+Math.round(Math.min(blob.size,offset+offer.partSize)*100/blob.size)+'%')};const r=await fetch(offer.url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({parts}),signal:state.abort.signal});if(!r.ok)throw Error('CACHE_UPLOAD_FAILED');await videoCacheRequest(track,csrf,{action:'finish',version,nonce:offer.nonce})}
 async function start(track,csrf){
  if(current)return;current=track.id;state.abort=new AbortController();state.diag={metrics:{renders:0,workerRestarts:0,workerMemoryBytes:0}};release();buttons();
  let output=null,hqx=null,video=null,audioSource=null,soundJob=null;
  try{
+  let cached=null;try{status('Buscando video guardado');cached=await videoCacheRequest(track,csrf,{action:'lookup'})}catch{}cancelled();if(cached?.status==='ready'){manualUrl=cached.url;manualName=track.title+' - HD 720p.mp4';element('videoRetry').hidden=false;download();status('MP4 guardado · descarga directa. No fue necesario convertir.');return}
   progress(0,'Comprobando navegador');const config=await detect(quality);cancelled();
   const mod=await import('/mp4/cdg-webcodecs-deps.mjs');
   if(config.polyfill&&!state.polyfillRegistered){mod.registerAacEncoder();state.polyfillRegistered=true;}
@@ -286,7 +289,7 @@ async function start(track,csrf){
   await video.close();video=null;await soundJob;audioSource=null;cancelled();progress(96,'Finalizando MP4');await output.finalize();cancelled();
   if(!target.buffer||target.buffer.byteLength<10000)throw Error('No se pudo generar un MP4 válido.');
   manualName=(track.artist+' - '+track.title).replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').trim().slice(0,150)+' - HD 720p.mp4';
-  manualUrl=URL.createObjectURL(new Blob([target.buffer],{type:'video/mp4'}));element('videoRetry').hidden=false;progress(100,'Video listo');download();status('MP4 HD listo. Si no se descargó, pulsa Descargar nuevamente.');
+  const finishedBlob=new Blob([target.buffer],{type:'video/mp4'});manualUrl=URL.createObjectURL(finishedBlob);element('videoRetry').hidden=false;progress(100,'Video listo');download();status('MP4 HD listo. Si no se descargó, pulsa Descargar nuevamente.');if(cached?.status==='missing'&&cached.version){try{await saveCache(track,csrf,cached.version,finishedBlob);status('MP4 HD listo. Copia procesada para revisión.')}catch{status('MP4 HD listo. La copia para reutilizar no se pudo guardar; tu descarga sigue disponible.')}}
  }catch(e){element('videoProgress').hidden=true;status(state.abort.signal.aborted?'Conversión cancelada. Puedes volver a intentar.':(e.message||'No se pudo generar el video. Utiliza Chrome o Brave actualizado.'),!state.abort.signal.aborted);if(output&&output.state!=='finalized')try{await output.cancel()}catch(_){}if(soundJob)await soundJob.catch(()=>{});}
  finally{hqx?.dispose();state.abort=null;current=null;buttons();}
 }

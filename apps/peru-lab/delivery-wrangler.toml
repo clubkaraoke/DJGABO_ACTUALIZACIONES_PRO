@@ -3,3 +3,7 @@ main = "delivery-worker.mjs"
 compatibility_date = "2026-11-19"
 workers_dev = true
 preview_urls = false
+
+[[r2_buckets]]
+binding = "MP4"
+bucket_name = "djgabo-karaoke-mp4"

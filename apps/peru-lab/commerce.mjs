@@ -1,3 +1,4 @@
+import {videoCache} from './mp4-cache-server.mjs';
 import {randomBytes,createHash,timingSafeEqual} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {Readable} from 'node:stream';
@@ -18,7 +19,7 @@ const MAX=10*1024*1024;
 async function receiptBytes(req){let size=0,chunks=[];for await(const b of req){size+=b.length;if(size>MAX)throw err(413,'RECEIPT_TOO_LARGE');chunks.push(b)}const raw=Buffer.concat(chunks);const png=raw.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));const jpg=raw[0]===255&&raw[1]===216;const webp=raw.subarray(0,4).toString()==='RIFF'&&raw.subarray(8,12).toString()==='WEBP';if(!png&&!jpg&&!webp)throw err(422,'INVALID_RECEIPT');return raw}
 async function normalizeReceipt(raw){return new Promise((resolve,reject)=>{const p=spawn('ffmpeg',['-hide_banner','-loglevel','error','-threads','1','-f','image2pipe','-i','pipe:0','-frames:v','1','-vf',"scale='min(1600,iw)':'min(1600,ih)':force_original_aspect_ratio=decrease",'-map_metadata','-1','-f','image2pipe','-vcodec','mjpeg','pipe:1'],{stdio:['pipe','pipe','ignore']});let n=0,out=[];const timer=setTimeout(()=>p.kill('SIGKILL'),10000);p.stdout.on('data',b=>{n+=b.length;if(n>MAX)p.kill('SIGKILL');else out.push(b)});p.stdin.on('error',()=>{});p.on('error',()=>{clearTimeout(timer);reject(err(422,'INVALID_RECEIPT'))});p.on('close',c=>{clearTimeout(timer);if(c!==0||!n||n>MAX)reject(err(422,'INVALID_RECEIPT'));else resolve(Buffer.concat(out))});p.stdin.end(raw)})}
 
-export function commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret,dropboxTemporaryLink,deliveryOrigin=process.env.PERU_DELIVERY_ORIGIN||'',deliverySecret=process.env.PERU_DELIVERY_SECRET||''}){
+export function commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret,dropboxTemporaryLink,sourceRevision,deliveryOrigin=process.env.PERU_DELIVERY_ORIGIN||'',deliverySecret=process.env.PERU_DELIVERY_SECRET||''}){
  db.exec(`CREATE TABLE IF NOT EXISTS peru_customers (id TEXT PRIMARY KEY, email TEXT, name TEXT NOT NULL, test INTEGER NOT NULL, created INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS peru_sessions(token TEXT PRIMARY KEY, customer TEXT NOT NULL, csrf TEXT NOT NULL, expires INTEGER NOT NULL);
  CREATE TABLE IF NOT EXISTS peru_oauth(state TEXT PRIMARY KEY, verifier TEXT NOT NULL, expires INTEGER NOT NULL);
@@ -38,11 +39,13 @@ export function commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminS
  const addSession=(res,id)=>{const token=rand(),csrf=rand();db.prepare('DELETE FROM peru_sessions WHERE expires<?').run(now());db.prepare('INSERT INTO peru_sessions VALUES(?,?,?,?)').run(hash(token),id,csrf,now()+7*86400000);setCookie(res,'peru_session',token,604800)};
  const owned=(u,id)=>db.prepare("SELECT i.* FROM peru_order_items i JOIN peru_orders o ON o.id=i.order_id WHERE o.customer=? AND o.status='approved' AND i.track_id=? ORDER BY o.confirmed DESC LIMIT 1").get(u.id,id);
  const list=u=>db.prepare('SELECT * FROM peru_orders WHERE customer=? ORDER BY created DESC LIMIT 100').all(u.id).map(view);
+ const handleVideoCache=videoCache({db,send,readJson,requireUser,csrf,owned,admin,sourceRevision,deliveryOrigin,deliverySecret});
  const testMode=true; // Private LAB: never produces a valid payment QR or collects money.
  return async(req,res,url)=>{
  const p=url.pathname,m=req.method;
- if(!/^\/api\/(customer|orders|my-karaokes|admin\/orders)(\/|$)/.test(p)&&p!=='/api/internal/peru/delivery/redeem')return false;
+ if(!/^\/api\/(customer|orders|my-karaokes|admin\/orders|admin\/video-cache)(\/|$)/.test(p)&&p!=='/api/internal/peru/delivery/redeem')return false;
  try{
+ if(await handleVideoCache(req,res,p,m))return true;
  if(p==='/api/internal/peru/delivery/redeem'){
    if(m!=='POST'||!deliveryOrigin||deliverySecret.length<32||!eq(req.headers['x-delivery-secret'],deliverySecret)||typeof dropboxTemporaryLink!=='function')throw err(403,'DELIVERY_AUTH_REQUIRED');
    const {ticket,id,kind}=await readJson(req);if(typeof ticket!=='string'||!/^[a-f0-9]{64}$/.test(ticket)||typeof id!=='string'||!/^PE-[a-f0-9]{24}$/.test(id)||!['audio','cdg'].includes(kind))throw err(400,'DELIVERY_INVALID');

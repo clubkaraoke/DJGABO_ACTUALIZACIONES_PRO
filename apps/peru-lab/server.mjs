@@ -209,7 +209,7 @@ async function resolveDemo(t){
   demoPending.set(id,work);
   try{return await work}finally{demoPending.delete(id)}
 }
-const handleCommerce=commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret,dropboxTemporaryLink});
+const handleCommerce=commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret,dropboxTemporaryLink,sourceRevision});
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost'),p=url.pathname;
@@ -221,6 +221,7 @@ const server=http.createServer(async(req,res)=>{
     }
     if(await handleCommerce(req,res,url))return;
     if(p==='/checkout'&&req.method==='GET')return await staticFile(res,path.resolve('checkout.html'));
+    if(p==='/admin/videos'&&req.method==='GET')return await staticFile(res,path.resolve('admin-video-cache.html'));
     if(p==='/admin/orders'&&req.method==='GET')return await staticFile(res,path.resolve('orders-admin.html'));
     if(p==='/api/admin/store/settings'){
       if(adminSecret.length<16||!safeEq(req.headers['x-admin-password']||'',adminSecret))return send(res,403,{error:'ADMIN_AUTH_REQUIRED'});

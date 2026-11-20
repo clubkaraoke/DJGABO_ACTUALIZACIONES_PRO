@@ -1,11 +1,13 @@
+import {cacheRoutes} from './mp4-cache-worker.mjs';
 const SHOP='https://djgabo-tienda-peru-lab-production.up.railway.app';
 const endpoint=SHOP+'/api/internal/peru/delivery/redeem';
 const cors={'Access-Control-Allow-Origin':SHOP,'Access-Control-Allow-Methods':'GET, OPTIONS','Access-Control-Allow-Headers':'X-Conversion-Ticket','Access-Control-Expose-Headers':'Content-Length, X-DJGABO-Delivery','Access-Control-Max-Age':'600','Vary':'Origin','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'};
 const error=(status,code)=>new Response(JSON.stringify({error:code}),{status,headers:{...cors,'Content-Type':'application/json'}});
 function validLink(s){try{const u=new URL(s);return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&(u.hostname==='dropboxusercontent.com'||u.hostname.endsWith('.dropboxusercontent.com'))?u:null}catch{return null}}
 export default {async fetch(req,env){
+ const cached=await cacheRoutes(req,env);if(cached)return cached;
  const p=new URL(req.url).pathname;
- if(p==='/health'&&req.method==='GET')return new Response(JSON.stringify({status:'ok',service:'djgabo-karaoke-delivery-lab',configured:typeof env.DELIVERY_SECRET==='string'&&env.DELIVERY_SECRET.length>=32}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
+ if(p==='/health'&&req.method==='GET')return new Response(JSON.stringify({status:'ok',service:'djgabo-karaoke-delivery-lab',mp4Configured:!!env.MP4,configured:typeof env.DELIVERY_SECRET==='string'&&env.DELIVERY_SECRET.length>=32}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
  const route=/^\/peru\/(PE-[a-f0-9]{24})\/(audio|cdg)$/.exec(p);
  if(!route)return error(404,'NOT_FOUND');
  if(req.headers.get('Origin')!==SHOP)return error(403,'ORIGIN_DENIED');
