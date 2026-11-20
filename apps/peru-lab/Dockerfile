@@ -1,7 +1,7 @@
 FROM node:22-slim
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
-COPY apps/peru-lab/server.mjs apps/peru-lab/catalog-home.mjs apps/peru-lab/welcome-banner.svg apps/peru-lab/index.html apps/peru-lab/admin.html apps/peru-lab/commerce.mjs apps/peru-lab/mp4-cache-server.mjs apps/peru-lab/admin-video-cache.html apps/peru-lab/checkout.html apps/peru-lab/orders-admin.html apps/peru-lab/demo-pilot-manifest.json ./
+COPY apps/peru-lab/server.mjs apps/peru-lab/catalog-home.mjs apps/peru-lab/welcome-banner.svg apps/peru-lab/index.html apps/peru-lab/admin.html apps/peru-lab/commerce.mjs apps/peru-lab/peru-admin-api.mjs apps/peru-lab/peru-admin-pages.html apps/peru-lab/peru-admin-shell.css apps/peru-lab/peru-admin-shell.js apps/peru-lab/peru-admin-pages.js apps/peru-lab/mp4-cache-server.mjs apps/peru-lab/admin-video-cache.html apps/peru-lab/checkout.html apps/peru-lab/orders-admin.html apps/peru-lab/demo-pilot-manifest.json ./
 COPY apps/peru-lab/mp4 ./mp4
 COPY apps/web/public/cdg-player ./public/cdg-player
 ENV NODE_ENV=production

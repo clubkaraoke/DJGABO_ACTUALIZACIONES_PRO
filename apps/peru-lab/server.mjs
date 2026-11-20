@@ -1,6 +1,7 @@
 import http from 'node:http';
 
 import {commerce} from './commerce.mjs';
+import {peruAdmin} from './peru-admin-api.mjs';
 import {catalogHome} from './catalog-home.mjs';
 import {readFile, mkdir} from 'node:fs/promises';
 import {createHmac, createHash, createSign, timingSafeEqual} from 'node:crypto';
@@ -210,6 +211,7 @@ async function resolveDemo(t){
   try{return await work}finally{demoPending.delete(id)}
 }
 const handleCommerce=commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret,dropboxTemporaryLink,sourceRevision});
+const handlePeruAdmin=peruAdmin({db,send,readJson,adminSecret});
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost'),p=url.pathname;
@@ -219,6 +221,7 @@ const server=http.createServer(async(req,res)=>{
       if(!safeEq(req.headers.authorization||'','Bearer '+secret))return send(res,401,{error:'UNAUTHORIZED'});
       const {rows}=await readJson(req);return send(res,200,{tracks:publish(rows)});
     }
+    if(await handlePeruAdmin(req,res,url))return;
     if(await handleCommerce(req,res,url))return;
     if(p==='/checkout'&&req.method==='GET')return await staticFile(res,path.resolve('checkout.html'));
     if(p==='/admin/videos'&&req.method==='GET')return await staticFile(res,path.resolve('admin-video-cache.html'));
@@ -234,7 +237,9 @@ const server=http.createServer(async(req,res)=>{
     if(p==='/api/store/settings'&&req.method==='GET')return send(res,200,settings());
     if(p==='/api/store/quote'&&req.method==='POST'){try{return send(res,200,quoteCart((await readJson(req)).ids))}catch(e){return send(res,400,{error:e.message==='CART_ITEM_UNAVAILABLE'?e.message:'INVALID_CART'})}}
     if(req.method!=='GET')return send(res,405,{error:'METHOD_NOT_ALLOWED'});
-    if(p==='/admin')return await staticFile(res,path.resolve('admin.html'));
+    if(p==='/admin/precios')return await staticFile(res,path.resolve('admin.html'));
+    if(['/admin','/admin/clientes','/admin/karaokes','/admin/reproductor','/admin/descargas','/admin/sincronizacion','/admin/paquetes','/admin/configuracion'].includes(p))return await staticFile(res,path.resolve('peru-admin-pages.html'));
+    if(['/admin-shell.css','/admin-shell.js','/admin-pages.js'].includes(p)){const f=p==='/admin-shell.css'?'peru-admin-shell.css':p==='/admin-shell.js'?'peru-admin-shell.js':'peru-admin-pages.js';const b=await readFile(path.resolve(f));res.writeHead(200,{'Content-Type':p.endsWith('.css')?'text/css; charset=utf-8':'text/javascript; charset=utf-8','Cache-Control':'no-cache','X-Content-Type-Options':'nosniff'});return res.end(b)}
     if(p==='/api/catalog/peru/index.json'){
       const tracks=db.prepare('SELECT id,artist,title,cover,format FROM tracks ORDER BY position').all();
       return send(res,200,{country:'PE',tracks});
