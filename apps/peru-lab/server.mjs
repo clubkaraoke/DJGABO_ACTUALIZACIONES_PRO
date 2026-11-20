@@ -41,6 +41,7 @@ function quoteCart(ids){
   return {currency:'PEN',qty,unitPriceCents:price,subtotalCents,discountCents:subtotalCents-totalCents,totalCents,applied,paymentMethods:cfg.paymentMethods,checkoutEnabled:false};
 }
 
+const demoPilot=JSON.parse(await readFile(new URL('./demo-pilot-manifest.json',import.meta.url),'utf8'));
 const BRAND='DJGABO / CLUB KARAOKE', SHEET='1ww6Fe20Bhe0SLhnHv8nEITK8SYQIpFmjNhi4LKXmylk';
 const secret=process.env.PERU_LAB_SYNC_TOKEN||'';
 const demoSecret=process.env.PERU_LAB_DEMO_SECRET||'';
@@ -173,7 +174,10 @@ const server=http.createServer(async(req,res)=>{
       if(!t.audio||!t.cdg)return send(res,404,{error:'DEMO_NOT_AVAILABLE'});
       if(kind==='config'){
         const ticket=encodeURIComponent(expireTicket(id));
-        return send(res,200,{karaokeId:id,title:t.title,artist:t.artist,startSeconds:0,sourceStartSeconds:35,durationSeconds:60,quality:'SDF_KARAOKE_PRO',visualPreset:{backgroundType:'gradient',backgroundValue:'linear-gradient(135deg,#0A0A0B 0%,#17171B 55%,#27272A 100%)',logoUrl:null},audioUrl:'/api/preview/cdg/'+id+'/audio?ticket='+ticket,cdgUrl:'/api/preview/cdg/'+id+'/cdg?ticket='+ticket});
+        const fallbackAudioUrl='/api/preview/cdg/'+id+'/audio?ticket='+ticket,fallbackCdgUrl='/api/preview/cdg/'+id+'/cdg?ticket='+ticket;
+        const cached=url.searchParams.get('legacy')==='1'?null:demoPilot.items[id];
+        const base=cached?demoPilot.origin+'/peru/'+id+'/'+cached.version:null;
+        return send(res,200,{karaokeId:id,title:t.title,artist:t.artist,startSeconds:0,sourceStartSeconds:35,durationSeconds:60,quality:'SDF_KARAOKE_PRO',visualPreset:{backgroundType:'gradient',backgroundValue:'linear-gradient(135deg,#0A0A0B 0%,#17171B 55%,#27272A 100%)',logoUrl:null},audioUrl:base?base+'/audio.mp3':fallbackAudioUrl,cdgUrl:base?base+'/graphics.cdg':fallbackCdgUrl,...(base?{mediaSource:'r2',fallbackAudioUrl,fallbackCdgUrl}:{mediaSource:'railway'})});
       }
       if(!validTicket(url.searchParams.get('ticket')||'',id))return send(res,401,{error:'DEMO_TICKET_INVALID'});
       if(kind==='cdg'){const source=await dropboxOpen(t.cdg);const cap=96*300*24,parts=[];let size=0;for await(const chunk of Readable.fromWeb(source.body)){const b=chunk.subarray(0,cap-size);parts.push(b);size+=b.length;if(size>=cap)break}const data=Buffer.concat(parts);res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':data.length,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});return res.end(data)}

@@ -1,0 +1,9 @@
+name = "djgabo-karaoke-demos-lab"
+main = "demos-worker.mjs"
+compatibility_date = "2026-11-19"
+workers_dev = true
+preview_urls = false
+
+[[r2_buckets]]
+binding = "DEMOS"
+bucket_name = "djgabo-karaoke-demos"

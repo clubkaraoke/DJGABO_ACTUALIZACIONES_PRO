@@ -1,0 +1,95 @@
+{
+  "origin": "https://djgabo-karaoke-demos-lab.clubkaraokedjgabo.workers.dev",
+  "items": {
+    "PE-b29db665a435159faa66a528": {
+      "version": "31f7ae7ae8ace037c293df91",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "bd8f1fc6c05c35195032ad41a3f9e66dc9132990e2dc64983cbb76be3849be5f",
+      "cdgHash": "9a76fb2965121edfd9578f25cde504a409db6e4ae0655ea489423dee2fe232a4",
+      "format": "WAV+CDG",
+      "duration": 60.0294
+    },
+    "PE-f7ad6d4db163a05285c72911": {
+      "version": "ab71f56eb7fd643287187fac",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "c0299afb0228cf834d265a191a3edcc50609eb34d236f52917a71674e6bf7ead",
+      "cdgHash": "9894b887eea6b815e2c26093fd7661066c25fa00940f462c1b2a0da7f6a03533",
+      "format": "WAV+CDG",
+      "duration": 60.0294
+    },
+    "PE-dc3c4fb6a208d220ae0dd5f7": {
+      "version": "8097c1e60fb1e16df9dc6618",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "ee8f115a3228e37097ee4fa1dc9608c7dbc6eecaefc7da3cf67329f140c420a2",
+      "cdgHash": "a50e2baa8ed14abed2a0df0c14b35c550d20b6640d7c866e10b831882662c494",
+      "format": "WAV+CDG",
+      "duration": 60.0294
+    },
+    "PE-e56f6b99ca8e8857655f1e6c": {
+      "version": "66c5257c13dfe7ce4a7b0719",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "cef40c30ec5dbdbcb3c55106ec7303aa85ea9a0dbadbe4677351bec4bed0b23b",
+      "cdgHash": "c009bda389948a07320a1a305b5fe2fb4e21171873d6934664d47a94ad2f7401",
+      "format": "WAV+CDG",
+      "duration": 60.0294
+    },
+    "PE-3dba639b53e9cf9cd18615e9": {
+      "version": "af87c0d553ece673a8ae6cd9",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "f5cd39d704b22985f26404f2a25f2f9d1cdbfc2d91c5e15e32ec12db18115f2f",
+      "cdgHash": "c4a800b3b2e74dd63ca67d2499e3269b680c4fba5032e0b87351c93d49697d5c",
+      "format": "WAV+CDG",
+      "duration": 60.0294
+    },
+    "PE-a71919489092130348a514aa": {
+      "version": "7ffeecc042db6c44210b5d23",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "02910bf9c319d9485c54390411b602fd468475036ef9dbc0cb63f9193cae57fb",
+      "cdgHash": "1a737b5df97e5dff2e6fe6099989e2d780dc509dc71f61b5d1ae2b56c36b4e5f",
+      "format": "MP3+CDG",
+      "duration": 60.0294
+    },
+    "PE-7efc9258e84670f5a1d41db5": {
+      "version": "90a25556641e4e77824b3cf4",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "a6c3acc306b2d11a8355b77b88b4f6165eb2b9a698b69a57a2cf99ec139956d4",
+      "cdgHash": "8e23717212ab5871061ca2a1674ca188b8712a3f38b0b2f5ffaf8702e0702a0b",
+      "format": "MP3+CDG",
+      "duration": 60.0294
+    },
+    "PE-079a41ef907393dc4fe5b471": {
+      "version": "c9c65a2061d4e91268b866f0",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "f7801c6952f68e7aec61d0d501743bc85dbc1daab05aa9dcd489352d55bbd612",
+      "cdgHash": "1cbc708cd3407fdcd6e775cc38b7cce10c1cfd8ffd3407d22d2a9a245028edbb",
+      "format": "MP3+CDG",
+      "duration": 60.0294
+    },
+    "PE-1bfad9649c2681f020ef3c03": {
+      "version": "9270906bbb6b40086b520e01",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "0997c9196084831cbb3729e7c944569710b331f9080c850da0a34ba6c1adb0da",
+      "cdgHash": "2782e1166585c3bfefe6dfb3bc7c8b3ca936c23568f1624e2a8da20b3e998a64",
+      "format": "MP3+CDG",
+      "duration": 60.0294
+    },
+    "PE-5fb6a0d75949a0e31c3d599f": {
+      "version": "56f34c96dea87d8262d774bb",
+      "audioBytes": 1200633,
+      "cdgBytes": 691200,
+      "audioHash": "8e9c50becee2ab73c4b0f9b85b79df0ebf5ea18f9310f48e9ee8aa298f803a0a",
+      "cdgHash": "4cfad8ff9af36170ec6270fee92207b693135dc5c7f2dbd55b3c101bcf8244b8",
+      "format": "MP3+CDG",
+      "duration": 60.0294
+    }
+  }
+}
