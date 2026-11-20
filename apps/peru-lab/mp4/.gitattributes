@@ -1,0 +1,3 @@
+# Vendored encoder embeds WASM bytes; preserve exact content.
+cdg-webcodecs-deps.mjs binary
+*.wasm binary

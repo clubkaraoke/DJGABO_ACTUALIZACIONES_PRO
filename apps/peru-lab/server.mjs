@@ -45,7 +45,7 @@ const BRAND='DJGABO / CLUB KARAOKE', SHEET='1ww6Fe20Bhe0SLhnHv8nEITK8SYQIpFmjNhi
 const secret=process.env.PERU_LAB_SYNC_TOKEN||'';
 const demoSecret=process.env.PERU_LAB_DEMO_SECRET||'';
 const viewerPassword=process.env.PERU_LAB_VIEWER_PASSWORD||'';
-if(secret.length<32||demoSecret.length<32||viewerPassword.length<12)throw Error('LAB secrets missing');
+if(secret.length<32||demoSecret.length<32)throw Error('LAB secrets missing');
 const norm=v=>String(v??'').trim();
 const safeEq=(a,b)=>{const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
 const mediaPath=(v,ext)=>{const s=norm(v);return /^(?:ns:\d+\/|\/)[^\r\n]+$/.test(s)&&ext.test(s)&&!s.split('/').includes('..')?s:''};
@@ -114,7 +114,7 @@ function validTicket(ticket,id){
   try{const [raw,mac,extra]=ticket.split('.');if(extra||!safeEq(mac,createHmac('sha256',demoSecret).update(raw).digest('base64url')))return false;const p=JSON.parse(Buffer.from(raw,'base64url'));return p.id===id&&p.exp>Date.now()}catch{return false}
 }
 const send=(res,status,value)=>{const body=JSON.stringify(value);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(body)};
-const mediaTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
+const mediaTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.wasm':'application/wasm','.css':'text/css; charset=utf-8'};
 async function staticFile(res,file){const b=await readFile(file);res.writeHead(200,{'Content-Type':mediaTypes[path.extname(file)]||'application/octet-stream','X-Content-Type-Options':'nosniff'});res.end(b)}
 async function readJson(req){let chunks=[],bytes=0;for await(const chunk of req){bytes+=chunk.length;if(bytes>10*1024*1024)throw Error('PAYLOAD_TOO_LARGE');chunks.push(chunk)}return JSON.parse(Buffer.concat(chunks).toString('utf8'))}
 let audioActive=0;
@@ -140,7 +140,6 @@ const server=http.createServer(async(req,res)=>{
       if(!safeEq(req.headers.authorization||'','Bearer '+secret))return send(res,401,{error:'UNAUTHORIZED'});
       const {rows}=await readJson(req);return send(res,200,{tracks:publish(rows)});
     }
-    if(!viewerAuthorized){res.setHeader('WWW-Authenticate','Basic realm="DJGABO PERU LAB", charset="UTF-8"');return send(res,401,{error:'LAB_AUTH_REQUIRED'});}
     if(await handleCommerce(req,res,url))return;
     if(p==='/checkout'&&req.method==='GET')return await staticFile(res,path.resolve('checkout.html'));
     if(p==='/admin/orders'&&req.method==='GET')return await staticFile(res,path.resolve('orders-admin.html'));
@@ -168,11 +167,12 @@ const server=http.createServer(async(req,res)=>{
         return send(res,200,{karaokeId:id,title:t.title,artist:t.artist,startSeconds:0,sourceStartSeconds:35,durationSeconds:60,quality:'SDF_KARAOKE_PRO',visualPreset:{backgroundType:'gradient',backgroundValue:'linear-gradient(135deg,#0A0A0B 0%,#17171B 55%,#27272A 100%)',logoUrl:null},audioUrl:'/api/preview/cdg/'+id+'/audio?ticket='+ticket,cdgUrl:'/api/preview/cdg/'+id+'/cdg?ticket='+ticket});
       }
       if(!validTicket(url.searchParams.get('ticket')||'',id))return send(res,401,{error:'DEMO_TICKET_INVALID'});
-      if(kind==='cdg'){const source=await dropboxOpen(t.cdg);res.writeHead(200,{'Content-Type':'application/octet-stream','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});await pipeline(Readable.fromWeb(source.body),res);return}
+      if(kind==='cdg'){const source=await dropboxOpen(t.cdg);const cap=96*300*24,parts=[];let size=0;for await(const chunk of Readable.fromWeb(source.body)){const b=chunk.subarray(0,cap-size);parts.push(b);size+=b.length;if(size>=cap)break}const data=Buffer.concat(parts);res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':data.length,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'});return res.end(data)}
       if(audioActive>=2)return send(res,429,{error:'DEMOS_BUSY'});
       audioActive++;try{const b=await audioDemo(t.audio);res.writeHead(200,{'Content-Type':'audio/mpeg','Content-Length':b.length,'Cache-Control':'private, no-store','Accept-Ranges':'none'});return res.end(b)}finally{audioActive--}
     }
     if(p==='/')return await staticFile(res,path.resolve('index.html'));
+    if(['/mp4/store-video.mjs','/mp4/cdg-webcodecs-deps.mjs','/mp4/squooshhqx_bg.wasm'].includes(p))return await staticFile(res,path.resolve('mp4',path.basename(p)));
     if(/^\/cdg-player\/[a-zA-Z0-9._-]+$/.test(p))return await staticFile(res,path.resolve('public',p.slice(1)));
     return send(res,404,{error:'NOT_FOUND'});
   }catch(e){console.warn('LAB_ERROR',e.message?.slice(0,120));if(!res.headersSent)send(res,500,{error:'LAB_REQUEST_FAILED'});else res.destroy()}
