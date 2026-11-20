@@ -270,10 +270,10 @@ async function start(track,csrf){
   hqx=new SafeHqx(await loadHqxWasm());cancelled();
   const path='/api/my-karaokes/'+encodeURIComponent(track.id)+'/video';
   const auth=await fetch(path,{method:'POST',headers:{'X-CSRF-Token':csrf},credentials:'same-origin',cache:'no-store',signal:state.abort.signal});
-  if(!auth.ok)throw Error('Este karaoke todavía no está disponible en tu cuenta.');const {ticket}=await auth.json();
-  progress(3,'Preparando karaoke');const cdg=new Uint8Array(await source(path+'/cdg',ticket,'Preparando karaoke',3,10));
+  if(!auth.ok)throw Error('Este karaoke todavía no está disponible en tu cuenta.');const {ticket,deliveryUrl}=await auth.json();const mediaPath=deliveryUrl||path;
+  progress(3,'Preparando karaoke');const cdg=new Uint8Array(await source(mediaPath+'/cdg',ticket,'Preparando karaoke',3,10));
   if(cdg.length<24||cdg.length%24!==0)throw Error('El karaoke no tiene un CDG válido.');
-  progress(10,'Cargando audio');const bytes=await source(path+'/audio',ticket,'Cargando audio',10,21);cancelled();
+  progress(10,'Cargando audio');const bytes=await source(mediaPath+'/audio',ticket,'Cargando audio',10,21);cancelled();
   progress(22,'Preparando audio');const audio=await decodeWav(bytes,config.rate);cancelled();
   const painter=new FramePainter(cdg,null,hqx,quality),target=new BufferTarget();
   output=new Output({format:new Mp4OutputFormat(),target});

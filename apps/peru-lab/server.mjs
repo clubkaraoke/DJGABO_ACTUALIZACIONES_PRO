@@ -109,6 +109,15 @@ async function dropboxOpen(storagePath){
   if(!resp.ok||!resp.body){await resp.body?.cancel();throw Error('DROPBOX_CONTENT_'+resp.status)}
   return resp;
 }
+async function dropboxTemporaryLink(storagePath){
+  const m=/^ns:(\d+)\/+(.+)$/.exec(storagePath);if(!m&&!storagePath.startsWith('/'))throw Error('INVALID_STORAGE_PATH');
+  const token=await getDropboxToken();
+  const ask=async(file,namespace)=>fetch('https://api.dropboxapi.com/2/files/get_temporary_link',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json',...(namespace?{'Dropbox-API-Path-Root':headerJson({'.tag':'namespace_id',namespace_id:namespace})}:{})},body:JSON.stringify({path:file}),signal:AbortSignal.timeout(15000)});
+  let resp=await ask(m?'/'+m[2]:storagePath,m?m[1]:null);
+  if(!resp.ok&&!m&&process.env.PERU_DROPBOX_NAMESPACE){const parts=storagePath.split('/');const idx=parts.findIndex(p=>/^Pack Top Hits PERU/i.test(p));if(idx>=0){await resp.body?.cancel();resp=await ask('/'+parts.slice(idx).join('/'),process.env.PERU_DROPBOX_NAMESPACE)}}
+  if(!resp.ok){await resp.body?.cancel();throw Error('DROPBOX_LINK_'+resp.status)}
+  const {link}=await resp.json();const url=new URL(link);if(url.protocol!=='https:'||url.username||url.password||url.port||!(url.hostname==='dropboxusercontent.com'||url.hostname.endsWith('.dropboxusercontent.com')))throw Error('INVALID_DROPBOX_LINK');return url.href;
+}
 const expireTicket=id=>{let payload=Buffer.from(JSON.stringify({id,exp:Date.now()+300000})).toString('base64url');return payload+'.'+createHmac('sha256',demoSecret).update(payload).digest('base64url')};
 function validTicket(ticket,id){
   try{const [raw,mac,extra]=ticket.split('.');if(extra||!safeEq(mac,createHmac('sha256',demoSecret).update(raw).digest('base64url')))return false;const p=JSON.parse(Buffer.from(raw,'base64url'));return p.id===id&&p.exp>Date.now()}catch{return false}
@@ -130,7 +139,7 @@ async function audioDemo(storagePath){
     await done;const b=Buffer.concat(output);if(!b.length)throw Error('EMPTY_DEMO');return b;
   }finally{clearTimeout(timeout);input.destroy()}
 }
-const handleCommerce=commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret});
+const handleCommerce=commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret,dropboxTemporaryLink});
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost'),p=url.pathname;
