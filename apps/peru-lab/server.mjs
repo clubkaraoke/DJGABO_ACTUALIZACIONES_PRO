@@ -10,6 +10,35 @@ const data=process.env.DATA_DIR||'/data';
 await mkdir(data,{recursive:true});
 const db=new DatabaseSync(path.join(data,'peru.sqlite'));
 db.exec("PRAGMA journal_mode=WAL; CREATE TABLE IF NOT EXISTS tracks(id TEXT PRIMARY KEY, artist TEXT NOT NULL,title TEXT NOT NULL,cover TEXT,format TEXT NOT NULL,audio TEXT NOT NULL,cdg TEXT NOT NULL,position INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY,value TEXT);");
+
+// Datos comerciales exclusivos de la LAB. Los importes se guardan en céntimos.
+const adminSecret=process.env.PERU_LAB_ADMIN_PASSWORD||'';
+const paymentCodes=['yape','plin','transferencia','tarjeta','paypal'];
+const defaults={unitPriceCents:1500,promotions:[],offer:{enabled:false,title:'',discountPercent:0},paymentMethods:Object.fromEntries(paymentCodes.map(k=>[k,false]))};
+const settingsKey='storeSettings';
+db.prepare('INSERT INTO meta(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING').run(settingsKey,JSON.stringify(defaults));
+function settings(){return JSON.parse(db.prepare('SELECT value FROM meta WHERE key=?').get(settingsKey).value)}
+function cleanSettings(v){
+  const validPrice=n=>Number.isSafeInteger(n)&&n>=1&&n<=10000000;
+  if(!v||!validPrice(v.unitPriceCents)||!Array.isArray(v.promotions)||v.promotions.length>20)throw Error('INVALID_SETTINGS');
+  const minSet=new Set();
+  const promotions=v.promotions.map(t=>{if(!Number.isSafeInteger(t.minQty)||t.minQty<2||t.minQty>500||!validPrice(t.unitPriceCents)||t.unitPriceCents>v.unitPriceCents||minSet.has(t.minQty)||typeof t.enabled!=='boolean')throw Error('INVALID_PROMOTION');minSet.add(t.minQty);return {minQty:t.minQty,unitPriceCents:t.unitPriceCents,enabled:t.enabled}}).sort((a,b)=>a.minQty-b.minQty);
+  const o=v.offer;if(!o||typeof o.enabled!=='boolean'||typeof o.title!=='string'||o.title.length>120||!Number.isInteger(o.discountPercent)||o.discountPercent<0||o.discountPercent>99||(o.enabled&&(!o.title.trim()||o.discountPercent<1)))throw Error('INVALID_OFFER');
+  const paymentMethods=Object.fromEntries(paymentCodes.map(k=>[k,v.paymentMethods?.[k]===true]));
+  return {unitPriceCents:v.unitPriceCents,promotions,offer:{enabled:o.enabled,title:o.title.trim(),discountPercent:o.discountPercent},paymentMethods};
+}
+function quoteCart(ids){
+  if(!Array.isArray(ids)||ids.length>500||ids.some(id=>typeof id!=='string'||!/^PE-[a-f0-9]{24}$/.test(id)))throw Error('INVALID_CART');
+  const unique=[...new Set(ids)],get=db.prepare('SELECT id FROM tracks WHERE id=?');
+  if(unique.some(id=>!get.get(id)))throw Error('CART_ITEM_UNAVAILABLE');
+  const cfg=settings(),qty=unique.length,subtotalCents=qty*cfg.unitPriceCents;
+  let price=cfg.unitPriceCents,applied=null;
+  for(const tier of cfg.promotions){if(tier.enabled&&qty>=tier.minQty&&tier.unitPriceCents<price){price=tier.unitPriceCents;applied='Promoción desde '+tier.minQty+' karaokes'}}
+  if(cfg.offer.enabled&&qty){const special=Math.max(1,Math.round(cfg.unitPriceCents*(100-cfg.offer.discountPercent)/100));if(special<price){price=special;applied=cfg.offer.title}}
+  const totalCents=qty*price;
+  return {currency:'PEN',qty,unitPriceCents:price,subtotalCents,discountCents:subtotalCents-totalCents,totalCents,applied,paymentMethods:cfg.paymentMethods,checkoutEnabled:false};
+}
+
 const BRAND='DJGABO / CLUB KARAOKE', SHEET='1ww6Fe20Bhe0SLhnHv8nEITK8SYQIpFmjNhi4LKXmylk';
 const secret=process.env.PERU_LAB_SYNC_TOKEN||'';
 const demoSecret=process.env.PERU_LAB_DEMO_SECRET||'';
@@ -109,7 +138,16 @@ const server=http.createServer(async(req,res)=>{
       const {rows}=await readJson(req);return send(res,200,{tracks:publish(rows)});
     }
     if(!viewerAuthorized){res.setHeader('WWW-Authenticate','Basic realm="DJGABO PERU LAB", charset="UTF-8"');return send(res,401,{error:'LAB_AUTH_REQUIRED'});}
+    if(p==='/api/admin/store/settings'){
+      if(adminSecret.length<16||!safeEq(req.headers['x-admin-password']||'',adminSecret))return send(res,403,{error:'ADMIN_AUTH_REQUIRED'});
+      if(req.method==='GET')return send(res,200,settings());
+      if(req.method==='PUT'){try{const v=cleanSettings(await readJson(req));db.prepare('UPDATE meta SET value=? WHERE key=?').run(JSON.stringify(v),settingsKey);return send(res,200,v)}catch(e){return send(res,400,{error:e.message==='INVALID_SETTINGS'||e.message==='INVALID_PROMOTION'||e.message==='INVALID_OFFER'?e.message:'INVALID_SETTINGS'})}}
+      return send(res,405,{error:'METHOD_NOT_ALLOWED'});
+    }
+    if(p==='/api/store/settings'&&req.method==='GET')return send(res,200,settings());
+    if(p==='/api/store/quote'&&req.method==='POST'){try{return send(res,200,quoteCart((await readJson(req)).ids))}catch(e){return send(res,400,{error:e.message==='CART_ITEM_UNAVAILABLE'?e.message:'INVALID_CART'})}}
     if(req.method!=='GET')return send(res,405,{error:'METHOD_NOT_ALLOWED'});
+    if(p==='/admin')return await staticFile(res,path.resolve('admin.html'));
     if(p==='/api/catalog/peru/index.json'){
       const tracks=db.prepare('SELECT id,artist,title,cover,format FROM tracks ORDER BY position').all();
       return send(res,200,{country:'PE',tracks});
