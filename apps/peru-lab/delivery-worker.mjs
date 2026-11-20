@@ -14,7 +14,7 @@ export default {async fetch(req,env){
  const ticket=req.headers.get('X-Conversion-Ticket');if(!ticket||!/^[a-f0-9]{64}$/.test(ticket))return error(403,'TICKET_REQUIRED');
  if(typeof env.DELIVERY_SECRET!=='string'||env.DELIVERY_SECRET.length<32)return error(503,'DELIVERY_NOT_CONFIGURED');
  try{
-  const auth=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','X-Delivery-Secret':env.DELIVERY_SECRET},body:JSON.stringify({ticket,id:route[1],kind:route[2]}),redirect:'error',cache:'no-store'});
+  const auth=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','X-Delivery-Secret':env.DELIVERY_SECRET,'Cache-Control':'no-store'},body:JSON.stringify({ticket,id:route[1],kind:route[2]}),redirect:'manual'});
   if(!auth.ok){await auth.body?.cancel();return error(auth.status===403||auth.status===404?403:502,'DELIVERY_DENIED')}
   const data=await auth.json();let link=validLink(data.link);if(!link)return error(502,'INVALID_ORIGIN');
   let upstream;
