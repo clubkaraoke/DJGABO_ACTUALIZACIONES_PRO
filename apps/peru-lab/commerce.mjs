@@ -29,7 +29,7 @@ export function commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminS
  CREATE TABLE IF NOT EXISTS peru_video_tickets(token TEXT PRIMARY KEY, session TEXT NOT NULL, track_id TEXT NOT NULL, expires INTEGER NOT NULL, audio_used INTEGER NOT NULL DEFAULT 0, cdg_used INTEGER NOT NULL DEFAULT 0);
  CREATE INDEX IF NOT EXISTS peru_receipt_digest ON peru_receipts(digest); CREATE INDEX IF NOT EXISTS peru_order_customer ON peru_orders(customer);`);
  const transaction=f=>{db.exec('BEGIN IMMEDIATE');try{const v=f();db.exec('COMMIT');return v}catch(e){db.exec('ROLLBACK');throw e}};
- const session=req=>db.prepare('SELECT c.id,c.name,c.email,c.test,s.csrf FROM peru_sessions s JOIN peru_customers c ON c.id=s.customer WHERE s.token=? AND s.expires>?').get(hash(cookie(req,'peru_session')),now());
+ const session=req=>db.prepare('SELECT c.id,c.name,c.email,c.test,c.created,s.csrf FROM peru_sessions s JOIN peru_customers c ON c.id=s.customer WHERE s.token=? AND s.expires>?').get(hash(cookie(req,'peru_session')),now());
  const requireUser=req=>{const u=session(req);if(!u)throw err(401,'LOGIN_REQUIRED');return u};
  const csrf=(req,u)=>{if(!eq(req.headers['x-csrf-token'],u.csrf))throw err(403,'CSRF_REQUIRED')};
  const admin=req=>{if(adminSecret.length<16||!eq(req.headers['x-admin-password'],adminSecret))throw err(403,'ADMIN_AUTH_REQUIRED')};
@@ -57,6 +57,8 @@ export function commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminS
    if(req.headers['x-lab-test']!=='1')throw err(403,'LAB_ONLY');
    let u=session(req);if(!u){const id='test-'+rand();db.prepare('INSERT INTO peru_customers VALUES(?,?,?,?,?)').run(id,null,'Cliente de prueba',1,now());addSession(res,id)}send(res,200,{ok:true});return true;
  }
+ if(p==='/api/customer/sessions'&&m==='GET'){const u=requireUser(req),current=hash(cookie(req,'peru_session'));const others=db.prepare('SELECT COUNT(*) n FROM peru_sessions WHERE customer=? AND expires>? AND token<>?').get(u.id,now(),current).n;send(res,200,{others});return true}
+ if(p==='/api/customer/sessions'&&m==='DELETE'){const u=requireUser(req);csrf(req,u);const current=hash(cookie(req,'peru_session'));db.prepare('DELETE FROM peru_sessions WHERE customer=? AND token<>?').run(u.id,current);send(res,200,{ok:true});return true}
  if(p==='/api/customer/logout'&&m==='POST'){const u=requireUser(req);csrf(req,u);db.prepare('DELETE FROM peru_sessions WHERE token=?').run(hash(cookie(req,'peru_session')));setCookie(res,'peru_session','',0);send(res,200,{ok:true});return true}
  if(p==='/api/customer/google/start'&&m==='GET'){
    if(!googleReady())throw err(503,'GOOGLE_NOT_CONFIGURED');const state=rand(),verifier=rand();db.prepare('DELETE FROM peru_oauth WHERE expires<?').run(now());db.prepare('INSERT INTO peru_oauth VALUES(?,?,?)').run(hash(state),verifier,now()+600000);setCookie(res,'peru_oauth',state,600);
