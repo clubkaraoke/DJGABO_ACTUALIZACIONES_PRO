@@ -1,4 +1,6 @@
 import http from 'node:http';
+
+import {commerce} from './commerce.mjs';
 import {readFile, mkdir} from 'node:fs/promises';
 import {createHmac, createHash, createSign, timingSafeEqual} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
@@ -128,6 +130,7 @@ async function audioDemo(storagePath){
     await done;const b=Buffer.concat(output);if(!b.length)throw Error('EMPTY_DEMO');return b;
   }finally{clearTimeout(timeout);input.destroy()}
 }
+const handleCommerce=commerce({db,send,readJson,settings,quoteCart,dropboxOpen,adminSecret});
 const server=http.createServer(async(req,res)=>{
   try{
     const url=new URL(req.url,'http://localhost'),p=url.pathname;
@@ -138,6 +141,9 @@ const server=http.createServer(async(req,res)=>{
       const {rows}=await readJson(req);return send(res,200,{tracks:publish(rows)});
     }
     if(!viewerAuthorized){res.setHeader('WWW-Authenticate','Basic realm="DJGABO PERU LAB", charset="UTF-8"');return send(res,401,{error:'LAB_AUTH_REQUIRED'});}
+    if(await handleCommerce(req,res,url))return;
+    if(p==='/checkout'&&req.method==='GET')return await staticFile(res,path.resolve('checkout.html'));
+    if(p==='/admin/orders'&&req.method==='GET')return await staticFile(res,path.resolve('orders-admin.html'));
     if(p==='/api/admin/store/settings'){
       if(adminSecret.length<16||!safeEq(req.headers['x-admin-password']||'',adminSecret))return send(res,403,{error:'ADMIN_AUTH_REQUIRED'});
       if(req.method==='GET')return send(res,200,settings());
